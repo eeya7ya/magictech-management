@@ -34,7 +34,7 @@ public class MainDashboardController {
 
     @FXML
     public void initialize() {
-        loadModules();
+        // Don't load modules here - currentUser is null at this point
         //playEntranceAnimation();
     }
 
@@ -54,6 +54,9 @@ public class MainDashboardController {
                     currentUser.getRole() == com.magictech.core.auth.UserRole.MASTER
                 );
             }
+
+            // ✅ FIX: Load modules AFTER user is set
+            loadModules();
         }
     }
 
