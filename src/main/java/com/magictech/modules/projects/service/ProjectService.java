@@ -1,5 +1,6 @@
 package com.magictech.modules.projects.service;
 
+import com.magictech.core.notification.NotificationService;
 import com.magictech.modules.projects.entity.Project;
 import com.magictech.modules.projects.repository.ProjectRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,6 +21,9 @@ public class ProjectService {
 
     @Autowired
     private ProjectRepository repository;
+
+    @Autowired
+    private NotificationService notificationService;
 
     /**
      * Get all active projects
@@ -52,7 +56,24 @@ public class ProjectService {
             project.setDateAdded(LocalDateTime.now());
         }
         project.setActive(true);
-        return repository.save(project);
+        Project savedProject = repository.save(project);
+
+        // Create notification for PROJECTS module
+        notificationService.createNotificationWithRelation(
+            "PROJECTS",  // targetRole
+            "PROJECTS",  // module
+            "PROJECT_CREATED",  // type
+            "New Project Created",  // title
+            String.format("Project '%s' has been created", savedProject.getProjectName()),  // message
+            savedProject.getId(),  // relatedId
+            "PROJECT",  // relatedType
+            "NORMAL",  // priority
+            project.getCreatedBy() != null ? project.getCreatedBy() : "System"  // createdBy
+        );
+
+        System.out.println("✓ Notification created for new project: " + savedProject.getProjectName());
+
+        return savedProject;
     }
 
     /**
@@ -63,6 +84,8 @@ public class ProjectService {
 
         if (existingProject.isPresent()) {
             Project project = existingProject.get();
+            String oldStatus = project.getStatus();
+
             project.setProjectName(updatedProject.getProjectName());
             project.setProjectLocation(updatedProject.getProjectLocation());
             project.setDateOfIssue(updatedProject.getDateOfIssue());
@@ -71,7 +94,29 @@ public class ProjectService {
             project.setNotes(updatedProject.getNotes());
             project.setLastUpdated(LocalDateTime.now());
 
-            return repository.save(project);
+            Project saved = repository.save(project);
+
+            // If project status changed to "Completed", notify PRICING module
+            if (updatedProject.getStatus() != null &&
+                updatedProject.getStatus().equalsIgnoreCase("Completed") &&
+                !updatedProject.getStatus().equalsIgnoreCase(oldStatus)) {
+
+                notificationService.createNotificationWithRelation(
+                    "PRICING",  // targetRole
+                    "PRICING",  // module
+                    "PROJECT_COMPLETED",  // type
+                    "Project Completed",  // title
+                    String.format("Project '%s' has been completed and needs pricing finalization", saved.getProjectName()),  // message
+                    saved.getId(),  // relatedId
+                    "PROJECT",  // relatedType
+                    "HIGH",  // priority
+                    project.getCreatedBy() != null ? project.getCreatedBy() : "System"  // createdBy
+                );
+
+                System.out.println("✓ Pricing notification created for completed project: " + saved.getProjectName());
+            }
+
+            return saved;
         }
 
         throw new RuntimeException("Project not found with id: " + id);

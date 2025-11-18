@@ -288,4 +288,15 @@ public class NotificationManager {
     public void refresh() {
         loadNotifications();
     }
+
+    /**
+     * Get unread count for a specific module
+     */
+    public long getUnreadCountByModule(String module) {
+        if (currentUser == null) return 0;
+
+        return notifications.stream()
+                .filter(n -> !n.getIsRead() && module.equalsIgnoreCase(n.getModule()))
+                .count();
+    }
 }

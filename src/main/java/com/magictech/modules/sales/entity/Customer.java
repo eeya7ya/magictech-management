@@ -37,6 +37,9 @@ public class Customer {
     @Column(length = 1000)
     private String notes;
 
+    @Column(length = 50)
+    private String status; // e.g., "Active", "Pending", "Completed"
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -163,6 +166,14 @@ public class Customer {
         this.active = active;
     }
 
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
+    }
+
     // Lifecycle callbacks
     @PrePersist
     protected void onCreate() {
@@ -170,6 +181,9 @@ public class Customer {
         this.updatedAt = LocalDateTime.now();
         if (this.active == null) {
             this.active = true;
+        }
+        if (this.status == null) {
+            this.status = "Active";
         }
     }
 
