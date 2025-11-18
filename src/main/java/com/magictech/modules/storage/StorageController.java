@@ -355,7 +355,7 @@ public class StorageController extends BaseModuleController {
         addButton.setOnAction(e -> handleAdd());
 
         openProjectButton = createStyledButton("📂 Open", "#6366f1", "#4f46e5");
-        openProjectButton.setOnAction(e -> handleOpenProject());
+        // Project management moved to separate module
         openProjectButton.setDisable(true);
         openProjectButton.setVisible(false);
         openProjectButton.setManaged(false);
@@ -866,25 +866,22 @@ public class StorageController extends BaseModuleController {
     private void handleAdd() {
         if (currentTable == ActiveTable.STORAGE) {
             handleAddStorageItem();
-        } else {
-            handleAddProject();
         }
+        // Analytics view is read-only
     }
 
     private void handleEdit() {
         if (currentTable == ActiveTable.STORAGE) {
             handleEditStorageItem();
-        } else {
-            handleEditProject();
         }
+        // Analytics view is read-only
     }
 
     private void handleDelete() {
         if (currentTable == ActiveTable.STORAGE) {
             handleDeleteStorageItems();
-        } else {
-            handleDeleteProjects();
         }
+        // Analytics view is read-only
     }
 
     private void handleSearch(String searchText) {
@@ -897,37 +894,28 @@ public class StorageController extends BaseModuleController {
                         item.getCode().toLowerCase().contains(lower) ||
                         item.getSerialNumber().toLowerCase().contains(lower);
             });
-        } else {
-            filteredProjects.setPredicate(item -> {
-                if (searchText == null || searchText.isEmpty()) return true;
-                String lower = searchText.toLowerCase();
-                return item.getProjectName().toLowerCase().contains(lower) ||
-                        item.getProjectLocation().toLowerCase().contains(lower) ||
-                        item.getStatus().toLowerCase().contains(lower);
-            });
         }
+        // Analytics view doesn't have search filtering
     }
 
     private void updateSelectedCount() {
-        long count;
+        long count = 0;
         if (currentTable == ActiveTable.STORAGE) {
             count = storageSelectionMap.values().stream().filter(BooleanProperty::get).count();
-        } else {
-            count = projectSelectionMap.values().stream().filter(BooleanProperty::get).count();
         }
+        // Analytics view doesn't have selection
 
+        final long finalCount = count;
         Platform.runLater(() -> {
-            if (count > 0) {
-                selectedCountLabel.setText("✓ " + count + " item(s) selected");
+            if (finalCount > 0) {
+                selectedCountLabel.setText("✓ " + finalCount + " item(s) selected");
                 selectedCountLabel.setVisible(true);
                 deleteButton.setDisable(false);
-                editButton.setDisable(count != 1);
-                openProjectButton.setDisable(currentTable != ActiveTable.PROJECTS || count != 1);
+                editButton.setDisable(finalCount != 1);
             } else {
                 selectedCountLabel.setVisible(false);
                 deleteButton.setDisable(true);
                 editButton.setDisable(true);
-                openProjectButton.setDisable(true);
             }
         });
     }
@@ -1135,297 +1123,13 @@ public class StorageController extends BaseModuleController {
 
     // ==================== PROJECT CRUD ====================
 
-    private void handleAddProject() {
-        Dialog<ProjectViewModel> dialog = createProjectDialog(null);
-        Optional<ProjectViewModel> result = dialog.showAndWait();
-
-        result.ifPresent(vm -> {
-            Task<Project> saveTask = new Task<>() {
-                @Override
-                protected Project call() {
-                    Project entity = new Project();
-                    entity.setProjectName(vm.getProjectName());
-                    entity.setProjectLocation(vm.getProjectLocation());
-                    if (!vm.getDateOfIssue().isEmpty()) {
-                        entity.setDateOfIssue(LocalDate.parse(vm.getDateOfIssue()));
-                    }
-                    if (!vm.getDateOfCompletion().isEmpty()) {
-                        entity.setDateOfCompletion(LocalDate.parse(vm.getDateOfCompletion()));
-                    }
-                    entity.setStatus(vm.getStatus());
-                    entity.setCreatedBy(currentUser != null ? currentUser.getUsername() : "system");
-                    return projectService.createProject(entity);
-                }
-            };
-
-            saveTask.setOnSucceeded(e -> {
-                Project saved = saveTask.getValue();
-                ProjectViewModel savedVM = convertProjectToViewModel(saved);
-                Platform.runLater(() -> {
-                    projectItems.add(savedVM);
-                    projectSelectionMap.put(savedVM, new SimpleBooleanProperty(false));
-                    showSuccess("✓ Project created!");
-                });
-            });
-
-            saveTask.setOnFailed(e -> showError("Failed to save: " + saveTask.getException().getMessage()));
-            new Thread(saveTask).start();
-        });
-    }
-
-    private void handleEditProject() {
-        List<ProjectViewModel> selected = projectSelectionMap.entrySet().stream()
-                .filter(e -> e.getValue().get())
-                .map(Map.Entry::getKey)
-                .collect(Collectors.toList());
-
-        if (selected.isEmpty()) {
-            showWarning("Please select a project to edit");
-            return;
-        }
-        if (selected.size() > 1) {
-            showWarning("Please select only ONE project to edit");
-            return;
-        }
-
-        ProjectViewModel project = selected.get(0);
-        Dialog<ProjectViewModel> dialog = createProjectDialog(project);
-        Optional<ProjectViewModel> result = dialog.showAndWait();
-
-        result.ifPresent(updated -> {
-            Task<Project> updateTask = new Task<>() {
-                @Override
-                protected Project call() {
-                    Project entity = new Project();
-                    entity.setProjectName(updated.getProjectName());
-                    entity.setProjectLocation(updated.getProjectLocation());
-                    if (!updated.getDateOfIssue().isEmpty()) {
-                        entity.setDateOfIssue(LocalDate.parse(updated.getDateOfIssue()));
-                    }
-                    if (!updated.getDateOfCompletion().isEmpty()) {
-                        entity.setDateOfCompletion(LocalDate.parse(updated.getDateOfCompletion()));
-                    }
-                    entity.setStatus(updated.getStatus());
-                    return projectService.updateProject(project.getId(), entity);
-                }
-            };
-
-            updateTask.setOnSucceeded(e -> {
-                Platform.runLater(() -> {
-                    project.setProjectName(updated.getProjectName());
-                    project.setProjectLocation(updated.getProjectLocation());
-                    project.setDateOfIssue(updated.getDateOfIssue());
-                    project.setDateOfCompletion(updated.getDateOfCompletion());
-                    project.setStatus(updated.getStatus());
-                    projectsTable.refresh();
-                    showSuccess("✓ Project updated!");
-                });
-            });
-
-            updateTask.setOnFailed(e -> showError("Update failed: " + updateTask.getException().getMessage()));
-            new Thread(updateTask).start();
-        });
-    }
-
-    private void handleDeleteProjects() {
-        List<ProjectViewModel> selected = projectSelectionMap.entrySet().stream()
-                .filter(e -> e.getValue().get())
-                .map(Map.Entry::getKey)
-                .collect(Collectors.toList());
-
-        if (selected.isEmpty()) {
-            showWarning("Please select projects to delete");
-            return;
-        }
-
-        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
-        confirm.setTitle("⚠️ DELETE");
-        confirm.setHeaderText("DELETE " + selected.size() + " project(s)?");
-        confirm.setContentText("This action cannot be undone!");
-
-        Optional<ButtonType> result = confirm.showAndWait();
-        if (result.isPresent() && result.get() == ButtonType.OK) {
-            Task<Void> deleteTask = new Task<>() {
-                @Override
-                protected Void call() {
-                    List<Long> ids = selected.stream().map(ProjectViewModel::getId).collect(Collectors.toList());
-                    projectService.deleteProjects(ids);
-                    return null;
-                }
-            };
-
-            deleteTask.setOnSucceeded(e -> {
-                Platform.runLater(() -> {
-                    for (ProjectViewModel item : selected) {
-                        projectItems.remove(item);
-                        projectSelectionMap.remove(item);
-                    }
-                    showSuccess("✓ Deleted " + selected.size() + " project(s)");
-                });
-            });
-
-            deleteTask.setOnFailed(e -> showError("Delete failed: " + deleteTask.getException().getMessage()));
-            new Thread(deleteTask).start();
-        }
-    }
-
-    // ==================== DIALOGS ====================
-
-    private Dialog<StorageItemViewModel> createStorageDialog(StorageItemViewModel existing) {
-        Dialog<StorageItemViewModel> dialog = new Dialog<>();
-        dialog.setTitle(existing == null ? "Add Storage Item" : "Edit Storage Item");
-
-        ButtonType saveBtn = new ButtonType("Save", ButtonBar.ButtonData.OK_DONE);
-        dialog.getDialogPane().getButtonTypes().addAll(saveBtn, ButtonType.CANCEL);
-
-        GridPane grid = new GridPane();
-        grid.setHgap(10);
-        grid.setVgap(12);
-        grid.setPadding(new Insets(20));
-
-        TextField mfgField = new TextField(existing != null ? existing.getManufacture() : "");
-        mfgField.setPromptText("Manufacture");
-
-        TextField nameField = new TextField(existing != null ? existing.getProductName() : "");
-        nameField.setPromptText("Product Name (Required)");
-
-        TextField codeField = new TextField(existing != null ? existing.getCode() : "");
-        codeField.setPromptText("Code");
-
-        TextField serialField = new TextField(existing != null ? existing.getSerialNumber() : "");
-        serialField.setPromptText("Serial Number");
-
-        Spinner<Integer> qtySpinner = new Spinner<>(0, 999999,
-                existing != null ? existing.getQuantity() : 0);
-        qtySpinner.setEditable(true);
-
-        TextField priceField = new TextField(
-                existing != null && existing.getPrice() != null ?
-                        existing.getPrice().toString() : "0.00");
-        priceField.setPromptText("Price");
-
-        grid.add(new Label("Manufacture:"), 0, 0);
-        grid.add(mfgField, 1, 0);
-        grid.add(new Label("Product Name:*"), 0, 1);
-        grid.add(nameField, 1, 1);
-        grid.add(new Label("Code:"), 0, 2);
-        grid.add(codeField, 1, 2);
-        grid.add(new Label("Serial Number:"), 0, 3);
-        grid.add(serialField, 1, 3);
-        grid.add(new Label("Quantity:"), 0, 4);
-        grid.add(qtySpinner, 1, 4);
-        grid.add(new Label("Price:"), 0, 5);
-        grid.add(priceField, 1, 5);
-
-        dialog.getDialogPane().setContent(grid);
-
-        dialog.setResultConverter(btn -> {
-            if (btn == saveBtn && !nameField.getText().trim().isEmpty()) {
-                StorageItemViewModel vm = new StorageItemViewModel();
-                vm.setManufacture(mfgField.getText().trim());
-                vm.setProductName(nameField.getText().trim());
-                vm.setCode(codeField.getText().trim());
-                vm.setSerialNumber(serialField.getText().trim());
-                vm.setQuantity(qtySpinner.getValue());
-                try {
-                    vm.setPrice(new BigDecimal(priceField.getText().trim()));
-                } catch (Exception e) {
-                    vm.setPrice(BigDecimal.ZERO);
-                }
-                return vm;
-            }
-            return null;
-        });
-
-        return dialog;
-    }
-
-    private Dialog<ProjectViewModel> createProjectDialog(ProjectViewModel existing) {
-        Dialog<ProjectViewModel> dialog = new Dialog<>();
-        dialog.setTitle(existing == null ? "Add Project" : "Edit Project");
-
-        ButtonType saveBtn = new ButtonType("Save", ButtonBar.ButtonData.OK_DONE);
-        dialog.getDialogPane().getButtonTypes().addAll(saveBtn, ButtonType.CANCEL);
-
-        GridPane grid = new GridPane();
-        grid.setHgap(10);
-        grid.setVgap(12);
-        grid.setPadding(new Insets(20));
-        grid.setPrefWidth(500);
-
-        TextField nameField = new TextField(existing != null ? existing.getProjectName() : "");
-        nameField.setPromptText("Project Name (Required)");
-
-        TextField locationField = new TextField(existing != null ? existing.getProjectLocation() : "");
-        locationField.setPromptText("Project Location");
-
-        DatePicker issueDate = new DatePicker();
-        if (existing != null && !existing.getDateOfIssue().isEmpty()) {
-            issueDate.setValue(LocalDate.parse(existing.getDateOfIssue()));
-        }
-
-        DatePicker completionDate = new DatePicker();
-        if (existing != null && !existing.getDateOfCompletion().isEmpty()) {
-            completionDate.setValue(LocalDate.parse(existing.getDateOfCompletion()));
-        }
-
-        ComboBox<String> statusBox = new ComboBox<>();
-        statusBox.getItems().addAll("Planning", "In Progress", "On Hold", "Completed");
-        statusBox.setValue(existing != null ? existing.getStatus() : "Planning");
-
-        grid.add(new Label("Project Name:*"), 0, 0);
-        grid.add(nameField, 1, 0);
-        grid.add(new Label("Location:"), 0, 1);
-        grid.add(locationField, 1, 1);
-        grid.add(new Label("Date of Issue:"), 0, 2);
-        grid.add(issueDate, 1, 2);
-        grid.add(new Label("Date of Completion:"), 0, 3);
-        grid.add(completionDate, 1, 3);
-        grid.add(new Label("Status:"), 0, 4);
-        grid.add(statusBox, 1, 4);
-
-        dialog.getDialogPane().setContent(grid);
-
-        dialog.setResultConverter(btn -> {
-            if (btn == saveBtn && !nameField.getText().trim().isEmpty()) {
-                ProjectViewModel vm = new ProjectViewModel();
-                vm.setProjectName(nameField.getText().trim());
-                vm.setProjectLocation(locationField.getText().trim());
-                vm.setDateOfIssue(issueDate.getValue() != null ?
-                        issueDate.getValue().format(DateTimeFormatter.ofPattern("yyyy-MM-dd")) : "");
-                vm.setDateOfCompletion(completionDate.getValue() != null ?
-                        completionDate.getValue().format(DateTimeFormatter.ofPattern("yyyy-MM-dd")) : "");
-                vm.setStatus(statusBox.getValue());
-                return vm;
-            }
-            return null;
-        });
-
-        return dialog;
-    }
-
-    // ==================== LIFECYCLE ====================
-
-    private void handleBack() {
-        if (backgroundPane != null) {
-            backgroundPane.stopAnimation();
-        }
-        SceneManager.getInstance().showMainDashboard();
-    }
-
-    public void immediateCleanup() {
-        if (backgroundPane != null) {
-            backgroundPane.stopAnimation();
-            backgroundPane = null;
-        }
-        System.out.println("✓ Storage master controller cleaned up");
-    }
-
     @Override
     public void refresh() {
-        storageSelectionMap.clear();
-        projectSelectionMap.clear();
-        loadStorageData();
-        loadProjectsData();
+        if (currentTable == ActiveTable.STORAGE) {
+            storageSelectionMap.clear();
+            loadStorageData();
+        } else if (currentTable == ActiveTable.ANALYTICS) {
+            refreshAnalytics();
+        }
     }
 }

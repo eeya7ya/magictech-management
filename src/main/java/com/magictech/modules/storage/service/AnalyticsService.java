@@ -76,7 +76,7 @@ public class AnalyticsService {
             try {
                 Optional<ProjectCostBreakdown> breakdown = costBreakdownService.getBreakdownByProject(project.getId());
                 if (breakdown.isPresent()) {
-                    dto.setTotalCost(breakdown.get().getTotalAmount());
+                    dto.setTotalCost(breakdown.get().getTotalCost());
                 } else {
                     // Fallback: calculate from elements
                     BigDecimal elementsTotal = BigDecimal.ZERO;
@@ -129,7 +129,7 @@ public class AnalyticsService {
             // Get last order date
             if (!orders.isEmpty()) {
                 dto.setLastOrderDate(orders.stream()
-                    .map(SalesOrder::getDateAdded)
+                    .map(SalesOrder::getCreatedAt)
                     .max(java.time.LocalDateTime::compareTo)
                     .orElse(null));
             }

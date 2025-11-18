@@ -112,8 +112,10 @@ public class PricingController extends BaseModuleController {
         titleLabel.setStyle("-fx-text-fill: white; -fx-font-size: 32px; -fx-font-weight: bold;");
         HBox.setHgrow(titleLabel, Priority.ALWAYS);
 
-        Button backButton = createStyledButton("← Back", "#1f2937", "#111827");
-        backButton.setOnAction(e -> navigateToDashboard());
+        Button backButton = new Button("← Back");
+        backButton.setStyle("-fx-background-color: #1f2937; -fx-text-fill: white; -fx-font-size: 14px; " +
+                "-fx-font-weight: 600; -fx-padding: 10 20; -fx-background-radius: 8; -fx-cursor: hand;");
+        backButton.setOnAction(e -> com.magictech.core.ui.SceneManager.getInstance().showMainDashboard());
 
         headerBar.getChildren().addAll(titleLabel, backButton);
 
@@ -238,10 +240,14 @@ public class PricingController extends BaseModuleController {
             });
         });
 
-        editPriceButton = createStyledButton("💵 Edit Price", "#eab308", "#ca8a04");
+        editPriceButton = new Button("💵 Edit Price");
+        editPriceButton.setStyle("-fx-background-color: #eab308; -fx-text-fill: white; -fx-font-size: 14px; " +
+                "-fx-font-weight: 600; -fx-padding: 10 20; -fx-background-radius: 8; -fx-cursor: hand;");
         editPriceButton.setOnAction(e -> handleEditPrice());
 
-        refreshButton = createStyledButton("🔄 Refresh", "#6b7280", "#4b5563");
+        refreshButton = new Button("🔄 Refresh");
+        refreshButton.setStyle("-fx-background-color: #6b7280; -fx-text-fill: white; -fx-font-size: 14px; " +
+                "-fx-font-weight: 600; -fx-padding: 10 20; -fx-background-radius: 8; -fx-cursor: hand;");
         refreshButton.setOnAction(e -> refresh());
 
         Region spacer = new Region();
@@ -570,7 +576,7 @@ public class PricingController extends BaseModuleController {
             Task<Void> updateTask = new Task<>() {
                 @Override
                 protected Void call() {
-                    StorageItem entity = storageService.findById(item.getId()).orElseThrow(() -> new RuntimeException("Item not found"));
+                    StorageItem entity = storageService.getItemById(item.getId()).orElseThrow(() -> new RuntimeException("Item not found"));
                     entity.setPrice(newPrice);
                     storageService.updateItem(item.getId(), entity);
                     return null;
@@ -630,7 +636,7 @@ public class PricingController extends BaseModuleController {
                 @Override
                 protected Void call() {
                     for (StorageItemViewModel item : items) {
-                        StorageItem entity = storageService.findById(item.getId()).orElseThrow(() -> new RuntimeException("Item not found: " + item.getId()));
+                        StorageItem entity = storageService.getItemById(item.getId()).orElseThrow(() -> new RuntimeException("Item not found: " + item.getId()));
                         entity.setPrice(newPrice);
                         storageService.updateItem(item.getId(), entity);
                     }
@@ -673,7 +679,6 @@ public class PricingController extends BaseModuleController {
         return vm;
     }
 
-    @Override
     public void immediateCleanup() {
         if (backgroundPane != null) {
             backgroundPane.stopAnimation();
