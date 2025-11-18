@@ -204,6 +204,41 @@ public class AuthenticationService {
     }
 
     /**
+     * Get all users (including inactive)
+     */
+    public List<User> getAllUsers() {
+        return userRepository.findAll();
+    }
+
+    /**
+     * Create new user
+     */
+    @Transactional
+    public User createUser(User user) {
+        if (userRepository.existsByUsernameIgnoreCase(user.getUsername())) {
+            throw new IllegalArgumentException("Username already exists");
+        }
+        return userRepository.save(user);
+    }
+
+    /**
+     * Update existing user
+     */
+    @Transactional
+    public User updateUser(User user) {
+        User existingUser = userRepository.findById(user.getId())
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        // Update fields
+        existingUser.setPassword(user.getPassword());
+        existingUser.setRole(user.getRole());
+        existingUser.setActive(user.getActive());
+        existingUser.setPhotoPath(user.getPhotoPath());
+
+        return userRepository.save(existingUser);
+    }
+
+    /**
      * Get total user count
      */
     public long getTotalUsers() {

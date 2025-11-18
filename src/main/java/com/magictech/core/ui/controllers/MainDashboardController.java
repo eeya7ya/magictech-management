@@ -22,9 +22,13 @@ public class MainDashboardController {
     @FXML private Label welcomeLabel;
     @FXML private Label roleLabel;
     @FXML private FlowPane modulesContainer;
+    @FXML private javafx.scene.control.Button userManagementButton;
 
     @Autowired
     private SceneManager sceneManager;
+
+    @Autowired
+    private UserManagementController userManagementController;
 
     private User currentUser;
 
@@ -40,6 +44,16 @@ public class MainDashboardController {
         if (currentUser != null) {
             welcomeLabel.setText("Welcome, " + currentUser.getUsername());
             roleLabel.setText("Role: " + currentUser.getRole().getDisplayName());
+
+            // Show user management button only for MASTER role
+            if (userManagementButton != null) {
+                userManagementButton.setVisible(
+                    currentUser.getRole() == com.magictech.core.auth.UserRole.MASTER
+                );
+                userManagementButton.setManaged(
+                    currentUser.getRole() == com.magictech.core.auth.UserRole.MASTER
+                );
+            }
         }
     }
 
@@ -220,6 +234,13 @@ public class MainDashboardController {
             dashboardBackground = null;
         }
         System.out.println("✓ Dashboard cleaned up immediately");
+    }
+
+    @FXML
+    private void handleUserManagement() {
+        if (currentUser != null && currentUser.getRole() == com.magictech.core.auth.UserRole.MASTER) {
+            userManagementController.showUserManagement(sceneManager.getPrimaryStage());
+        }
     }
 
     @FXML

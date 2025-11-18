@@ -123,17 +123,6 @@
 
         <!-- Footer Actions -->
         <VBox alignment="CENTER" spacing="20" maxWidth="440">
-
-            <!-- View Test Users Button -->
-            <Button text="View Test Users"
-                    onAction="#showAvailableUsers"
-                    maxWidth="360"
-                    style="-fx-background-color: rgba(30, 41, 59, 0.4); -fx-text-fill: rgba(255, 255, 255, 0.85); -fx-pref-height: 48px; -fx-background-radius: 12; -fx-border-color: rgba(139, 92, 246, 0.3); -fx-border-width: 1.5; -fx-border-radius: 12; -fx-font-size: 14px; -fx-font-weight: 600; -fx-cursor: hand;">
-                <graphic>
-                    <Label text="🔍" style="-fx-font-size: 16px;"/>
-                </graphic>
-            </Button>
-
             <!-- Copyright -->
             <Label text="© 2026 MagicTechnology • Secure Smart System"
                    style="-fx-text-fill: rgba(255, 255, 255, 0.4); -fx-font-size: 12px;"/>
