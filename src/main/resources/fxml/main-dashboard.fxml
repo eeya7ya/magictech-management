@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.text.*?>
+<?import com.magictech.core.ui.components.DashboardBackgroundPane?>
+
+<StackPane xmlns="http://javafx.com/javafx"
+           xmlns:fx="http://javafx.com/fxml"
+           fx:controller="com.magictech.core.ui.controllers.MainDashboardController">
+
+    <!-- Animated Gradient Background -->
+    <DashboardBackgroundPane fx:id="dashboardBackground"/>
+
+    <!-- Main Dashboard Content -->
+    <BorderPane fx:id="dashboardRoot" styleClass="dashboard-root">
+
+        <!-- Top Header Bar -->
+        <top>
+            <VBox styleClass="header-container">
+                <HBox alignment="CENTER_LEFT" spacing="20" styleClass="header-bar">
+                    <padding>
+                        <Insets top="20" right="30" bottom="20" left="30"/>
+                    </padding>
+
+                    <VBox spacing="5" HBox.hgrow="ALWAYS">
+                        <Label text="MagicTechnology Management System" styleClass="header-title">
+                            <font>
+                                <Font name="System Bold" size="24"/>
+                            </font>
+                        </Label>
+                        <HBox spacing="15" alignment="CENTER_LEFT">
+                            <Label fx:id="welcomeLabel" text="Welcome, User" styleClass="welcome-text">
+                                <font>
+                                    <Font size="14"/>
+                                </font>
+                            </Label>
+                            <Separator orientation="VERTICAL" style="-fx-background-color: rgba(255,255,255,0.2);"/>
+                            <Label fx:id="roleLabel" text="Role: Master" styleClass="role-badge">
+                                <font>
+                                    <Font name="System Bold" size="12"/>
+                                </font>
+                            </Label>
+                        </HBox>
+                    </VBox>
+
+                    <Button fx:id="logoutButton" text="Logout" onAction="#handleLogout" styleClass="logout-button">
+                        <font>
+                            <Font name="System Bold" size="13"/>
+                        </font>
+                    </Button>
+                </HBox>
+
+                <!-- Subtitle Section -->
+                <HBox alignment="CENTER" styleClass="subtitle-bar">
+                    <padding>
+                        <Insets top="15" right="30" bottom="15" left="30"/>
+                    </padding>
+                    <Label text="Enterprise Architecture &amp; Workflow Design" styleClass="subtitle-text">
+                        <font>
+                            <Font size="15"/>
+                        </font>
+                    </Label>
+                </HBox>
+            </VBox>
+        </top>
+
+        <!-- Main Content Area -->
+        <center>
+            <ScrollPane fitToWidth="true" fitToHeight="true" styleClass="main-scroll"
+                        style="-fx-background: transparent; -fx-background-color: transparent;">
+                <VBox spacing="30" styleClass="content-container main-scroll"
+                      style="-fx-background: transparent; -fx-background-color: transparent;">
+                    <padding>
+                        <Insets top="30" right="30" bottom="50" left="30"/>
+                    </padding>
+
+                    <!-- Section Title -->
+                    <VBox spacing="10" alignment="CENTER">
+                        <Label text="Core System Modules" styleClass="section-title">
+                            <font>
+                                <Font name="System Bold" size="22"/>
+                            </font>
+                        </Label>
+                        <Label text="Select a module to access its features and functionality"
+                               styleClass="section-description">
+                            <font>
+                                <Font size="14"/>
+                            </font>
+                        </Label>
+                    </VBox>
+
+                    <!-- Modules Container -->
+                    <FlowPane fx:id="modulesContainer"
+                              styleClass="modules-grid"
+                              hgap="24"
+                              vgap="24"
+                              alignment="CENTER">
+                        <!-- Module cards will be added dynamically -->
+                    </FlowPane>
+
+
+                </VBox>
+            </ScrollPane>
+        </center>
+
+        <!-- Bottom Status Bar -->
+        <bottom>
+            <HBox alignment="CENTER" styleClass="status-bar">
+                <padding>
+                    <Insets top="12" right="30" bottom="12" left="30"/>
+                </padding>
+                <Label text="System Status: Online | Java 21 Runtime | © 2026 MagicTechnology"
+                       styleClass="status-text">
+                    <font>
+                        <Font size="11"/>
+                    </font>
+                </Label>
+            </HBox>
+        </bottom>
+
+    </BorderPane>
+
+</StackPane>

@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.text.*?>
+<?import com.magictech.core.ui.components.GradientBackgroundPane?>
+
+<StackPane fx:id="loginRoot"
+           xmlns="http://javafx.com/javafx"
+           xmlns:fx="http://javafx.com/fxml"
+           fx:controller="com.magictech.core.ui.controllers.LoginController">
+
+    <!-- Animated Gradient Background -->
+    <GradientBackgroundPane fx:id="gradientBackground"/>
+
+    <!-- Main Content Container -->
+    <VBox alignment="CENTER" spacing="32" maxWidth="440" styleClass="main-container">
+
+        <!-- Logo & Branding Section -->
+        <VBox alignment="CENTER" spacing="20" styleClass="branding-section">
+
+            <!-- Icon with modern glow -->
+            <StackPane style="-fx-pref-width: 80; -fx-pref-height: 80; -fx-background-color: rgba(139, 92, 246, 0.15); -fx-background-radius: 20; -fx-border-color: rgba(139, 92, 246, 0.3); -fx-border-width: 1; -fx-border-radius: 20;">
+                <Label text="⚡" style="-fx-font-size: 48px; -fx-effect: dropshadow(gaussian, rgba(139, 92, 246, 0.8), 30, 0, 0, 0);"/>
+            </StackPane>
+
+            <!-- Title -->
+            <Label text="MagicTechnology" style="-fx-font-size: 36px; -fx-font-weight: 700; -fx-text-fill: #ffffff; -fx-letter-spacing: -0.5;">
+                <font>
+                    <Font name="System Bold" size="36"/>
+                </font>
+            </Label>
+
+            <!-- Badge -->
+            <HBox alignment="CENTER">
+                <Label text="Created by Your Team"
+                       style="-fx-background-color: linear-gradient(to right, rgba(139, 92, 246, 0.9), rgba(99, 102, 241, 0.9)); -fx-text-fill: #ffffff; -fx-padding: 8 20; -fx-background-radius: 20; -fx-font-size: 13px; -fx-font-weight: 600;"/>
+            </HBox>
+
+            <!-- Subtitle -->
+            <Label text="Professional smart management system"
+                   style="-fx-text-fill: rgba(255, 255, 255, 0.7); -fx-font-size: 15px;"/>
+        </VBox>
+
+        <!-- Login Card -->
+        <VBox spacing="0" maxWidth="440" styleClass="glass-card"
+              style="-fx-padding: 48 40 48 40; -fx-background-color: rgba(30, 41, 59, 0.4); -fx-background-radius: 24; -fx-border-color: rgba(255, 255, 255, 0.1); -fx-border-width: 1; -fx-border-radius: 24; -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.3), 40, 0, 0, 10);">
+
+            <!-- Card Header -->
+            <VBox spacing="8" alignment="CENTER">
+                <Label text="Welcome Back" style="-fx-font-size: 24px; -fx-font-weight: 700; -fx-text-fill: #ffffff;">
+                    <font>
+                        <Font name="System Bold" size="24"/>
+                    </font>
+                </Label>
+                <Label text="Sign in to continue to your dashboard"
+                       style="-fx-text-fill: rgba(255, 255, 255, 0.6); -fx-font-size: 14px;"/>
+            </VBox>
+
+            <Region prefHeight="40"/>
+
+            <!-- Form Fields -->
+            <VBox spacing="24">
+
+                <!-- Username Field -->
+                <VBox spacing="10">
+                    <Label text="Username"
+                           style="-fx-font-size: 13px; -fx-font-weight: 600; -fx-text-fill: rgba(255, 255, 255, 0.9);"/>
+                    <TextField fx:id="usernameField"
+                               promptText="Enter your username"
+                               style="-fx-background-color: rgba(15, 23, 42, 0.6); -fx-text-fill: #ffffff; -fx-prompt-text-fill: rgba(255, 255, 255, 0.4); -fx-pref-height: 48px; -fx-background-radius: 12; -fx-border-color: rgba(139, 92, 246, 0.3); -fx-border-width: 1; -fx-border-radius: 12; -fx-padding: 0 16; -fx-font-size: 15px;">
+                        <font>
+                            <Font size="15"/>
+                        </font>
+                    </TextField>
+                </VBox>
+
+                <!-- Password Field -->
+                <VBox spacing="10">
+                    <HBox alignment="CENTER_LEFT">
+                        <Label text="Password"
+                               style="-fx-font-size: 13px; -fx-font-weight: 600; -fx-text-fill: rgba(255, 255, 255, 0.9);">
+                            <HBox.margin>
+                                <Insets right="8"/>
+                            </HBox.margin>
+                        </Label>
+                        <Region HBox.hgrow="ALWAYS"/>
+                        <Label text="Forgot?"
+                               style="-fx-text-fill: #a78bfa; -fx-font-size: 13px; -fx-font-weight: 600; -fx-cursor: hand;"/>
+                    </HBox>
+                    <PasswordField fx:id="passwordField"
+                                   promptText="Enter your password"
+                                   style="-fx-background-color: rgba(15, 23, 42, 0.6); -fx-text-fill: #ffffff; -fx-prompt-text-fill: rgba(255, 255, 255, 0.4); -fx-pref-height: 48px; -fx-background-radius: 12; -fx-border-color: rgba(139, 92, 246, 0.3); -fx-border-width: 1; -fx-border-radius: 12; -fx-padding: 0 16; -fx-font-size: 15px;">
+                        <font>
+                            <Font size="15"/>
+                        </font>
+                    </PasswordField>
+                </VBox>
+
+                <!-- Error Label -->
+                <Label fx:id="errorLabel"
+                       wrapText="true"
+                       style="-fx-background-color: rgba(239, 68, 68, 0.15); -fx-text-fill: #fca5a5; -fx-padding: 14 18; -fx-background-radius: 10; -fx-border-color: rgba(239, 68, 68, 0.3); -fx-border-width: 1; -fx-border-radius: 10; -fx-font-size: 13px;">
+                    <font>
+                        <Font size="13"/>
+                    </font>
+                </Label>
+
+                <!-- Continue Button -->
+                <Button fx:id="loginButton"
+                        text="Continue to Dashboard"
+                        onAction="#handleLogin"
+                        maxWidth="Infinity"
+                        style="-fx-background-color: linear-gradient(to right, #8b5cf6, #6366f1); -fx-text-fill: #ffffff; -fx-pref-height: 52px; -fx-background-radius: 12; -fx-font-size: 16px; -fx-font-weight: 600; -fx-cursor: hand; -fx-effect: dropshadow(gaussian, rgba(139, 92, 246, 0.4), 20, 0, 0, 8);">
+                    <VBox.margin>
+                        <Insets top="8"/>
+                    </VBox.margin>
+                </Button>
+
+            </VBox>
+        </VBox>
+
+        <!-- Footer Actions -->
+        <VBox alignment="CENTER" spacing="20" maxWidth="440">
+
+            <!-- View Test Users Button -->
+            <Button text="View Test Users"
+                    onAction="#showAvailableUsers"
+                    maxWidth="360"
+                    style="-fx-background-color: rgba(30, 41, 59, 0.4); -fx-text-fill: rgba(255, 255, 255, 0.85); -fx-pref-height: 48px; -fx-background-radius: 12; -fx-border-color: rgba(139, 92, 246, 0.3); -fx-border-width: 1.5; -fx-border-radius: 12; -fx-font-size: 14px; -fx-font-weight: 600; -fx-cursor: hand;">
+                <graphic>
+                    <Label text="🔍" style="-fx-font-size: 16px;"/>
+                </graphic>
+            </Button>
+
+            <!-- Copyright -->
+            <Label text="© 2026 MagicTechnology • Secure Smart System"
+                   style="-fx-text-fill: rgba(255, 255, 255, 0.4); -fx-font-size: 12px;"/>
+        </VBox>
+
+    </VBox>
+
+</StackPane>

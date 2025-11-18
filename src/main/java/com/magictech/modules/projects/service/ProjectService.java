@@ -1,0 +1,170 @@
+package com.magictech.modules.projects.service;
+
+import com.magictech.modules.projects.entity.Project;
+import com.magictech.modules.projects.repository.ProjectRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
+
+/**
+ * Project Service - Business Logic Layer
+ * Handles all project-related operations
+ */
+@Service
+@Transactional
+public class ProjectService {
+
+    @Autowired
+    private ProjectRepository repository;
+
+    /**
+     * Get all active projects
+     */
+    public List<Project> getAllProjects() {
+        List<Project> projects = repository.findByActiveTrue();
+        System.out.println("📊 Loading projects: Found " + projects.size() + " active projects");
+        return projects;
+    }
+
+    /**
+     * Get all projects including deleted
+     */
+    public List<Project> getAllProjectsIncludingDeleted() {
+        return repository.findAll();
+    }
+
+    /**
+     * Get project by ID
+     */
+    public Optional<Project> getProjectById(Long id) {
+        return repository.findById(id);
+    }
+
+    /**
+     * Create new project
+     */
+    public Project createProject(Project project) {
+        if (project.getDateAdded() == null) {
+            project.setDateAdded(LocalDateTime.now());
+        }
+        project.setActive(true);
+        return repository.save(project);
+    }
+
+    /**
+     * Update existing project
+     */
+    public Project updateProject(Long id, Project updatedProject) {
+        Optional<Project> existingProject = repository.findById(id);
+
+        if (existingProject.isPresent()) {
+            Project project = existingProject.get();
+            project.setProjectName(updatedProject.getProjectName());
+            project.setProjectLocation(updatedProject.getProjectLocation());
+            project.setDateOfIssue(updatedProject.getDateOfIssue());
+            project.setDateOfCompletion(updatedProject.getDateOfCompletion());
+            project.setStatus(updatedProject.getStatus());
+            project.setNotes(updatedProject.getNotes());
+            project.setLastUpdated(LocalDateTime.now());
+
+            return repository.save(project);
+        }
+
+        throw new RuntimeException("Project not found with id: " + id);
+    }
+
+    /**
+     * Delete single project - PERMANENT DELETE
+     */
+    @Transactional
+    public void deleteProject(Long id) {
+        System.out.println("🗑️ PERMANENT DELETE - Removing project ID: " + id);
+        repository.deleteById(id);
+        repository.flush();
+        System.out.println("✓ Project ID " + id + " permanently deleted from database");
+    }
+
+    /**
+     * Delete multiple projects - PERMANENT DELETE
+     */
+    @Transactional
+    public void deleteProjects(List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            System.out.println("⚠️ No IDs provided for deletion");
+            return;
+        }
+
+        System.out.println("🗑️ PERMANENT DELETE - Removing " + ids.size() + " projects: " + ids);
+        repository.deleteAllById(ids);
+        repository.flush();
+        System.out.println("✓ Successfully PERMANENTLY deleted " + ids.size() + " projects from database");
+    }
+
+    /**
+     * Search projects across multiple fields
+     */
+    public List<Project> searchProjects(String searchTerm) {
+        if (searchTerm == null || searchTerm.trim().isEmpty()) {
+            return getAllProjects();
+        }
+        return repository.searchProjects(searchTerm.trim());
+    }
+
+    /**
+     * Get projects by status
+     */
+    public List<Project> getProjectsByStatus(String status) {
+        return repository.findByStatusAndActiveTrue(status);
+    }
+
+    /**
+     * Get projects by creator
+     */
+    public List<Project> getProjectsByUser(String username) {
+        return repository.findByCreatedByAndActiveTrue(username);
+    }
+
+    /**
+     * Get total count of active projects
+     */
+    public long getTotalProjectCount() {
+        return repository.countByActiveTrue();
+    }
+
+    /**
+     * Check if project exists
+     */
+    public boolean projectExists(Long id) {
+        return repository.existsById(id);
+    }
+
+    /**
+     * Bulk create projects
+     */
+    @Transactional
+    public List<Project> createBulkProjects(List<Project> projects) {
+        projects.forEach(project -> {
+            if (project.getDateAdded() == null) {
+                project.setDateAdded(LocalDateTime.now());
+            }
+            project.setActive(true);
+        });
+        return repository.saveAll(projects);
+    }
+
+    /**
+     * Get all project statuses (distinct)
+     */
+    public List<String> getAllStatuses() {
+        return repository.findByActiveTrue().stream()
+                .map(Project::getStatus)
+                .filter(s -> s != null && !s.isEmpty())
+                .distinct()
+                .sorted()
+                .toList();
+    }
+}
