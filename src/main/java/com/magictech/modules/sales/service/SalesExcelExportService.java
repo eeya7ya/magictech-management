@@ -170,8 +170,8 @@ public class SalesExcelExportService {
     private void createCostBreakdownSheet(Sheet sheet, List<Project> projects, CellStyle headerStyle, CellStyle currencyStyle) {
         // Create header row
         Row headerRow = sheet.createRow(0);
-        String[] columns = {"Project Name", "Elements Subtotal", "Sales Tax %", "Sales Tax Amount",
-                            "Sale Discount", "Crew Cost", "Additional Materials", "Total Amount"};
+        String[] columns = {"Project Name", "Elements Subtotal", "Tax Rate %", "Tax Amount",
+                            "Discount Amount", "Installation Cost", "Licenses Cost", "Additional Cost", "Total Cost"};
 
         for (int i = 0; i < columns.length; i++) {
             Cell cell = headerRow.createCell(i);
@@ -207,26 +207,33 @@ public class SalesExcelExportService {
                 if (breakdown.isPresent()) {
                     ProjectCostBreakdown cb = breakdown.get();
 
-                    row.createCell(2).setCellValue(cb.getSalesTaxPercent() != null ? cb.getSalesTaxPercent().doubleValue() : 0);
+                    // Tax rate as percentage (convert from decimal to percentage)
+                    double taxRatePercent = cb.getTaxRate() != null ?
+                        cb.getTaxRate().multiply(new BigDecimal("100")).doubleValue() : 0;
+                    row.createCell(2).setCellValue(taxRatePercent);
 
                     Cell taxCell = row.createCell(3);
-                    taxCell.setCellValue(cb.getSalesTaxAmount() != null ? cb.getSalesTaxAmount().doubleValue() : 0);
+                    taxCell.setCellValue(cb.getTaxAmount() != null ? cb.getTaxAmount().doubleValue() : 0);
                     taxCell.setCellStyle(currencyStyle);
 
                     Cell discountCell = row.createCell(4);
-                    discountCell.setCellValue(cb.getSaleDiscount() != null ? cb.getSaleDiscount().doubleValue() : 0);
+                    discountCell.setCellValue(cb.getDiscountAmount() != null ? cb.getDiscountAmount().doubleValue() : 0);
                     discountCell.setCellStyle(currencyStyle);
 
-                    Cell crewCell = row.createCell(5);
-                    crewCell.setCellValue(cb.getCrewCost() != null ? cb.getCrewCost().doubleValue() : 0);
-                    crewCell.setCellStyle(currencyStyle);
+                    Cell installationCell = row.createCell(5);
+                    installationCell.setCellValue(cb.getInstallationCost() != null ? cb.getInstallationCost().doubleValue() : 0);
+                    installationCell.setCellStyle(currencyStyle);
 
-                    Cell materialsCell = row.createCell(6);
-                    materialsCell.setCellValue(cb.getAdditionalMaterials() != null ? cb.getAdditionalMaterials().doubleValue() : 0);
-                    materialsCell.setCellStyle(currencyStyle);
+                    Cell licensesCell = row.createCell(6);
+                    licensesCell.setCellValue(cb.getLicensesCost() != null ? cb.getLicensesCost().doubleValue() : 0);
+                    licensesCell.setCellStyle(currencyStyle);
 
-                    Cell totalCell = row.createCell(7);
-                    totalCell.setCellValue(cb.getTotalAmount() != null ? cb.getTotalAmount().doubleValue() : 0);
+                    Cell additionalCell = row.createCell(7);
+                    additionalCell.setCellValue(cb.getAdditionalCost() != null ? cb.getAdditionalCost().doubleValue() : 0);
+                    additionalCell.setCellStyle(currencyStyle);
+
+                    Cell totalCell = row.createCell(8);
+                    totalCell.setCellValue(cb.getTotalCost() != null ? cb.getTotalCost().doubleValue() : 0);
                     totalCell.setCellStyle(currencyStyle);
                 } else {
                     // No breakdown, just show subtotal
@@ -235,7 +242,8 @@ public class SalesExcelExportService {
                     row.createCell(4).setCellValue(0);
                     row.createCell(5).setCellValue(0);
                     row.createCell(6).setCellValue(0);
-                    Cell totalCell = row.createCell(7);
+                    row.createCell(7).setCellValue(0);
+                    Cell totalCell = row.createCell(8);
                     totalCell.setCellValue(subtotal.doubleValue());
                     totalCell.setCellStyle(currencyStyle);
                 }
