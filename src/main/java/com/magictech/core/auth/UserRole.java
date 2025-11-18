@@ -4,7 +4,8 @@ public enum UserRole {
     MASTER("Master", "Full system access"),
     SALES("Sales Team", "Sales module access"),
     MAINTENANCE("Maintenance Team", "Maintenance module access"),
-    PROJECTS("Projects Team", "Projects module access"),
+    PROJECTS("Project Manager", "Projects module full access"),
+    PROJECT_SUPPLIER("Project Supplier", "Projects module - same as Project Manager"),
     PRICING("Pricing Team", "Pricing module access"),
     STORAGE("Storage Team", "Storage module access"),
     CLIENT("Client", "Limited access");

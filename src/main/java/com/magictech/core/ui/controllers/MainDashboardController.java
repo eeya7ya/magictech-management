@@ -46,43 +46,65 @@ public class MainDashboardController {
     private void loadModules() {
         modulesContainer.getChildren().clear();
 
-        modulesContainer.getChildren().addAll(
-                createModuleCard(
-                        "🛒",
-                        "Sales Team Module",
-                        "Manage sales operations • View availability & pricing • Track inventory",
-                        "module-blue",
-                        "sales"
-                ),
-                createModuleCard(
-                        "🔧",
-                        "Maintenance Team Module",
-                        "Handle maintenance requests • Equipment tracking • Service schedules",
-                        "module-green",
-                        "maintenance"
-                ),
-                createModuleCard(
-                        "📁",
-                        "Projects Team Module",
-                        "Coordinate projects • Track resources • Manage team collaboration",
-                        "module-purple",
-                        "projects"
-                ),
-                createModuleCard(
-                        "💰",
-                        "Pricing Module",
-                        "Configure pricing models • Manage quotes • Availability-based pricing",
-                        "module-orange",
-                        "pricing"
-                ),
-                createModuleCard(
-                        "📦",
-                        "Storage Management",
-                        "Full inventory control • All data access • Master storage operations",
-                        "module-red",
-                        "storage"
-                )
-        );
+        if (currentUser == null) {
+            return; // No user, no modules
+        }
+
+        // Role-based module loading
+        com.magictech.core.auth.UserRole role = currentUser.getRole();
+
+        // Add modules based on role
+        if (role == com.magictech.core.auth.UserRole.MASTER) {
+            // Admin sees all modules
+            modulesContainer.getChildren().addAll(
+                    createModuleCard("📦", "Storage Management",
+                            "Full inventory control • All data access • Master storage operations",
+                            "module-red", "storage"),
+                    createModuleCard("🛒", "Sales Team Module",
+                            "Manage sales operations • View availability & pricing • Track inventory",
+                            "module-blue", "sales"),
+                    createModuleCard("📁", "Projects Team Module",
+                            "Coordinate projects • Track resources • Manage team collaboration",
+                            "module-purple", "projects"),
+                    createModuleCard("💰", "Pricing Module",
+                            "Configure pricing models • Manage quotes • Availability-based pricing",
+                            "module-orange", "pricing"),
+                    createModuleCard("🔧", "Maintenance Team Module",
+                            "Handle maintenance requests • Equipment tracking • Service schedules",
+                            "module-green", "maintenance")
+            );
+        } else if (role == com.magictech.core.auth.UserRole.STORAGE) {
+            modulesContainer.getChildren().add(
+                    createModuleCard("📦", "Storage Management",
+                            "Full inventory control • All data access • Master storage operations",
+                            "module-red", "storage")
+            );
+        } else if (role == com.magictech.core.auth.UserRole.SALES) {
+            modulesContainer.getChildren().add(
+                    createModuleCard("🛒", "Sales Team Module",
+                            "Manage sales operations • View availability & pricing • Track inventory",
+                            "module-blue", "sales")
+            );
+        } else if (role == com.magictech.core.auth.UserRole.PROJECTS ||
+                   role == com.magictech.core.auth.UserRole.PROJECT_SUPPLIER) {
+            modulesContainer.getChildren().add(
+                    createModuleCard("📁", "Projects Team Module",
+                            "Coordinate projects • Track resources • Manage team collaboration",
+                            "module-purple", "projects")
+            );
+        } else if (role == com.magictech.core.auth.UserRole.PRICING) {
+            modulesContainer.getChildren().add(
+                    createModuleCard("💰", "Pricing Module",
+                            "Configure pricing models • Manage quotes • Availability-based pricing",
+                            "module-orange", "pricing")
+            );
+        } else if (role == com.magictech.core.auth.UserRole.MAINTENANCE) {
+            modulesContainer.getChildren().add(
+                    createModuleCard("🔧", "Maintenance Team Module",
+                            "Handle maintenance requests • Equipment tracking • Service schedules",
+                            "module-green", "maintenance")
+            );
+        }
     }
 
     private VBox createModuleCard(String icon, String title, String description, String colorClass, String moduleId) {
