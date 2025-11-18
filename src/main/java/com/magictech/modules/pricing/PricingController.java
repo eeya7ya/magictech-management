@@ -719,7 +719,6 @@ public class PricingController extends BaseModuleController {
         SceneManager.getInstance().showMainDashboard();
     }
 
-    @Override
     public void immediateCleanup() {
         if (backgroundPane != null) {
             backgroundPane.stopAnimation();

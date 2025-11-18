@@ -98,17 +98,17 @@ public class ProjectService {
                 updatedProject.getStatus().equalsIgnoreCase("Completed") &&
                 !updatedProject.getStatus().equalsIgnoreCase(oldStatus)) {
 
-                notificationService.createNotificationWithRelation(
-                    "PRICING",  // targetRole
-                    "PRICING",  // module
-                    "PROJECT_COMPLETED",  // type
-                    "Project Completed",  // title
-                    String.format("Project '%s' has been completed and needs pricing finalization", saved.getProjectName()),  // message
-                    saved.getId(),  // relatedId
-                    "PROJECT",  // relatedType
-                    "HIGH",  // priority
-                    project.getCreatedBy() != null ? project.getCreatedBy() : "System"  // createdBy
-                );
+                com.magictech.modules.notification.entity.Notification notification =
+                    new com.magictech.modules.notification.entity.Notification();
+                notification.setType("PROJECT_COMPLETED");
+                notification.setTitle("Project Completed");
+                notification.setMessage(String.format("Project '%s' has been completed and needs pricing finalization", saved.getProjectName()));
+                notification.setEntityType("PROJECT");
+                notification.setEntityId(saved.getId());
+                notification.setCreatedBy(project.getCreatedBy() != null ? project.getCreatedBy() : "System");
+                notification.setIsRead(false);
+
+                notificationService.createNotification(notification);
 
                 System.out.println("✓ Pricing notification created for completed project: " + saved.getProjectName());
             }
