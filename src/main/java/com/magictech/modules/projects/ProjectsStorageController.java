@@ -59,6 +59,12 @@ public class ProjectsStorageController extends BaseModuleController {
     @Autowired
     private StorageService storageService;
 
+    @Autowired
+    private com.magictech.core.approval.PendingApprovalService approvalService;
+
+    @Autowired
+    private com.magictech.core.notification.NotificationService notificationService;
+
     // UI Components
     private com.magictech.core.ui.components.DashboardBackgroundPane backgroundPane;
     private StackPane mainContainer;
@@ -2020,42 +2026,43 @@ public class ProjectsStorageController extends BaseModuleController {
 
             availableAlert.showAndWait().ifPresent(response -> {
                 if (response == ButtonType.OK) {
-                    // Save to database
-                    Task<ProjectElement> saveTask = new Task<>() {
+                    // ✅ NEW: Create approval request instead of directly adding element
+                    Task<com.magictech.core.approval.PendingApproval> approvalTask = new Task<>() {
                         @Override
-                        protected ProjectElement call() {
-                            ProjectElement element = new ProjectElement();
-                            element.setProject(selectedProject);
-                            element.setStorageItem(storageItem);
-                            element.setQuantityNeeded(requestedQty);
-                            element.setQuantityAllocated(requestedQty);
-                            element.setNotes(notesField.getText());
-                            element.setStatus("Allocated");
-                            element.setAddedBy(currentUser != null ? currentUser.getUsername() : "system");
+                        protected com.magictech.core.approval.PendingApproval call() {
+                            // Create approval request
+                            String notes = "Request to add " + requestedQty + " x " + storageItem.getProductName() +
+                                         " to project " + selectedProject.getProjectName();
+                            if (!notesField.getText().isEmpty()) {
+                                notes += " | Notes: " + notesField.getText();
+                            }
 
-                            ProjectElement saved = elementService.createElement(element);
-
-                            // ✅ DEDUCT FROM STORAGE DATABASE
-                            storageItem.setQuantity(storageItem.getQuantity() - requestedQty);
-                            storageService.updateItem(storageItem.getId(), storageItem);
-
-                            return saved;
+                            return approvalService.createProjectElementApproval(
+                                selectedProject.getId(),
+                                storageItem.getId(),
+                                requestedQty,
+                                currentUser != null ? currentUser.getUsername() : "system",
+                                currentUser != null ? currentUser.getId() : null,
+                                notes
+                            );
                         }
                     };
 
-                    saveTask.setOnSucceeded(event -> {
+                    approvalTask.setOnSucceeded(event -> {
                         Platform.runLater(() -> {
-                            loadElementsData();
-                            showSuccess("✓ Element added! Quantity deducted from storage.");
+                            loadElementsData(); // Refresh to show pending approval status
+                            showSuccess("⏳ Approval request sent to Sales team!\n\n" +
+                                      "The element will be added once approved.\n" +
+                                      "Auto-rejects after 2 days if not approved.");
                             parentDialog.close();
                         });
                     });
 
-                    saveTask.setOnFailed(event ->
-                            showError("Failed to add element: " + saveTask.getException().getMessage())
+                    approvalTask.setOnFailed(event ->
+                            showError("Failed to create approval request: " + approvalTask.getException().getMessage())
                     );
 
-                    new Thread(saveTask).start();
+                    new Thread(approvalTask).start();
                 }
             });
         });
