@@ -164,7 +164,7 @@ public class AnalyticsService {
         metrics.setTotalCustomers(customers.size());
 
         // Sales metrics
-        List<SalesOrder> orders = salesOrderService.getAllOrders();
+        List<SalesOrder> orders = salesOrderService.getAllSalesOrders();
         metrics.setTotalOrders(orders.size());
 
         BigDecimal totalRevenue = BigDecimal.ZERO;

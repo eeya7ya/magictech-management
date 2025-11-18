@@ -7,6 +7,8 @@ import com.magictech.modules.projects.ProjectDetailViewController;
 import com.magictech.modules.projects.entity.Project;
 import com.magictech.modules.projects.model.ProjectViewModel;
 import com.magictech.modules.projects.service.ProjectService;
+import com.magictech.modules.storage.dto.CustomerAnalyticsDTO;
+import com.magictech.modules.storage.dto.ProjectAnalyticsDTO;
 import com.magictech.modules.storage.entity.StorageItem;
 import com.magictech.modules.storage.model.StorageItemViewModel;
 import com.magictech.modules.storage.service.StorageService;
