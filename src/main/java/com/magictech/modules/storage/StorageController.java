@@ -57,8 +57,11 @@ public class StorageController extends BaseModuleController {
     @Autowired
     private ExcelExportService excelExportService;
 
+    @Autowired
+    private com.magictech.modules.storage.service.AnalyticsService analyticsService;
+
     // Active table tracker
-    private enum ActiveTable { STORAGE, PROJECTS }
+    private enum ActiveTable { STORAGE, ANALYTICS }
     private ActiveTable currentTable = ActiveTable.STORAGE;
 
     // UI Components
@@ -171,7 +174,7 @@ public class StorageController extends BaseModuleController {
                         "-fx-border-width: 0 0 1 0;"
         );
 
-        Label subtitleLabel = new Label("Master Control • Storage Items + Projects Management");
+        Label subtitleLabel = new Label("Master Control • Storage Management + Business Analytics");
         subtitleLabel.setStyle("-fx-text-fill: rgba(255, 255, 255, 0.7); -fx-font-size: 14px;");
 
         selectedCountLabel = new Label();
@@ -217,11 +220,11 @@ public class StorageController extends BaseModuleController {
         tabBox.setAlignment(Pos.CENTER_LEFT);
         tabBox.setPadding(new Insets(0, 0, 10, 0));
 
-        storageTabButton = createTabButton("📦 Storage Items Table", true);
+        storageTabButton = createTabButton("📦 Storage Management", true);
         storageTabButton.setOnAction(e -> switchToStorageTable());
 
-        projectsTabButton = createTabButton("📁 Projects Table", false);
-        projectsTabButton.setOnAction(e -> switchToProjectsTable());
+        projectsTabButton = createTabButton("📊 Analytics Dashboard", false);
+        projectsTabButton.setOnAction(e -> switchToAnalyticsView());
 
         tabBox.getChildren().addAll(storageTabButton, projectsTabButton);
         return tabBox;
