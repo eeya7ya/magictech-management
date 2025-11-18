@@ -190,18 +190,39 @@ public class NotificationPopup extends StackPane {
         if (scene.getRoot() instanceof Pane) {
             Pane root = (Pane) scene.getRoot();
 
-            // Position at top-right
-            setLayoutX(scene.getWidth() - getMaxWidth() - 20);
-            setLayoutY(-getMaxHeight()); // Start off-screen
+            // For StackPane, use alignment instead of absolute positioning
+            if (root instanceof StackPane) {
+                StackPane stackPane = (StackPane) root;
 
-            root.getChildren().add(this);
+                // Set alignment to top-right
+                StackPane.setAlignment(this, Pos.TOP_RIGHT);
+                StackPane.setMargin(this, new Insets(20, 20, 0, 0));
 
-            // Slide in animation
-            TranslateTransition slideIn = new TranslateTransition(Duration.millis(300), this);
-            slideIn.setFromY(-getMaxHeight());
-            slideIn.setToY(20);
-            slideIn.setInterpolator(Interpolator.EASE_OUT);
-            slideIn.play();
+                // Start off-screen (above viewport)
+                setTranslateY(-getMaxHeight() - 50);
+
+                stackPane.getChildren().add(this);
+
+                // Slide in animation
+                TranslateTransition slideIn = new TranslateTransition(Duration.millis(400), this);
+                slideIn.setFromY(-getMaxHeight() - 50);
+                slideIn.setToY(0);
+                slideIn.setInterpolator(Interpolator.EASE_OUT);
+                slideIn.play();
+            } else {
+                // Fallback for other Pane types (absolute positioning)
+                setLayoutX(scene.getWidth() - getMaxWidth() - 20);
+                setLayoutY(-getMaxHeight()); // Start off-screen
+
+                root.getChildren().add(this);
+
+                // Slide in animation
+                TranslateTransition slideIn = new TranslateTransition(Duration.millis(300), this);
+                slideIn.setFromY(-getMaxHeight());
+                slideIn.setToY(20);
+                slideIn.setInterpolator(Interpolator.EASE_OUT);
+                slideIn.play();
+            }
         }
     }
 
