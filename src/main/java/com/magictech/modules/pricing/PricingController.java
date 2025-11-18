@@ -1,6 +1,7 @@
 package com.magictech.modules.pricing;
 
 import com.magictech.core.module.BaseModuleController;
+import com.magictech.core.ui.SceneManager;
 import com.magictech.modules.storage.dto.CustomerAnalyticsDTO;
 import com.magictech.modules.storage.dto.ProjectAnalyticsDTO;
 import com.magictech.modules.storage.entity.StorageItem;
@@ -671,6 +672,51 @@ public class PricingController extends BaseModuleController {
         vm.setPrice(entity.getPrice() != null ? entity.getPrice() : BigDecimal.ZERO);
         vm.setDateAdded(entity.getDateAdded().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")));
         return vm;
+    }
+
+    private Button createStyledButton(String text, String bgColor, String hoverColor) {
+        Button button = new Button(text);
+        button.setStyle(
+                "-fx-background-color: " + bgColor + ";" +
+                        "-fx-text-fill: white;" +
+                        "-fx-font-size: 13px;" +
+                        "-fx-font-weight: bold;" +
+                        "-fx-padding: 10 18;" +
+                        "-fx-background-radius: 8;" +
+                        "-fx-cursor: hand;" +
+                        "-fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.2), 5, 0, 0, 2);"
+        );
+
+        button.setOnMouseEntered(e -> button.setStyle(
+                "-fx-background-color: " + hoverColor + ";" +
+                        "-fx-text-fill: white;" +
+                        "-fx-font-size: 13px;" +
+                        "-fx-font-weight: bold;" +
+                        "-fx-padding: 10 18;" +
+                        "-fx-background-radius: 8;" +
+                        "-fx-cursor: hand;" +
+                        "-fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.3), 8, 0, 0, 3);"
+        ));
+
+        button.setOnMouseExited(e -> button.setStyle(
+                "-fx-background-color: " + bgColor + ";" +
+                        "-fx-text-fill: white;" +
+                        "-fx-font-size: 13px;" +
+                        "-fx-font-weight: bold;" +
+                        "-fx-padding: 10 18;" +
+                        "-fx-background-radius: 8;" +
+                        "-fx-cursor: hand;" +
+                        "-fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.2), 5, 0, 0, 2);"
+        ));
+
+        return button;
+    }
+
+    private void navigateToDashboard() {
+        if (backgroundPane != null) {
+            backgroundPane.stopAnimation();
+        }
+        SceneManager.getInstance().showMainDashboard();
     }
 
     @Override

@@ -353,7 +353,9 @@ public class StorageController extends BaseModuleController {
         addButton.setOnAction(e -> handleAdd());
 
         openProjectButton = createStyledButton("📂 Open", "#6366f1", "#4f46e5");
-        openProjectButton.setOnAction(e -> handleOpenProject());
+        openProjectButton.setOnAction(e -> {
+            showWarning("Open Project feature is not available in Storage module. Please use the Projects module.");
+        });
         openProjectButton.setDisable(true);
         openProjectButton.setVisible(false);
         openProjectButton.setManaged(false);
@@ -865,7 +867,7 @@ public class StorageController extends BaseModuleController {
         if (currentTable == ActiveTable.STORAGE) {
             handleAddStorageItem();
         } else {
-            handleAddProject();
+            showWarning("Add is only available in Storage view");
         }
     }
 
@@ -873,7 +875,7 @@ public class StorageController extends BaseModuleController {
         if (currentTable == ActiveTable.STORAGE) {
             handleEditStorageItem();
         } else {
-            handleEditProject();
+            showWarning("Edit is only available in Storage view");
         }
     }
 
@@ -881,7 +883,7 @@ public class StorageController extends BaseModuleController {
         if (currentTable == ActiveTable.STORAGE) {
             handleDeleteStorageItems();
         } else {
-            handleDeleteProjects();
+            showWarning("Delete is only available in Storage view");
         }
     }
 
@@ -895,14 +897,6 @@ public class StorageController extends BaseModuleController {
                         item.getCode().toLowerCase().contains(lower) ||
                         item.getSerialNumber().toLowerCase().contains(lower);
             });
-        } else {
-            filteredProjects.setPredicate(item -> {
-                if (searchText == null || searchText.isEmpty()) return true;
-                String lower = searchText.toLowerCase();
-                return item.getProjectName().toLowerCase().contains(lower) ||
-                        item.getProjectLocation().toLowerCase().contains(lower) ||
-                        item.getStatus().toLowerCase().contains(lower);
-            });
         }
     }
 
@@ -911,7 +905,7 @@ public class StorageController extends BaseModuleController {
         if (currentTable == ActiveTable.STORAGE) {
             count = storageSelectionMap.values().stream().filter(BooleanProperty::get).count();
         } else {
-            count = projectSelectionMap.values().stream().filter(BooleanProperty::get).count();
+            count = 0; // Analytics view doesn't have selections
         }
 
         Platform.runLater(() -> {
@@ -920,7 +914,7 @@ public class StorageController extends BaseModuleController {
                 selectedCountLabel.setVisible(true);
                 deleteButton.setDisable(false);
                 editButton.setDisable(count != 1);
-                openProjectButton.setDisable(currentTable != ActiveTable.PROJECTS || count != 1);
+                openProjectButton.setDisable(true); // Project button always disabled
             } else {
                 selectedCountLabel.setVisible(false);
                 deleteButton.setDisable(true);
@@ -1133,139 +1127,21 @@ public class StorageController extends BaseModuleController {
 
     // ==================== PROJECT CRUD ====================
 
+    // NOTE: Project management methods removed - use the dedicated Projects module instead
+    // These are commented out as the StorageController now only handles STORAGE and ANALYTICS views
+    /*
     private void handleAddProject() {
-        Dialog<ProjectViewModel> dialog = createProjectDialog(null);
-        Optional<ProjectViewModel> result = dialog.showAndWait();
-
-        result.ifPresent(vm -> {
-            Task<Project> saveTask = new Task<>() {
-                @Override
-                protected Project call() {
-                    Project entity = new Project();
-                    entity.setProjectName(vm.getProjectName());
-                    entity.setProjectLocation(vm.getProjectLocation());
-                    if (!vm.getDateOfIssue().isEmpty()) {
-                        entity.setDateOfIssue(LocalDate.parse(vm.getDateOfIssue()));
-                    }
-                    if (!vm.getDateOfCompletion().isEmpty()) {
-                        entity.setDateOfCompletion(LocalDate.parse(vm.getDateOfCompletion()));
-                    }
-                    entity.setStatus(vm.getStatus());
-                    entity.setCreatedBy(currentUser != null ? currentUser.getUsername() : "system");
-                    return projectService.createProject(entity);
-                }
-            };
-
-            saveTask.setOnSucceeded(e -> {
-                Project saved = saveTask.getValue();
-                ProjectViewModel savedVM = convertProjectToViewModel(saved);
-                Platform.runLater(() -> {
-                    projectItems.add(savedVM);
-                    projectSelectionMap.put(savedVM, new SimpleBooleanProperty(false));
-                    showSuccess("✓ Project created!");
-                });
-            });
-
-            saveTask.setOnFailed(e -> showError("Failed to save: " + saveTask.getException().getMessage()));
-            new Thread(saveTask).start();
-        });
+        // Removed - use Projects module
     }
 
     private void handleEditProject() {
-        List<ProjectViewModel> selected = projectSelectionMap.entrySet().stream()
-                .filter(e -> e.getValue().get())
-                .map(Map.Entry::getKey)
-                .collect(Collectors.toList());
-
-        if (selected.isEmpty()) {
-            showWarning("Please select a project to edit");
-            return;
-        }
-        if (selected.size() > 1) {
-            showWarning("Please select only ONE project to edit");
-            return;
-        }
-
-        ProjectViewModel project = selected.get(0);
-        Dialog<ProjectViewModel> dialog = createProjectDialog(project);
-        Optional<ProjectViewModel> result = dialog.showAndWait();
-
-        result.ifPresent(updated -> {
-            Task<Project> updateTask = new Task<>() {
-                @Override
-                protected Project call() {
-                    Project entity = new Project();
-                    entity.setProjectName(updated.getProjectName());
-                    entity.setProjectLocation(updated.getProjectLocation());
-                    if (!updated.getDateOfIssue().isEmpty()) {
-                        entity.setDateOfIssue(LocalDate.parse(updated.getDateOfIssue()));
-                    }
-                    if (!updated.getDateOfCompletion().isEmpty()) {
-                        entity.setDateOfCompletion(LocalDate.parse(updated.getDateOfCompletion()));
-                    }
-                    entity.setStatus(updated.getStatus());
-                    return projectService.updateProject(project.getId(), entity);
-                }
-            };
-
-            updateTask.setOnSucceeded(e -> {
-                Platform.runLater(() -> {
-                    project.setProjectName(updated.getProjectName());
-                    project.setProjectLocation(updated.getProjectLocation());
-                    project.setDateOfIssue(updated.getDateOfIssue());
-                    project.setDateOfCompletion(updated.getDateOfCompletion());
-                    project.setStatus(updated.getStatus());
-                    projectsTable.refresh();
-                    showSuccess("✓ Project updated!");
-                });
-            });
-
-            updateTask.setOnFailed(e -> showError("Update failed: " + updateTask.getException().getMessage()));
-            new Thread(updateTask).start();
-        });
+        // Removed - use Projects module
     }
 
     private void handleDeleteProjects() {
-        List<ProjectViewModel> selected = projectSelectionMap.entrySet().stream()
-                .filter(e -> e.getValue().get())
-                .map(Map.Entry::getKey)
-                .collect(Collectors.toList());
-
-        if (selected.isEmpty()) {
-            showWarning("Please select projects to delete");
-            return;
-        }
-
-        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
-        confirm.setTitle("⚠️ DELETE");
-        confirm.setHeaderText("DELETE " + selected.size() + " project(s)?");
-        confirm.setContentText("This action cannot be undone!");
-
-        Optional<ButtonType> result = confirm.showAndWait();
-        if (result.isPresent() && result.get() == ButtonType.OK) {
-            Task<Void> deleteTask = new Task<>() {
-                @Override
-                protected Void call() {
-                    List<Long> ids = selected.stream().map(ProjectViewModel::getId).collect(Collectors.toList());
-                    projectService.deleteProjects(ids);
-                    return null;
-                }
-            };
-
-            deleteTask.setOnSucceeded(e -> {
-                Platform.runLater(() -> {
-                    for (ProjectViewModel item : selected) {
-                        projectItems.remove(item);
-                        projectSelectionMap.remove(item);
-                    }
-                    showSuccess("✓ Deleted " + selected.size() + " project(s)");
-                });
-            });
-
-            deleteTask.setOnFailed(e -> showError("Delete failed: " + deleteTask.getException().getMessage()));
-            new Thread(deleteTask).start();
-        }
+        // Removed - use Projects module
     }
+    */
 
     // ==================== DIALOGS ====================
 
@@ -1421,9 +1297,11 @@ public class StorageController extends BaseModuleController {
 
     @Override
     public void refresh() {
-        storageSelectionMap.clear();
-        projectSelectionMap.clear();
-        loadStorageData();
-        loadProjectsData();
+        if (currentTable == ActiveTable.STORAGE) {
+            storageSelectionMap.clear();
+            loadStorageData();
+        } else {
+            refreshAnalytics();
+        }
     }
 }

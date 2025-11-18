@@ -46,6 +46,13 @@ public class StorageService {
     }
 
     /**
+     * Get item by ID (alias for getItemById)
+     */
+    public Optional<StorageItem> findById(Long id) {
+        return getItemById(id);
+    }
+
+    /**
      * Create new storage item
      */
     public StorageItem createItem(StorageItem item) {
