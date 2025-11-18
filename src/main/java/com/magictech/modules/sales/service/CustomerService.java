@@ -1,5 +1,6 @@
 package com.magictech.modules.sales.service;
 
+import com.magictech.core.notification.NotificationService;
 import com.magictech.modules.sales.entity.Customer;
 import com.magictech.modules.sales.repository.CustomerRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,6 +21,9 @@ public class CustomerService {
 
     @Autowired
     private CustomerRepository customerRepository;
+
+    @Autowired
+    private NotificationService notificationService;
 
     /**
      * Get all active customers
@@ -52,6 +56,8 @@ public class CustomerService {
         Customer existing = customerRepository.findByIdAndActiveTrue(id)
                 .orElseThrow(() -> new RuntimeException("Customer not found with id: " + id));
 
+        String oldStatus = existing.getStatus();
+
         // Update fields
         existing.setName(customerDetails.getName());
         existing.setEmail(customerDetails.getEmail());
@@ -59,10 +65,33 @@ public class CustomerService {
         existing.setAddress(customerDetails.getAddress());
         existing.setCompany(customerDetails.getCompany());
         existing.setNotes(customerDetails.getNotes());
+        existing.setStatus(customerDetails.getStatus());
         existing.setUpdatedAt(LocalDateTime.now());
         existing.setUpdatedBy(customerDetails.getUpdatedBy());
 
-        return customerRepository.save(existing);
+        Customer saved = customerRepository.save(existing);
+
+        // If customer status changed to "Completed", notify PRICING module
+        if (customerDetails.getStatus() != null &&
+            customerDetails.getStatus().equalsIgnoreCase("Completed") &&
+            !customerDetails.getStatus().equalsIgnoreCase(oldStatus)) {
+
+            notificationService.createNotificationWithRelation(
+                "PRICING",  // targetRole
+                "PRICING",  // module
+                "CUSTOMER_COMPLETED",  // type
+                "Customer Order Completed",  // title
+                String.format("Customer '%s' order has been completed and needs pricing finalization", saved.getName()),  // message
+                saved.getId(),  // relatedId
+                "CUSTOMER",  // relatedType
+                "HIGH",  // priority
+                existing.getUpdatedBy() != null ? existing.getUpdatedBy() : "System"  // createdBy
+            );
+
+            System.out.println("✓ Pricing notification created for completed customer: " + saved.getName());
+        }
+
+        return saved;
     }
 
     /**

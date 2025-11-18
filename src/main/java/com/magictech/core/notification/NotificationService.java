@@ -182,4 +182,11 @@ public class NotificationService {
         LocalDateTime sevenDaysAgo = LocalDateTime.now().minusDays(7);
         return notificationRepository.findRecentNotifications(userId, userRole, sevenDaysAgo);
     }
+
+    /**
+     * Get unread count for a specific module
+     */
+    public long getUnreadCountByModule(Long userId, String userRole, String module) {
+        return notificationRepository.countUnreadByModule(userId, userRole, module);
+    }
 }

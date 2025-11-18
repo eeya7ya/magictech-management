@@ -84,4 +84,16 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
             @Param("role") String role,
             @Param("since") LocalDateTime since
     );
+
+    /**
+     * Count unread notifications for a specific module and user
+     */
+    @Query("SELECT COUNT(n) FROM Notification n WHERE " +
+           "(n.userId = :userId OR n.targetRole = :role) AND " +
+           "n.isRead = false AND n.module = :module")
+    long countUnreadByModule(
+            @Param("userId") Long userId,
+            @Param("role") String role,
+            @Param("module") String module
+    );
 }
