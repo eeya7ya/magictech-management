@@ -1,0 +1,137 @@
+[1mdiff --git a/src/main/java/com/magictech/core/module/BaseModuleController.java b/src/main/java/com/magictech/core/module/BaseModuleController.java[m
+[1mindex cf9bc50..1ab2db3 100644[m
+[1m--- a/src/main/java/com/magictech/core/module/BaseModuleController.java[m
+[1m+++ b/src/main/java/com/magictech/core/module/BaseModuleController.java[m
+[36m@@ -48,6 +48,7 @@[m [mpublic abstract class BaseModuleController {[m
+         System.out.println("Cleaning up module: " + config.getName());[m
+     }[m
+ [m
+[32m+[m
+     /**[m
+      * Get the root pane of this module[m
+      */[m
+[36m@@ -90,4 +91,6 @@[m [mpublic abstract class BaseModuleController {[m
+         alert.setContentText(message);[m
+         alert.showAndWait();[m
+     }[m
+[32m+[m
+[32m+[m
+ }[m
+\ No newline at end of file[m
+[1mdiff --git a/src/main/java/com/magictech/modules/pricing/PricingController.java b/src/main/java/com/magictech/modules/pricing/PricingController.java[m
+[1mindex 6a42783..dab5a59 100644[m
+[1m--- a/src/main/java/com/magictech/modules/pricing/PricingController.java[m
+[1m+++ b/src/main/java/com/magictech/modules/pricing/PricingController.java[m
+[36m@@ -62,6 +62,48 @@[m [mpublic class PricingController extends BaseModuleController {[m
+     private FilteredList<StorageItemViewModel> filteredPricing;[m
+     private Map<StorageItemViewModel, BooleanProperty> selectionMap = new HashMap<>();[m
+ [m
+[32m+[m[32m    private Button createStyledButton(String text, String bgColor, String hoverColor) {[m
+[32m+[m[32m        Button button = new Button(text);[m
+[32m+[m[32m        button.setStyle([m
+[32m+[m[32m                "-fx-background-color: " + bgColor + ";" +[m
+[32m+[m[32m                        "-fx-text-fill: white;" +[m
+[32m+[m[32m                        "-fx-font-size: 13px;" +[m
+[32m+[m[32m                        "-fx-font-weight: bold;" +[m
+[32m+[m[32m                        "-fx-padding: 10 18;" +[m
+[32m+[m[32m                        "-fx-background-radius: 8;" +[m
+[32m+[m[32m                        "-fx-cursor: hand;" +[m
+[32m+[m[32m                        "-fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.2), 5, 0, 0, 2);"[m
+[32m+[m[32m        );[m
+[32m+[m
+[32m+[m[32m        button.setOnMouseEntered(e -> button.setStyle([m
+[32m+[m[32m                "-fx-background-color: " + hoverColor + ";" +[m
+[32m+[m[32m                        "-fx-text-fill: white;" +[m
+[32m+[m[32m                        "-fx-font-size: 13px;" +[m
+[32m+[m[32m                        "-fx-font-weight: bold;" +[m
+[32m+[m[32m                        "-fx-padding: 10 18;" +[m
+[32m+[m[32m                        "-fx-background-radius: 8;" +[m
+[32m+[m[32m                        "-fx-cursor: hand;" +[m
+[32m+[m[32m                        "-fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.3), 8, 0, 0, 3);"[m
+[32m+[m[32m        ));[m
+[32m+[m
+[32m+[m[32m        button.setOnMouseExited(e -> button.setStyle([m
+[32m+[m[32m                "-fx-background-color: " + bgColor + ";" +[m
+[32m+[m[32m                        "-fx-text-fill: white;" +[m
+[32m+[m[32m                        "-fx-font-size: 13px;" +[m
+[32m+[m[32m                        "-fx-font-weight: bold;" +[m
+[32m+[m[32m                        "-fx-padding: 10 18;" +[m
+[32m+[m[32m                        "-fx-background-radius: 8;" +[m
+[32m+[m[32m                        "-fx-cursor: hand;" +[m
+[32m+[m[32m                        "-fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.2), 5, 0, 0, 2);"[m
+[32m+[m[32m        ));[m
+[32m+[m
+[32m+[m[32m        return button;[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    private void navigateToDashboard() {[m
+[32m+[m[32m        com.magictech.core.ui.SceneManager.getInstance().showMainDashboard();[m
+[32m+[m[32m    }[m
+[32m+[m
+     @Override[m
+     protected void setupUI() {[m
+         StackPane stackRoot = new StackPane();[m
+[36m@@ -570,7 +612,7 @@[m [mpublic class PricingController extends BaseModuleController {[m
+             Task<Void> updateTask = new Task<>() {[m
+                 @Override[m
+                 protected Void call() {[m
+[31m-                    StorageItem entity = storageService.findById(item.getId()).orElseThrow(() -> new RuntimeException("Item not found"));[m
+[32m+[m[32m                    StorageItem entity = storageService.getItemById(item.getId()).orElseThrow(() -> new RuntimeException("Item not found"));[m
+                     entity.setPrice(newPrice);[m
+                     storageService.updateItem(item.getId(), entity);[m
+                     return null;[m
+[36m@@ -630,7 +672,7 @@[m [mpublic class PricingController extends BaseModuleController {[m
+                 @Override[m
+                 protected Void call() {[m
+                     for (StorageItemViewModel item : items) {[m
+[31m-                        StorageItem entity = storageService.findById(item.getId()).orElseThrow(() -> new RuntimeException("Item not found: " + item.getId()));[m
+[32m+[m[32m                        StorageItem entity = storageService.getItemById(item.getId()).orElseThrow(() -> new RuntimeException("Item not found: " + item.getId()));[m
+                         entity.setPrice(newPrice);[m
+                         storageService.updateItem(item.getId(), entity);[m
+                     }[m
+[36m@@ -673,7 +715,6 @@[m [mpublic class PricingController extends BaseModuleController {[m
+         return vm;[m
+     }[m
+ [m
+[31m-    @Override[m
+     public void immediateCleanup() {[m
+         if (backgroundPane != null) {[m
+             backgroundPane.stopAnimation();[m
+[1mdiff --git a/src/main/java/com/magictech/modules/projects/ProjectsStorageController.java b/src/main/java/com/magictech/modules/projects/ProjectsStorageController.java[m
+[1mindex 3cc6353..cf38689 100644[m
+[1m--- a/src/main/java/com/magictech/modules/projects/ProjectsStorageController.java[m
+[1m+++ b/src/main/java/com/magictech/modules/projects/ProjectsStorageController.java[m
+[36m@@ -296,6 +296,46 @@[m [mpublic class ProjectsStorageController extends BaseModuleController {[m
+         return screen;[m
+     }[m
+ [m
+[32m+[m[32m    private Button createStyledButton(String text, String normalColor, String hoverColor) {[m
+[32m+[m[32m        Button button = new Button(text);[m
+[32m+[m[32m        button.setStyle([m
+[32m+[m[32m                "-fx-background-color: " + normalColor + ";" +[m
+[32m+[m[32m                        "-fx-text-fill: white;" +[m
+[32m+[m[32m                        "-fx-font-size: 14px;" +[m
+[32m+[m[32m                        "-fx-font-weight: bold;" +[m
+[32m+[m[32m                        "-fx-padding: 12 24;" +[m
+[32m+[m[32m                        "-fx-background-radius: 8;" +[m
+[32m+[m[32m                        "-fx-cursor: hand;" +[m
+[32m+[m[32m                        "-fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.3), 8, 0, 0, 2);"[m
+[32m+[m[32m        );[m
+[32m+[m
+[32m+[m[32m        button.setOnMouseEntered(e -> button.setStyle([m
+[32m+[m[32m                "-fx-background-color: " + hoverColor + ";" +[m
+[32m+[m[32m                        "-fx-text-fill: white;" +[m
+[32m+[m[32m                        "-fx-font-size: 14px;" +[m
+[32m+[m[32m                        "-fx-font-weight: bold;" +[m
+[32m+[m[32m                        "-fx-padding: 12 24;" +[m
+[32m+[m[32m                        "-fx-background-radius: 8;" +[m
+[32m+[m[32m                        "-fx-cursor: hand;" +[m
+[32m+[m[32m                        "-fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.5), 12, 0, 0, 4);" +[m
+[32m+[m[32m                        "-fx-scale-x: 1.05;" +[m
+[32m+[m[32m                        "-fx-scale-y: 1.05;"[m
+[32m+[m[32m        ));[m
+[32m+[m
+[32m+[m[32m        button.setOnMouseExited(e -> button.setStyle([m
+[32m+[m[32m                "-fx-background-color: " + normalColor + ";" +[m
+[32m+[m[32m                        "-fx-text-fill: white;" +[m
+[32m+[m[32m                        "-f
