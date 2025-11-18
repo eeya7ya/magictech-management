@@ -1,5 +1,6 @@
 package com.magictech.modules.projects.service;
 
+import com.magictech.core.notification.NotificationService;
 import com.magictech.modules.projects.entity.Project;
 import com.magictech.modules.projects.repository.ProjectRepository;
 import com.magictech.modules.notification.service.NotificationService;
@@ -82,6 +83,8 @@ public class ProjectService {
 
         if (existingProject.isPresent()) {
             Project project = existingProject.get();
+            String oldStatus = project.getStatus();
+
             project.setProjectName(updatedProject.getProjectName());
             project.setProjectLocation(updatedProject.getProjectLocation());
             project.setDateOfIssue(updatedProject.getDateOfIssue());
@@ -90,7 +93,29 @@ public class ProjectService {
             project.setNotes(updatedProject.getNotes());
             project.setLastUpdated(LocalDateTime.now());
 
-            return repository.save(project);
+            Project saved = repository.save(project);
+
+            // If project status changed to "Completed", notify PRICING module
+            if (updatedProject.getStatus() != null &&
+                updatedProject.getStatus().equalsIgnoreCase("Completed") &&
+                !updatedProject.getStatus().equalsIgnoreCase(oldStatus)) {
+
+                notificationService.createNotificationWithRelation(
+                    "PRICING",  // targetRole
+                    "PRICING",  // module
+                    "PROJECT_COMPLETED",  // type
+                    "Project Completed",  // title
+                    String.format("Project '%s' has been completed and needs pricing finalization", saved.getProjectName()),  // message
+                    saved.getId(),  // relatedId
+                    "PROJECT",  // relatedType
+                    "HIGH",  // priority
+                    project.getCreatedBy() != null ? project.getCreatedBy() : "System"  // createdBy
+                );
+
+                System.out.println("✓ Pricing notification created for completed project: " + saved.getProjectName());
+            }
+
+            return saved;
         }
 
         throw new RuntimeException("Project not found with id: " + id);

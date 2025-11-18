@@ -139,32 +139,6 @@ public class LoginController {
         beforeFade.play();
     }
 
-    @FXML
-    private void showAvailableUsers() {
-        String[] usernames = authService.getAllUsernames();
-        StringBuilder info = new StringBuilder("Available Test Users:\n\n");
-
-        for (String username : usernames) {
-            info.append("• ").append(authService.getUserInfo(username)).append("\n");
-        }
-
-        // Use modern styled alert
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.setTitle("Test Users");
-        alert.setHeaderText("Available Users for Testing");
-        alert.setContentText(info.toString());
-
-        // Apply modern styling
-        DialogPane dialogPane = alert.getDialogPane();
-        dialogPane.setStyle("-fx-background-color: rgba(30, 41, 59, 0.95); " +
-                "-fx-border-color: rgba(139, 92, 246, 0.3); " +
-                "-fx-border-width: 1; " +
-                "-fx-border-radius: 16; " +
-                "-fx-background-radius: 16;");
-
-        alert.showAndWait();
-    }
-
     private void showError(String message) {
         errorLabel.setText(message);
         errorLabel.setStyle("-fx-background-color: rgba(239, 68, 68, 0.15); " +

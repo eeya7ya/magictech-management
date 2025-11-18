@@ -6,7 +6,7 @@ import com.magictech.core.ui.controllers.MainDashboardController;
 import com.magictech.modules.storage.StorageController;
 import com.magictech.modules.maintenance.MaintenanceStorageController;
 import com.magictech.modules.projects.ProjectsStorageController;
-import com.magictech.modules.pricing.PricingStorageController;
+import com.magictech.modules.pricing.PricingController;
 import javafx.animation.FadeTransition;
 import javafx.application.Platform;
 import javafx.fxml.FXMLLoader;
@@ -45,6 +45,9 @@ public class SceneManager {
 
     @Autowired
     private ApplicationContext context;
+
+    @Autowired
+    private com.magictech.core.ui.notification.NotificationManager notificationManager;
 
     // Track active controllers for cleanup
     private MainDashboardController activeDashboard;
@@ -154,6 +157,15 @@ public class SceneManager {
      * ✅ IMMEDIATE cleanup - no delays
      */
     private void immediateCleanup() {
+        // ✅ Clean up NotificationManager
+        if (notificationManager != null) {
+            try {
+                notificationManager.cleanup();
+            } catch (Exception e) {
+                System.err.println("NotificationManager cleanup warning: " + e.getMessage());
+            }
+        }
+
         // Clean up dashboard
         if (activeDashboard != null) {
             try {
@@ -175,8 +187,8 @@ public class SceneManager {
                     ((MaintenanceStorageController) activeModuleController).immediateCleanup();
                 } else if (activeModuleController instanceof ProjectsStorageController) {
                     ((ProjectsStorageController) activeModuleController).immediateCleanup();
-                } else if (activeModuleController instanceof PricingStorageController) {
-                    ((PricingStorageController) activeModuleController).immediateCleanup();
+                } else if (activeModuleController instanceof PricingController) {
+                    ((PricingController) activeModuleController).immediateCleanup();
                 }
             } catch (Exception e) {
                 System.err.println("Module cleanup warning: " + e.getMessage());
@@ -236,6 +248,11 @@ public class SceneManager {
 
                     MainDashboardController controller = loader.getController();
                     controller.initializeWithUser(currentUser);
+
+                    // ✅ Initialize NotificationManager
+                    if (currentUser != null) {
+                        notificationManager.initialize(currentUser, primaryStage);
+                    }
 
                     activeDashboard = controller;
 
@@ -475,7 +492,7 @@ public class SceneManager {
                 try {
                     immediateCleanup();
 
-                    PricingStorageController pricingController = new PricingStorageController();
+                    PricingController pricingController = new PricingController();
                     context.getAutowireCapableBeanFactory().autowireBean(pricingController);
 
                     ModuleConfig config = ModuleConfig.createPricingConfig();

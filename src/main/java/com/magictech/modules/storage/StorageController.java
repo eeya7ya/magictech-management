@@ -57,13 +57,16 @@ public class StorageController extends BaseModuleController {
     @Autowired
     private ExcelExportService excelExportService;
 
+    @Autowired
+    private com.magictech.modules.storage.service.AnalyticsService analyticsService;
+
     // Active table tracker
-    private enum ActiveTable { STORAGE, PROJECTS }
+    private enum ActiveTable { STORAGE, ANALYTICS }
     private ActiveTable currentTable = ActiveTable.STORAGE;
 
     // UI Components
     private TableView<StorageItemViewModel> storageTable;
-    private TableView<ProjectViewModel> projectsTable;
+    private ScrollPane analyticsView;
     private StackPane tableContainer;
     private TextField searchField;
     private Button addButton, editButton, deleteButton, refreshButton;
@@ -78,11 +81,6 @@ public class StorageController extends BaseModuleController {
     private ObservableList<StorageItemViewModel> storageItems;
     private FilteredList<StorageItemViewModel> filteredStorage;
     private Map<StorageItemViewModel, BooleanProperty> storageSelectionMap = new HashMap<>();
-
-    // Projects Data
-    private ObservableList<ProjectViewModel> projectItems;
-    private FilteredList<ProjectViewModel> filteredProjects;
-    private Map<ProjectViewModel, BooleanProperty> projectSelectionMap = new HashMap<>();
 
     @Override
     protected void setupUI() {
@@ -112,14 +110,8 @@ public class StorageController extends BaseModuleController {
         filteredStorage = new FilteredList<>(storageItems, p -> true);
         storageTable.setItems(filteredStorage);
 
-        // Initialize Projects
-        projectItems = FXCollections.observableArrayList();
-        filteredProjects = new FilteredList<>(projectItems, p -> true);
-        projectsTable.setItems(filteredProjects);
-
-        // Load both tables
+        // Load storage data
         loadStorageData();
-        loadProjectsData();
     }
 
     private VBox createHeader() {
@@ -171,7 +163,7 @@ public class StorageController extends BaseModuleController {
                         "-fx-border-width: 0 0 1 0;"
         );
 
-        Label subtitleLabel = new Label("Master Control • Storage Items + Projects Management");
+        Label subtitleLabel = new Label("Master Control • Storage Management + Business Analytics");
         subtitleLabel.setStyle("-fx-text-fill: rgba(255, 255, 255, 0.7); -fx-font-size: 14px;");
 
         selectedCountLabel = new Label();
@@ -196,7 +188,7 @@ public class StorageController extends BaseModuleController {
 
         tableContainer = new StackPane();
         storageTable = createStorageTable();
-        projectsTable = createProjectsTable();
+        analyticsView = createAnalyticsView();
 
         loadingIndicator = new ProgressIndicator();
         loadingIndicator.setVisible(false);
@@ -204,7 +196,7 @@ public class StorageController extends BaseModuleController {
 
         // Show storage table by default
         tableContainer.getChildren().addAll(storageTable, loadingIndicator);
-        projectsTable.setVisible(false);
+        analyticsView.setVisible(false);
 
         VBox.setVgrow(tableContainer, Priority.ALWAYS);
 
@@ -217,11 +209,11 @@ public class StorageController extends BaseModuleController {
         tabBox.setAlignment(Pos.CENTER_LEFT);
         tabBox.setPadding(new Insets(0, 0, 10, 0));
 
-        storageTabButton = createTabButton("📦 Storage Items Table", true);
+        storageTabButton = createTabButton("📦 Storage Management", true);
         storageTabButton.setOnAction(e -> switchToStorageTable());
 
-        projectsTabButton = createTabButton("📁 Projects Table", false);
-        projectsTabButton.setOnAction(e -> switchToProjectsTable());
+        projectsTabButton = createTabButton("📊 Analytics Dashboard", false);
+        projectsTabButton.setOnAction(e -> switchToAnalyticsView());
 
         tabBox.getChildren().addAll(storageTabButton, projectsTabButton);
         return tabBox;
@@ -289,7 +281,7 @@ public class StorageController extends BaseModuleController {
         tableContainer.getChildren().clear();
         tableContainer.getChildren().addAll(storageTable, loadingIndicator);
         storageTable.setVisible(true);
-        projectsTable.setVisible(false);
+        analyticsView.setVisible(false);
 
         updateTabButtonStyle(storageTabButton, true);
         updateTabButtonStyle(projectsTabButton, false);
@@ -303,40 +295,53 @@ public class StorageController extends BaseModuleController {
         columnsButton.setManaged(true);
         openProjectButton.setVisible(false);
         openProjectButton.setManaged(false);
+        addButton.setVisible(true);
+        addButton.setManaged(true);
+        editButton.setVisible(true);
+        editButton.setManaged(true);
+        deleteButton.setVisible(true);
+        deleteButton.setManaged(true);
 
-        projectSelectionMap.forEach((item, prop) -> prop.set(false));
         storageTable.refresh();
         updateSelectedCount();
 
         System.out.println("✓ Switched to Storage Table");
     }
 
-    private void switchToProjectsTable() {
-        currentTable = ActiveTable.PROJECTS;
+    private void switchToAnalyticsView() {
+        currentTable = ActiveTable.ANALYTICS;
 
         tableContainer.getChildren().clear();
-        tableContainer.getChildren().addAll(projectsTable, loadingIndicator);
-        projectsTable.setVisible(true);
+        tableContainer.getChildren().addAll(analyticsView, loadingIndicator);
+        analyticsView.setVisible(true);
         storageTable.setVisible(false);
 
         updateTabButtonStyle(storageTabButton, false);
         updateTabButtonStyle(projectsTabButton, true);
 
-        // Show project-specific buttons
+        // Hide all edit buttons (analytics is read-only)
         importButton.setVisible(false);
         importButton.setManaged(false);
         exportButton.setVisible(false);
         exportButton.setManaged(false);
         columnsButton.setVisible(false);
         columnsButton.setManaged(false);
-        openProjectButton.setVisible(true);
-        openProjectButton.setManaged(true);
+        openProjectButton.setVisible(false);
+        openProjectButton.setManaged(false);
+        addButton.setVisible(false);
+        addButton.setManaged(false);
+        editButton.setVisible(false);
+        editButton.setManaged(false);
+        deleteButton.setVisible(false);
+        deleteButton.setManaged(false);
 
         storageSelectionMap.forEach((item, prop) -> prop.set(false));
-        projectsTable.refresh();
-        updateSelectedCount();
+        selectedCountLabel.setVisible(false);
 
-        System.out.println("✓ Switched to Projects Table");
+        // Refresh analytics data
+        refreshAnalytics();
+
+        System.out.println("✓ Switched to Analytics Dashboard");
     }
 
     private HBox createToolbar() {
@@ -601,167 +606,194 @@ public class StorageController extends BaseModuleController {
         }
     }
 
-    // ==================== PROJECTS TABLE ====================
+    // ==================== ANALYTICS DASHBOARD ====================
 
-    private TableView<ProjectViewModel> createProjectsTable() {
-        TableView<ProjectViewModel> table = new TableView<>();
-        table.setStyle(
+    private ScrollPane createAnalyticsView() {
+        ScrollPane scrollPane = new ScrollPane();
+        scrollPane.setFitToWidth(true);
+        scrollPane.setStyle(
+                "-fx-background: transparent;" +
+                        "-fx-background-color: transparent;"
+        );
+
+        VBox content = new VBox(30);
+        content.setPadding(new Insets(30));
+        content.setStyle("-fx-background-color: transparent;");
+
+        // Title
+        Label title = new Label("📊 Business Analytics Dashboard");
+        title.setStyle("-fx-text-fill: white; -fx-font-size: 28px; -fx-font-weight: bold;");
+
+        Label subtitle = new Label("Comprehensive business insights and performance metrics");
+        subtitle.setStyle("-fx-text-fill: rgba(255, 255, 255, 0.7); -fx-font-size: 14px;");
+
+        // Metrics Cards
+        HBox metricsCards = new HBox(20);
+        metricsCards.setAlignment(Pos.CENTER);
+        metricsCards.setId("metricsCards");
+
+        // Projects Analytics Table
+        VBox projectsSection = new VBox(15);
+        Label projectsTitle = new Label("📁 Projects Analytics");
+        projectsTitle.setStyle("-fx-text-fill: white; -fx-font-size: 22px; -fx-font-weight: bold;");
+
+        TableView<com.magictech.modules.storage.dto.ProjectAnalyticsDTO> projectsAnalyticsTable = new TableView<>();
+        projectsAnalyticsTable.setId("projectsAnalyticsTable");
+        projectsAnalyticsTable.setStyle(
                 "-fx-background-color: rgba(30, 41, 59, 0.5);" +
                         "-fx-background-radius: 12;" +
-                        "-fx-border-color: rgba(239, 68, 68, 0.3);" +
+                        "-fx-border-color: rgba(99, 102, 241, 0.3);" +
                         "-fx-border-radius: 12;" +
                         "-fx-border-width: 2;"
         );
-        table.setEditable(true);
-        buildProjectsColumns(table);
-        return table;
+        projectsAnalyticsTable.setPrefHeight(300);
+
+        // Project columns
+        TableColumn<com.magictech.modules.storage.dto.ProjectAnalyticsDTO, String> pNameCol = new TableColumn<>("Project Name");
+        pNameCol.setPrefWidth(200);
+        pNameCol.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue().getProjectName()));
+
+        TableColumn<com.magictech.modules.storage.dto.ProjectAnalyticsDTO, String> pStatusCol = new TableColumn<>("Status");
+        pStatusCol.setPrefWidth(120);
+        pStatusCol.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue().getStatus()));
+
+        TableColumn<com.magictech.modules.storage.dto.ProjectAnalyticsDTO, String> pDurationCol = new TableColumn<>("Duration (days)");
+        pDurationCol.setPrefWidth(120);
+        pDurationCol.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(
+                data.getValue().getDurationDays() != null ? String.valueOf(data.getValue().getDurationDays()) : "N/A"
+        ));
+
+        TableColumn<com.magictech.modules.storage.dto.ProjectAnalyticsDTO, String> pElementsCol = new TableColumn<>("Elements");
+        pElementsCol.setPrefWidth(100);
+        pElementsCol.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(
+                data.getValue().getElementsCount() != null ? String.valueOf(data.getValue().getElementsCount()) : "0"
+        ));
+
+        TableColumn<com.magictech.modules.storage.dto.ProjectAnalyticsDTO, String> pCostCol = new TableColumn<>("Total Cost");
+        pCostCol.setPrefWidth(120);
+        pCostCol.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(
+                data.getValue().getTotalCost() != null ? String.format("$%.2f", data.getValue().getTotalCost()) : "$0.00"
+        ));
+
+        projectsAnalyticsTable.getColumns().addAll(pNameCol, pStatusCol, pDurationCol, pElementsCol, pCostCol);
+
+        projectsSection.getChildren().addAll(projectsTitle, projectsAnalyticsTable);
+
+        // Customer Analytics Table
+        VBox customersSection = new VBox(15);
+        Label customersTitle = new Label("👥 Customer Analytics");
+        customersTitle.setStyle("-fx-text-fill: white; -fx-font-size: 22px; -fx-font-weight: bold;");
+
+        TableView<com.magictech.modules.storage.dto.CustomerAnalyticsDTO> customersAnalyticsTable = new TableView<>();
+        customersAnalyticsTable.setId("customersAnalyticsTable");
+        customersAnalyticsTable.setStyle(
+                "-fx-background-color: rgba(30, 41, 59, 0.5);" +
+                        "-fx-background-radius: 12;" +
+                        "-fx-border-color: rgba(34, 197, 94, 0.3);" +
+                        "-fx-border-radius: 12;" +
+                        "-fx-border-width: 2;"
+        );
+        customersAnalyticsTable.setPrefHeight(300);
+
+        // Customer columns
+        TableColumn<com.magictech.modules.storage.dto.CustomerAnalyticsDTO, String> cNameCol = new TableColumn<>("Customer Name");
+        cNameCol.setPrefWidth(200);
+        cNameCol.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue().getCustomerName()));
+
+        TableColumn<com.magictech.modules.storage.dto.CustomerAnalyticsDTO, String> cEmailCol = new TableColumn<>("Email");
+        cEmailCol.setPrefWidth(180);
+        cEmailCol.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(data.getValue().getEmail()));
+
+        TableColumn<com.magictech.modules.storage.dto.CustomerAnalyticsDTO, String> cOrdersCol = new TableColumn<>("Orders");
+        cOrdersCol.setPrefWidth(100);
+        cOrdersCol.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(
+                data.getValue().getOrdersCount() != null ? String.valueOf(data.getValue().getOrdersCount()) : "0"
+        ));
+
+        TableColumn<com.magictech.modules.storage.dto.CustomerAnalyticsDTO, String> cSalesCol = new TableColumn<>("Total Sales");
+        cSalesCol.setPrefWidth(120);
+        cSalesCol.setCellValueFactory(data -> new javafx.beans.property.SimpleStringProperty(
+                data.getValue().getTotalSales() != null ? String.format("$%.2f", data.getValue().getTotalSales()) : "$0.00"
+        ));
+
+        customersAnalyticsTable.getColumns().addAll(cNameCol, cEmailCol, cOrdersCol, cSalesCol);
+
+        customersSection.getChildren().addAll(customersTitle, customersAnalyticsTable);
+
+        content.getChildren().addAll(title, subtitle, metricsCards, projectsSection, customersSection);
+        scrollPane.setContent(content);
+
+        return scrollPane;
     }
 
-    private void buildProjectsColumns(TableView<ProjectViewModel> table) {
-        table.getColumns().clear();
-        table.setColumnResizePolicy(TableView.UNCONSTRAINED_RESIZE_POLICY);
+    private void refreshAnalytics() {
+        Platform.runLater(() -> {
+            try {
+                // Get metrics
+                com.magictech.modules.storage.service.AnalyticsService.BusinessMetricsDTO metrics =
+                    analyticsService.getBusinessMetrics();
 
-        // Checkbox
-        TableColumn<ProjectViewModel, Boolean> selectCol = new TableColumn<>();
-        selectCol.setPrefWidth(40);
-        selectCol.setMaxWidth(40);
-        selectCol.setMinWidth(40);
-        selectCol.setResizable(false);
-        selectCol.setEditable(true);
+                // Update metrics cards
+                HBox metricsCards = (HBox) analyticsView.lookup("#metricsCards");
+                if (metricsCards != null) {
+                    metricsCards.getChildren().clear();
+                    metricsCards.getChildren().addAll(
+                        createMetricCard("Projects", String.valueOf(metrics.getTotalProjects()), "#6366f1"),
+                        createMetricCard("Completed", String.valueOf(metrics.getCompletedProjects()), "#22c55e"),
+                        createMetricCard("Active", String.valueOf(metrics.getActiveProjects()), "#f59e0b"),
+                        createMetricCard("Customers", String.valueOf(metrics.getTotalCustomers()), "#8b5cf6"),
+                        createMetricCard("Revenue", String.format("$%.0f", metrics.getTotalRevenue()), "#ef4444")
+                    );
+                }
 
-        CheckBox projectSelectAll = new CheckBox();
-        projectSelectAll.setOnAction(e -> {
-            boolean selectAll = projectSelectAll.isSelected();
-            for (ProjectViewModel item : filteredProjects) {
-                projectSelectionMap.get(item).set(selectAll);
+                // Load projects analytics
+                List<com.magictech.modules.storage.dto.ProjectAnalyticsDTO> projectAnalytics =
+                    analyticsService.getProjectAnalytics();
+                TableView<com.magictech.modules.storage.dto.ProjectAnalyticsDTO> projectsTable =
+                    (TableView<com.magictech.modules.storage.dto.ProjectAnalyticsDTO>) analyticsView.lookup("#projectsAnalyticsTable");
+                if (projectsTable != null) {
+                    projectsTable.getItems().setAll(projectAnalytics);
+                }
+
+                // Load customers analytics
+                List<com.magictech.modules.storage.dto.CustomerAnalyticsDTO> customerAnalytics =
+                    analyticsService.getCustomerAnalytics();
+                TableView<com.magictech.modules.storage.dto.CustomerAnalyticsDTO> customersTable =
+                    (TableView<com.magictech.modules.storage.dto.CustomerAnalyticsDTO>) analyticsView.lookup("#customersAnalyticsTable");
+                if (customersTable != null) {
+                    customersTable.getItems().setAll(customerAnalytics);
+                }
+
+                System.out.println("✓ Analytics refreshed successfully");
+            } catch (Exception ex) {
+                System.err.println("Error refreshing analytics: " + ex.getMessage());
+                ex.printStackTrace();
             }
-        });
-        selectCol.setGraphic(projectSelectAll);
-
-        selectCol.setCellValueFactory(cellData -> {
-            ProjectViewModel item = cellData.getValue();
-            return projectSelectionMap.computeIfAbsent(item, k -> {
-                BooleanProperty prop = new SimpleBooleanProperty(false);
-                prop.addListener((obs, oldVal, newVal) -> {
-                    updateSelectedCount();
-                    Platform.runLater(() -> projectsTable.refresh());
-                });
-                return prop;
-            });
-        });
-
-        selectCol.setCellFactory(col -> {
-            CheckBoxTableCell<ProjectViewModel, Boolean> cell = new CheckBoxTableCell<>();
-            cell.setAlignment(Pos.CENTER);
-            cell.setEditable(true);
-            return cell;
-        });
-
-        table.getColumns().add(selectCol);
-
-        // ID
-        TableColumn<ProjectViewModel, String> idCol = new TableColumn<>("ID");
-        idCol.setPrefWidth(60);
-        idCol.setCellValueFactory(cellData -> new SimpleStringProperty(String.valueOf(cellData.getValue().getId())));
-        idCol.setStyle("-fx-alignment: CENTER;");
-        table.getColumns().add(idCol);
-
-        // Project Name
-        TableColumn<ProjectViewModel, String> nameCol = new TableColumn<>("Project Name");
-        nameCol.setPrefWidth(250);
-        nameCol.setCellValueFactory(new PropertyValueFactory<>("projectName"));
-        nameCol.setStyle("-fx-alignment: CENTER-LEFT; -fx-padding: 0 10 0 10; -fx-font-weight: bold;");
-        table.getColumns().add(nameCol);
-
-        // Location
-        TableColumn<ProjectViewModel, String> locationCol = new TableColumn<>("Location");
-        locationCol.setPrefWidth(200);
-        locationCol.setCellValueFactory(new PropertyValueFactory<>("projectLocation"));
-        locationCol.setStyle("-fx-alignment: CENTER-LEFT; -fx-padding: 0 10 0 10;");
-        table.getColumns().add(locationCol);
-
-        // Status
-        TableColumn<ProjectViewModel, String> statusCol = new TableColumn<>("Status");
-        statusCol.setPrefWidth(120);
-        statusCol.setCellValueFactory(new PropertyValueFactory<>("status"));
-        statusCol.setCellFactory(col -> new TableCell<ProjectViewModel, String>() {
-            @Override
-            protected void updateItem(String item, boolean empty) {
-                super.updateItem(item, empty);
-                if (empty || item == null) {
-                    setText(null);
-                    setStyle("");
-                } else {
-                    setText(item);
-                    String color = switch (item.toLowerCase()) {
-                        case "completed" -> "#22c55e";
-                        case "in progress" -> "#3b82f6";
-                        case "on hold" -> "#f59e0b";
-                        default -> "#a78bfa";
-                    };
-                    setStyle("-fx-alignment: CENTER; -fx-text-fill: " + color + "; -fx-font-weight: bold;");
-                }
-            }
-        });
-        table.getColumns().add(statusCol);
-
-        // Date of Issue
-        TableColumn<ProjectViewModel, String> issueCol = new TableColumn<>("Date of Issue");
-        issueCol.setPrefWidth(130);
-        issueCol.setCellValueFactory(new PropertyValueFactory<>("dateOfIssue"));
-        issueCol.setStyle("-fx-alignment: CENTER;");
-        table.getColumns().add(issueCol);
-
-        // Date of Completion
-        TableColumn<ProjectViewModel, String> completionCol = new TableColumn<>("Date of Completion");
-        completionCol.setPrefWidth(150);
-        completionCol.setCellValueFactory(new PropertyValueFactory<>("dateOfCompletion"));
-        completionCol.setStyle("-fx-alignment: CENTER;");
-        table.getColumns().add(completionCol);
-
-        // Row factory with selection highlighting + double-click
-        table.setRowFactory(tv -> {
-            TableRow<ProjectViewModel> row = new TableRow<ProjectViewModel>() {
-                @Override
-                protected void updateItem(ProjectViewModel item, boolean empty) {
-                    super.updateItem(item, empty);
-                    if (empty || item == null) {
-                        setStyle("");
-                    } else {
-                        BooleanProperty selected = projectSelectionMap.get(item);
-                        if (selected != null) {
-                            selected.addListener((obs, oldVal, newVal) -> updateProjectRowStyle(this, newVal));
-                            updateProjectRowStyle(this, selected.get());
-                        }
-                    }
-                }
-            };
-
-            row.setOnMouseClicked(event -> {
-                if (event.getClickCount() == 2 && !row.isEmpty()) {
-                    handleOpenProject();
-                }
-            });
-
-            return row;
         });
     }
 
-    private void updateProjectRowStyle(TableRow<ProjectViewModel> row, boolean isSelected) {
-        if (isSelected) {
-            row.setStyle(
-                    "-fx-background-color: rgba(34, 197, 94, 0.2);" +
-                            "-fx-border-color: rgba(34, 197, 94, 0.6);" +
-                            "-fx-border-width: 0 0 0 4;"
-            );
-        } else {
-            int index = row.getIndex();
-            if (index % 2 == 0) {
-                row.setStyle("-fx-background-color: rgba(30, 41, 59, 0.3);");
-            } else {
-                row.setStyle("-fx-background-color: rgba(15, 23, 42, 0.4);");
-            }
-        }
+    private VBox createMetricCard(String label, String value, String color) {
+        VBox card = new VBox(10);
+        card.setAlignment(Pos.CENTER);
+        card.setPadding(new Insets(20));
+        card.setStyle(
+                "-fx-background-color: rgba(30, 41, 59, 0.6);" +
+                        "-fx-background-radius: 12;" +
+                        "-fx-border-color: " + color + ";" +
+                        "-fx-border-width: 2;" +
+                        "-fx-border-radius: 12;" +
+                        "-fx-min-width: 150px;" +
+                        "-fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.3), 10, 0, 0, 3);"
+        );
+
+        Label valueLabel = new Label(value);
+        valueLabel.setStyle("-fx-text-fill: " + color + "; -fx-font-size: 32px; -fx-font-weight: bold;");
+
+        Label labelText = new Label(label);
+        labelText.setStyle("-fx-text-fill: rgba(255, 255, 255, 0.7); -fx-font-size: 14px;");
+
+        card.getChildren().addAll(valueLabel, labelText);
+        return card;
     }
 
     // ==================== DATA LOADING ====================
@@ -795,40 +827,6 @@ public class StorageController extends BaseModuleController {
 
         loadTask.setOnFailed(e -> {
             showError("Failed to load storage items: " + loadTask.getException().getMessage());
-        });
-
-        new Thread(loadTask).start();
-    }
-
-    private void loadProjectsData() {
-        Task<List<Project>> loadTask = new Task<>() {
-            @Override
-            protected List<Project> call() {
-                return projectService.getAllProjects();
-            }
-        };
-
-        loadTask.setOnSucceeded(e -> {
-            List<Project> projects = loadTask.getValue();
-            projectItems.clear();
-            projectSelectionMap.clear();
-
-            for (Project entity : projects) {
-                ProjectViewModel vm = convertProjectToViewModel(entity);
-                projectItems.add(vm);
-                BooleanProperty prop = new SimpleBooleanProperty(false);
-                prop.addListener((obs, oldVal, newVal) -> {
-                    updateSelectedCount();
-                    Platform.runLater(() -> projectsTable.refresh());
-                });
-                projectSelectionMap.put(vm, prop);
-            }
-
-            System.out.println("✓ Loaded " + projects.size() + " projects");
-        });
-
-        loadTask.setOnFailed(e -> {
-            showError("Failed to load projects: " + loadTask.getException().getMessage());
         });
 
         new Thread(loadTask).start();
@@ -1267,26 +1265,6 @@ public class StorageController extends BaseModuleController {
             deleteTask.setOnFailed(e -> showError("Delete failed: " + deleteTask.getException().getMessage()));
             new Thread(deleteTask).start();
         }
-    }
-
-    private void handleOpenProject() {
-        List<ProjectViewModel> selected = projectSelectionMap.entrySet().stream()
-                .filter(e -> e.getValue().get())
-                .map(Map.Entry::getKey)
-                .collect(Collectors.toList());
-
-        if (selected.isEmpty() || selected.size() > 1) {
-            showWarning("Please select ONE project to open");
-            return;
-        }
-
-        ProjectViewModel project = selected.get(0);
-
-        // Open full professional detail view
-        ProjectDetailViewController detailView = new ProjectDetailViewController(project);
-        detailView.show();
-
-        System.out.println("✓ Opened project detail view for: " + project.getProjectName());
     }
 
     // ==================== DIALOGS ====================

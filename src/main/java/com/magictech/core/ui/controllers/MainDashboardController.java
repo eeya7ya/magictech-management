@@ -1,18 +1,27 @@
 package com.magictech.core.ui.controllers;
 
+import com.magictech.core.approval.PendingApprovalService;
 import com.magictech.core.auth.User;
 import com.magictech.core.ui.SceneManager;
 import com.magictech.core.ui.components.DashboardBackgroundPane;
+import com.magictech.core.ui.notification.NotificationManager;
+import com.magictech.core.ui.notification.NotificationPanel;
 import javafx.animation.*;
 import javafx.fxml.FXML;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.layout.*;
+import javafx.scene.paint.Color;
+import javafx.scene.shape.Circle;
 import javafx.scene.text.Font;
+import javafx.scene.text.FontWeight;
 import javafx.util.Duration;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+
+import java.util.HashMap;
 
 @Component
 public class MainDashboardController {
@@ -22,15 +31,29 @@ public class MainDashboardController {
     @FXML private Label welcomeLabel;
     @FXML private Label roleLabel;
     @FXML private FlowPane modulesContainer;
+    @FXML private javafx.scene.control.Button userManagementButton;
 
     @Autowired
     private SceneManager sceneManager;
 
+    @Autowired
+    private UserManagementController userManagementController;
+
+    @Autowired
+    private NotificationManager notificationManager;
+
+    @Autowired
+    private PendingApprovalService pendingApprovalService;
+
     private User currentUser;
+    private NotificationPanel notificationPanel;
+    private Button notificationButton;
+    private Label notificationBadge;
+    private HashMap<String, Label> moduleBadges = new HashMap<>();
 
     @FXML
     public void initialize() {
-        loadModules();
+        // Don't load modules here - currentUser is null at this point
         //playEntranceAnimation();
     }
 
@@ -40,49 +63,93 @@ public class MainDashboardController {
         if (currentUser != null) {
             welcomeLabel.setText("Welcome, " + currentUser.getUsername());
             roleLabel.setText("Role: " + currentUser.getRole().getDisplayName());
+
+            // Show user management button only for MASTER role
+            if (userManagementButton != null) {
+                userManagementButton.setVisible(
+                    currentUser.getRole() == com.magictech.core.auth.UserRole.MASTER
+                );
+                userManagementButton.setManaged(
+                    currentUser.getRole() == com.magictech.core.auth.UserRole.MASTER
+                );
+            }
+
+            // Initialize notification manager
+            notificationManager.initialize(currentUser, sceneManager.getPrimaryStage());
+
+            // Add notification button to header
+            addNotificationButton();
+
+            // ✅ FIX: Load modules AFTER user is set
+            loadModules();
+
+            // Setup notification listeners for badge updates
+            setupNotificationListeners();
         }
     }
 
     private void loadModules() {
         modulesContainer.getChildren().clear();
 
-        modulesContainer.getChildren().addAll(
-                createModuleCard(
-                        "🛒",
-                        "Sales Team Module",
-                        "Manage sales operations • View availability & pricing • Track inventory",
-                        "module-blue",
-                        "sales"
-                ),
-                createModuleCard(
-                        "🔧",
-                        "Maintenance Team Module",
-                        "Handle maintenance requests • Equipment tracking • Service schedules",
-                        "module-green",
-                        "maintenance"
-                ),
-                createModuleCard(
-                        "📁",
-                        "Projects Team Module",
-                        "Coordinate projects • Track resources • Manage team collaboration",
-                        "module-purple",
-                        "projects"
-                ),
-                createModuleCard(
-                        "💰",
-                        "Pricing Module",
-                        "Configure pricing models • Manage quotes • Availability-based pricing",
-                        "module-orange",
-                        "pricing"
-                ),
-                createModuleCard(
-                        "📦",
-                        "Storage Management",
-                        "Full inventory control • All data access • Master storage operations",
-                        "module-red",
-                        "storage"
-                )
-        );
+        if (currentUser == null) {
+            return; // No user, no modules
+        }
+
+        // Role-based module loading
+        com.magictech.core.auth.UserRole role = currentUser.getRole();
+
+        // Add modules based on role
+        if (role == com.magictech.core.auth.UserRole.MASTER) {
+            // Admin sees all modules
+            modulesContainer.getChildren().addAll(
+                    createModuleCard("📦", "Storage Management",
+                            "Full inventory control • All data access • Master storage operations",
+                            "module-red", "storage"),
+                    createModuleCard("🛒", "Sales Team Module",
+                            "Manage sales operations • View availability & pricing • Track inventory",
+                            "module-blue", "sales"),
+                    createModuleCard("📁", "Projects Team Module",
+                            "Coordinate projects • Track resources • Manage team collaboration",
+                            "module-purple", "projects"),
+                    createModuleCard("💰", "Pricing Module",
+                            "Configure pricing models • Manage quotes • Availability-based pricing",
+                            "module-orange", "pricing"),
+                    createModuleCard("🔧", "Maintenance Team Module",
+                            "Handle maintenance requests • Equipment tracking • Service schedules",
+                            "module-green", "maintenance")
+            );
+        } else if (role == com.magictech.core.auth.UserRole.STORAGE) {
+            modulesContainer.getChildren().add(
+                    createModuleCard("📦", "Storage Management",
+                            "Full inventory control • All data access • Master storage operations",
+                            "module-red", "storage")
+            );
+        } else if (role == com.magictech.core.auth.UserRole.SALES) {
+            modulesContainer.getChildren().add(
+                    createModuleCard("🛒", "Sales Team Module",
+                            "Manage sales operations • View availability & pricing • Track inventory",
+                            "module-blue", "sales")
+            );
+        } else if (role == com.magictech.core.auth.UserRole.PROJECTS ||
+                   role == com.magictech.core.auth.UserRole.PROJECT_SUPPLIER) {
+            modulesContainer.getChildren().add(
+                    createModuleCard("📁", "Projects Team Module",
+                            "Coordinate projects • Track resources • Manage team collaboration",
+                            "module-purple", "projects")
+            );
+        } else if (role == com.magictech.core.auth.UserRole.PRICING) {
+            modulesContainer.getChildren().add(
+                    createModuleCard("💰", "Pricing Module",
+                            "Configure pricing models • Manage quotes • Availability-based pricing",
+                            "module-orange", "pricing")
+            );
+        } else if (role == com.magictech.core.auth.UserRole.MAINTENANCE) {
+            modulesContainer.getChildren().add(
+                    createModuleCard("🔧", "Maintenance Team Module",
+                            "Handle maintenance requests • Equipment tracking • Service schedules",
+                            "module-green", "maintenance")
+            );
+        }
     }
 
     private VBox createModuleCard(String icon, String title, String description, String colorClass, String moduleId) {
@@ -119,11 +186,30 @@ public class MainDashboardController {
         titleLabel.setFont(Font.font("System Bold", 17));
         HBox.setHgrow(titleLabel, Priority.ALWAYS);
 
+        // Add notification badge
+        StackPane badgeContainer = new StackPane();
+        badgeContainer.setMinSize(24, 24);
+        badgeContainer.setMaxSize(24, 24);
+
+        Circle badgeCircle = new Circle(12);
+        badgeCircle.setFill(Color.web("#ef4444")); // Red background
+
+        Label badge = new Label("0");
+        badge.setFont(Font.font("System", FontWeight.BOLD, 11));
+        badge.setTextFill(Color.WHITE);
+        badge.setAlignment(Pos.CENTER);
+
+        badgeContainer.getChildren().addAll(badgeCircle, badge);
+        badgeContainer.setVisible(false); // Initially hidden
+
+        // Store badge reference for updates
+        moduleBadges.put(moduleId, badge);
+
         Label arrowLabel = new Label("►");
         arrowLabel.getStyleClass().add("module-arrow");
         arrowLabel.setFont(new Font(18));
 
-        header.getChildren().addAll(iconLabel, titleLabel, arrowLabel);
+        header.getChildren().addAll(iconLabel, titleLabel, badgeContainer, arrowLabel);
 
         VBox content = new VBox();
         content.getStyleClass().add("module-card-content");
@@ -191,13 +277,147 @@ public class MainDashboardController {
 
 
 
+    /**
+     * Add notification button to header
+     */
+    private void addNotificationButton() {
+        // Find the header container (assuming it's the top of the BorderPane)
+        javafx.scene.Node topNode = dashboardRoot.getTop();
+        if (topNode instanceof HBox) {
+            HBox headerBox = (HBox) topNode;
+
+            // Create notification button with bell icon
+            notificationButton = new Button("🔔");
+            notificationButton.setFont(new Font(20));
+            notificationButton.setStyle(
+                "-fx-background-color: rgba(139, 92, 246, 0.3); " +
+                "-fx-text-fill: white; " +
+                "-fx-background-radius: 50%; " +
+                "-fx-min-width: 45px; " +
+                "-fx-min-height: 45px; " +
+                "-fx-max-width: 45px; " +
+                "-fx-max-height: 45px; " +
+                "-fx-cursor: hand; " +
+                "-fx-border-color: rgba(139, 92, 246, 0.6); " +
+                "-fx-border-width: 2; " +
+                "-fx-border-radius: 50%;"
+            );
+
+            // Create badge for notification count
+            StackPane notificationContainer = new StackPane();
+            Circle badgeCircle = new Circle(10);
+            badgeCircle.setFill(Color.web("#ef4444"));
+            badgeCircle.setTranslateX(15);
+            badgeCircle.setTranslateY(-15);
+
+            notificationBadge = new Label("0");
+            notificationBadge.setFont(Font.font("System", FontWeight.BOLD, 10));
+            notificationBadge.setTextFill(Color.WHITE);
+            notificationBadge.setTranslateX(15);
+            notificationBadge.setTranslateY(-15);
+
+            notificationContainer.getChildren().addAll(notificationButton, badgeCircle, notificationBadge);
+            badgeCircle.setVisible(false);
+            notificationBadge.setVisible(false);
+
+            // Add click handler
+            notificationButton.setOnAction(e -> toggleNotificationPanel());
+
+            // Add to header (before logout button if it exists)
+            int insertIndex = headerBox.getChildren().size() - 1; // Before last element (logout button)
+            if (insertIndex < 0) insertIndex = 0;
+            headerBox.getChildren().add(insertIndex, notificationContainer);
+        }
+    }
+
+    /**
+     * Setup notification listeners for badge updates
+     */
+    private void setupNotificationListeners() {
+        notificationManager.addBadgeUpdateListener(count -> {
+            // Update header notification badge
+            if (notificationBadge != null) {
+                notificationBadge.setText(String.valueOf(count));
+                notificationBadge.setVisible(count > 0);
+                notificationBadge.getParent().getChildrenUnmodifiable().stream()
+                    .filter(node -> node instanceof Circle)
+                    .findFirst()
+                    .ifPresent(circle -> circle.setVisible(count > 0));
+            }
+
+            // Update module badges
+            updateModuleBadges();
+        });
+    }
+
+    /**
+     * Update module-specific notification badges
+     */
+    private void updateModuleBadges() {
+        for (String moduleId : moduleBadges.keySet()) {
+            String moduleUpperCase = moduleId.toUpperCase();
+            long count = notificationManager.getUnreadCountByModule(moduleUpperCase);
+
+            Label badge = moduleBadges.get(moduleId);
+            if (badge != null) {
+                badge.setText(String.valueOf(count));
+                // Show/hide badge container
+                javafx.scene.Node badgeContainer = badge.getParent();
+                if (badgeContainer != null) {
+                    badgeContainer.setVisible(count > 0);
+                }
+            }
+        }
+    }
+
+    /**
+     * Toggle notification panel
+     */
+    private void toggleNotificationPanel() {
+        if (notificationPanel == null) {
+            // Create notification panel
+            notificationPanel = new NotificationPanel(notificationManager, pendingApprovalService);
+
+            // Add to right side of dashboard
+            dashboardRoot.setRight(notificationPanel);
+
+            // Add slide-in animation
+            notificationPanel.setTranslateX(400); // Start off-screen
+            TranslateTransition slideIn = new TranslateTransition(Duration.millis(300), notificationPanel);
+            slideIn.setToX(0);
+            slideIn.play();
+        } else {
+            // Slide out and remove
+            TranslateTransition slideOut = new TranslateTransition(Duration.millis(300), notificationPanel);
+            slideOut.setToX(400);
+            slideOut.setOnFinished(e -> {
+                dashboardRoot.setRight(null);
+                notificationPanel = null;
+            });
+            slideOut.play();
+        }
+    }
+
     // ADD this new method:
     public void immediateCleanup() {
         if (dashboardBackground != null) {
             dashboardBackground.stopAnimation();
             dashboardBackground = null;
         }
+
+        // Cleanup notification manager
+        if (notificationManager != null) {
+            notificationManager.stopPolling();
+        }
+
         System.out.println("✓ Dashboard cleaned up immediately");
+    }
+
+    @FXML
+    private void handleUserManagement() {
+        if (currentUser != null && currentUser.getRole() == com.magictech.core.auth.UserRole.MASTER) {
+            userManagementController.showUserManagement(sceneManager.getPrimaryStage());
+        }
     }
 
     @FXML

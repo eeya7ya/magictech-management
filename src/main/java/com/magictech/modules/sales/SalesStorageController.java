@@ -46,6 +46,9 @@ public class SalesStorageController extends BaseModuleController {
     @Autowired private ProjectService projectService;
     @Autowired private StorageService storageService;
     @Autowired private ProjectElementService elementService;
+    @Autowired private com.magictech.core.notification.NotificationService notificationService;
+    @Autowired private com.magictech.modules.sales.service.ProjectCostBreakdownService costBreakdownService;
+    @Autowired private com.magictech.modules.sales.service.SalesExcelExportService salesExcelExportService;
 
     private com.magictech.core.ui.components.DashboardBackgroundPane backgroundPane;
     private StackPane mainContainer;
@@ -139,10 +142,13 @@ public class SalesStorageController extends BaseModuleController {
         titleLabel.setStyle("-fx-text-fill: white; -fx-font-size: 22px; -fx-font-weight: bold;");
         HBox.setHgrow(titleLabel, Priority.ALWAYS);
 
+        Button exportProjectsBtn = createStyledButton("📥 Export", "#8b5cf6", "#7c3aed");
+        exportProjectsBtn.setOnAction(e -> handleExportProjects());
+
         Button addProjectBtn = createStyledButton("+ New Project", "#3b82f6", "#2563eb");
         addProjectBtn.setOnAction(e -> handleAddProject());
 
-        header.getChildren().addAll(titleLabel, addProjectBtn);
+        header.getChildren().addAll(titleLabel, exportProjectsBtn, addProjectBtn);
 
         projectsListView = new ListView<>();
         projectsListView.setPrefHeight(500);
@@ -214,10 +220,13 @@ public class SalesStorageController extends BaseModuleController {
         titleLabel.setStyle("-fx-text-fill: white; -fx-font-size: 22px; -fx-font-weight: bold;");
         HBox.setHgrow(titleLabel, Priority.ALWAYS);
 
+        Button exportCustomersBtn = createStyledButton("📥 Export", "#8b5cf6", "#7c3aed");
+        exportCustomersBtn.setOnAction(e -> handleExportCustomers());
+
         Button addCustomerBtn = createStyledButton("+ New Customer", "#22c55e", "#16a34a");
         addCustomerBtn.setOnAction(e -> handleAddCustomer());
 
-        header.getChildren().addAll(titleLabel, addCustomerBtn);
+        header.getChildren().addAll(titleLabel, exportCustomersBtn, addCustomerBtn);
 
         customersListView = new ListView<>();
         customersListView.setPrefHeight(500);
@@ -296,19 +305,14 @@ public class SalesStorageController extends BaseModuleController {
         // Contract PDF Tab
         Tab contractsTab = new Tab("📄 Contract PDF");
         contractsTab.setContent(createSimplePDFTab(project));
-        styleTab(contractsTab, "#8b5cf6");
+        styleTab(contractsTab, "#7c3aed"); // Purple theme
 
-        // Pricing & Orders Tab
-        Tab ordersTab = new Tab("💰 Pricing & Orders");
-        ordersTab.setContent(createProjectOrdersTabRedesigned(project));
-        styleTab(ordersTab, "#3b82f6");
-
-        // ✅ NEW: Project Elements Tab (synchronized with Projects module)
+        // ✅ Project Elements Tab (synchronized with Projects module) + Cost Breakdown
         Tab elementsTab = new Tab("📦 Project Elements");
         elementsTab.setContent(createProjectElementsTab(project));
-        styleTab(elementsTab, "#fb923c");
+        styleTab(elementsTab, "#a78bfa"); // Light purple theme
 
-        tabPane.getTabs().addAll(contractsTab, ordersTab, elementsTab);
+        tabPane.getTabs().addAll(contractsTab, elementsTab);
 
         Button closeBtn = createStyledButton("Close", "#6b7280", "#4b5563");
         closeBtn.setPrefHeight(50);
@@ -328,10 +332,58 @@ public class SalesStorageController extends BaseModuleController {
     }
 
     private VBox createProjectElementsTab(Project project) {
-        VBox content = new VBox(20);
-        content.setPadding(new Insets(30));
+        VBox content = new VBox(15);
+        content.setPadding(new Insets(20));
         content.setStyle("-fx-background-color: rgba(15, 23, 42, 0.6);");
         VBox.setVgrow(content, Priority.ALWAYS);
+
+        // Create TabPane for Cost Breakdown and Elements
+        TabPane subTabPane = new TabPane();
+        subTabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
+        VBox.setVgrow(subTabPane, Priority.ALWAYS);
+
+        // ============ TAB 1: Cost Breakdown ============
+        Tab costTab = new Tab("💰 Cost Breakdown");
+        VBox costContent = new VBox(20);
+        costContent.setPadding(new Insets(30));
+        costContent.setStyle("-fx-background-color: rgba(15, 23, 42, 0.6);");
+
+        com.magictech.modules.sales.ui.CostBreakdownPanel breakdownPanel =
+            new com.magictech.modules.sales.ui.CostBreakdownPanel();
+        breakdownPanel.setId("costBreakdownPanel");
+
+        // Load existing breakdown
+        try {
+            java.util.Optional<com.magictech.modules.sales.entity.ProjectCostBreakdown> existing =
+                costBreakdownService.getBreakdownByProject(project.getId());
+            if (existing.isPresent()) {
+                breakdownPanel.loadBreakdown(existing.get());
+            }
+        } catch (Exception ex) {
+            System.err.println("Error loading cost breakdown: " + ex.getMessage());
+        }
+
+        // Set save callback
+        breakdownPanel.setOnSave(breakdown -> {
+            try {
+                breakdown.setProjectId(project.getId());
+                costBreakdownService.saveBreakdown(breakdown, currentUser.getUsername());
+                showSuccess("Cost breakdown saved successfully!");
+            } catch (Exception ex) {
+                showError("Failed to save breakdown: " + ex.getMessage());
+            }
+        });
+
+        costContent.getChildren().add(breakdownPanel);
+        costTab.setContent(costContent);
+        styleTab(costTab, "#eab308"); // Gold theme
+
+        // ============ TAB 2: Project Elements ============
+        Tab elementsTab = new Tab("📦 Project Elements");
+        VBox elementsContent = new VBox(20);
+        elementsContent.setPadding(new Insets(30));
+        elementsContent.setStyle("-fx-background-color: rgba(15, 23, 42, 0.6);");
+        VBox.setVgrow(elementsContent, Priority.ALWAYS);
 
         HBox header = new HBox(15);
         header.setAlignment(Pos.CENTER_LEFT);
@@ -340,23 +392,26 @@ public class SalesStorageController extends BaseModuleController {
         title.setStyle("-fx-text-fill: white; -fx-font-size: 24px; -fx-font-weight: bold;");
         HBox.setHgrow(title, Priority.ALWAYS);
 
-        Button addButton = createStyledButton("+ Add Element", "#22c55e", "#16a34a");
-        addButton.setOnAction(e -> handleAddElementToProject(project, content));
+        Button addButton = createStyledButton("+ Add Element", "#7c3aed", "#6b21a8");
+        addButton.setOnAction(e -> handleAddElementToProject(project, elementsContent));
 
-        Button refreshButton = createStyledButton("🔄 Refresh", "#8b5cf6", "#7c3aed");
-        refreshButton.setOnAction(e -> loadProjectElements(project, content));
+        Button refreshButton = createStyledButton("🔄 Refresh", "#a78bfa", "#7c3aed");
+        refreshButton.setOnAction(e -> {
+            loadProjectElements(project, elementsContent);
+            refreshCostBreakdown(project, costContent);
+        });
 
         header.getChildren().addAll(title, addButton, refreshButton);
 
         // ScrollPane with Grid of Element Cards
         ScrollPane scrollPane = new ScrollPane();
         scrollPane.setFitToWidth(true);
-        scrollPane.setPrefHeight(600);
         scrollPane.setStyle(
                 "-fx-background: transparent;" +
                         "-fx-background-color: transparent;" +
                         "-fx-border-color: transparent;"
         );
+        VBox.setVgrow(scrollPane, Priority.ALWAYS);
 
         FlowPane elementsGrid = new FlowPane();
         elementsGrid.setId("elementsGrid");
@@ -367,12 +422,47 @@ public class SalesStorageController extends BaseModuleController {
 
         scrollPane.setContent(elementsGrid);
 
-        content.getChildren().addAll(header, scrollPane);
+        elementsContent.getChildren().addAll(header, scrollPane);
+        elementsTab.setContent(elementsContent);
+        styleTab(elementsTab, "#a78bfa"); // Light purple theme
+
+        // Add tabs to TabPane
+        subTabPane.getTabs().addAll(costTab, elementsTab);
+
+        content.getChildren().add(subTabPane);
 
         // Load existing elements
-        loadProjectElements(project, content);
+        loadProjectElements(project, elementsContent);
+
+        // Calculate and set initial subtotal
+        refreshCostBreakdown(project, costContent);
 
         return content;
+    }
+
+    // Helper method to refresh cost breakdown (now works with costContent VBox containing the panel)
+    private void refreshCostBreakdown(Project project, VBox costContent) {
+        try {
+            List<ProjectElement> elements = elementService.getElementsByProject(project.getId());
+            java.math.BigDecimal subtotal = java.math.BigDecimal.ZERO;
+
+            for (ProjectElement element : elements) {
+                if (element.getStorageItem() != null && element.getStorageItem().getPrice() != null) {
+                    java.math.BigDecimal price = element.getStorageItem().getPrice();
+                    java.math.BigDecimal quantity = new java.math.BigDecimal(element.getQuantityNeeded());
+                    subtotal = subtotal.add(price.multiply(quantity));
+                }
+            }
+
+            // Update the breakdown panel
+            com.magictech.modules.sales.ui.CostBreakdownPanel panel =
+                (com.magictech.modules.sales.ui.CostBreakdownPanel) costContent.lookup("#costBreakdownPanel");
+            if (panel != null) {
+                panel.setElementsSubtotal(subtotal);
+            }
+        } catch (Exception ex) {
+            System.err.println("Error refreshing cost breakdown: " + ex.getMessage());
+        }
     }
 
     // ==================== ADD ELEMENT TO PROJECT (FROM SALES MODULE) ====================
@@ -642,6 +732,7 @@ public class SalesStorageController extends BaseModuleController {
                     saveTask.setOnSucceeded(event -> {
                         Platform.runLater(() -> {
                             loadProjectElements(project, contentPane);
+                            refreshCostBreakdown(project, contentPane); // ✅ Refresh cost breakdown
                             showSuccess("✓ Element added! Quantity deducted from storage.");
                             parentDialog.close();
                         });
@@ -1616,8 +1707,25 @@ public class SalesStorageController extends BaseModuleController {
             };
 
             saveTask.setOnSucceeded(e -> {
+                Project savedProject = saveTask.getValue();
                 showSuccess("✓ Project created!");
                 loadProjects(projectsListView);
+
+                // ✅ NEW: Send notification to Projects module
+                try {
+                    notificationService.createRoleNotification(
+                        "PROJECTS",  // Target role
+                        "SALES",     // Source module
+                        "PROJECT_CREATED",
+                        "New Project: " + savedProject.getProjectName(),
+                        "A new project has been created from Sales module. " +
+                        "Project: " + savedProject.getProjectName() +
+                        (savedProject.getProjectLocation() != null ? " | Location: " + savedProject.getProjectLocation() : ""),
+                        currentUser != null ? currentUser.getUsername() : "system"
+                    );
+                } catch (Exception notifEx) {
+                    System.err.println("Failed to send notification: " + notifEx.getMessage());
+                }
             });
 
             new Thread(saveTask).start();
@@ -1682,6 +1790,86 @@ public class SalesStorageController extends BaseModuleController {
 
             new Thread(saveTask).start();
         });
+    }
+
+    // ==================== EXCEL EXPORT ====================
+
+    private void handleExportProjects() {
+        List<Project> allProjects = projectsListView.getItems();
+
+        if (allProjects.isEmpty()) {
+            showWarning("No projects to export");
+            return;
+        }
+
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Export Projects to Excel");
+        fileChooser.setInitialFileName("projects_export_" +
+                java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")) + ".xlsx");
+        fileChooser.getExtensionFilters().add(
+                new FileChooser.ExtensionFilter("Excel Files", "*.xlsx")
+        );
+
+        File file = fileChooser.showSaveDialog(mainContainer.getScene().getWindow());
+
+        if (file != null) {
+            Task<File> exportTask = new Task<>() {
+                @Override
+                protected File call() throws Exception {
+                    return salesExcelExportService.exportProjectsToExcel(allProjects, file.getAbsolutePath());
+                }
+            };
+
+            exportTask.setOnSucceeded(e -> {
+                showSuccess("✓ Exported " + allProjects.size() + " project(s) to Excel!\nFile: " + file.getName());
+            });
+
+            exportTask.setOnFailed(e -> {
+                showError("Export failed: " + exportTask.getException().getMessage());
+                exportTask.getException().printStackTrace();
+            });
+
+            new Thread(exportTask).start();
+        }
+    }
+
+    private void handleExportCustomers() {
+        List<Customer> allCustomers = customersListView.getItems();
+
+        if (allCustomers.isEmpty()) {
+            showWarning("No customers to export");
+            return;
+        }
+
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Export Customers to Excel");
+        fileChooser.setInitialFileName("customers_export_" +
+                java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")) + ".xlsx");
+        fileChooser.getExtensionFilters().add(
+                new FileChooser.ExtensionFilter("Excel Files", "*.xlsx")
+        );
+
+        File file = fileChooser.showSaveDialog(mainContainer.getScene().getWindow());
+
+        if (file != null) {
+            Task<File> exportTask = new Task<>() {
+                @Override
+                protected File call() throws Exception {
+                    return salesExcelExportService.exportCustomersToExcel(allCustomers, file.getAbsolutePath());
+                }
+            };
+
+            exportTask.setOnSucceeded(e -> {
+                showSuccess("✓ Exported " + allCustomers.size() + " customer(s) to Excel!\nFile: " + file.getName());
+            });
+
+            exportTask.setOnFailed(e -> {
+                showError("Export failed: " + exportTask.getException().getMessage());
+                exportTask.getException().printStackTrace();
+            });
+
+            new Thread(exportTask).start();
+        }
     }
 
     // ==================== DATA LOADING ====================
