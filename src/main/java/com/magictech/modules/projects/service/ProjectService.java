@@ -1,9 +1,7 @@
 package com.magictech.modules.projects.service;
 
-import com.magictech.core.notification.NotificationService;
 import com.magictech.modules.projects.entity.Project;
 import com.magictech.modules.projects.repository.ProjectRepository;
-import com.magictech.modules.notification.service.NotificationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,7 +22,7 @@ public class ProjectService {
     private ProjectRepository repository;
 
     @Autowired
-    private NotificationService notificationService;
+    private com.magictech.modules.notification.service.NotificationService notificationService;
 
     /**
      * Get all active projects
