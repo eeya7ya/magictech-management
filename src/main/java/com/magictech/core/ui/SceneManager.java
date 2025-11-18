@@ -46,6 +46,9 @@ public class SceneManager {
     @Autowired
     private ApplicationContext context;
 
+    @Autowired
+    private com.magictech.core.ui.notification.NotificationManager notificationManager;
+
     // Track active controllers for cleanup
     private MainDashboardController activeDashboard;
     private Object activeModuleController;
@@ -154,6 +157,15 @@ public class SceneManager {
      * ✅ IMMEDIATE cleanup - no delays
      */
     private void immediateCleanup() {
+        // ✅ Clean up NotificationManager
+        if (notificationManager != null) {
+            try {
+                notificationManager.cleanup();
+            } catch (Exception e) {
+                System.err.println("NotificationManager cleanup warning: " + e.getMessage());
+            }
+        }
+
         // Clean up dashboard
         if (activeDashboard != null) {
             try {
@@ -236,6 +248,11 @@ public class SceneManager {
 
                     MainDashboardController controller = loader.getController();
                     controller.initializeWithUser(currentUser);
+
+                    // ✅ Initialize NotificationManager
+                    if (currentUser != null) {
+                        notificationManager.initialize(currentUser, primaryStage);
+                    }
 
                     activeDashboard = controller;
 

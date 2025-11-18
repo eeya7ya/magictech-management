@@ -46,6 +46,8 @@ public class SalesStorageController extends BaseModuleController {
     @Autowired private ProjectService projectService;
     @Autowired private StorageService storageService;
     @Autowired private ProjectElementService elementService;
+    @Autowired private com.magictech.core.notification.NotificationService notificationService;
+    @Autowired private com.magictech.modules.sales.service.ProjectCostBreakdownService costBreakdownService;
 
     private com.magictech.core.ui.components.DashboardBackgroundPane backgroundPane;
     private StackPane mainContainer;
@@ -296,19 +298,14 @@ public class SalesStorageController extends BaseModuleController {
         // Contract PDF Tab
         Tab contractsTab = new Tab("📄 Contract PDF");
         contractsTab.setContent(createSimplePDFTab(project));
-        styleTab(contractsTab, "#8b5cf6");
+        styleTab(contractsTab, "#7c3aed"); // Purple theme
 
-        // Pricing & Orders Tab
-        Tab ordersTab = new Tab("💰 Pricing & Orders");
-        ordersTab.setContent(createProjectOrdersTabRedesigned(project));
-        styleTab(ordersTab, "#3b82f6");
-
-        // ✅ NEW: Project Elements Tab (synchronized with Projects module)
+        // ✅ Project Elements Tab (synchronized with Projects module) + Cost Breakdown
         Tab elementsTab = new Tab("📦 Project Elements");
         elementsTab.setContent(createProjectElementsTab(project));
-        styleTab(elementsTab, "#fb923c");
+        styleTab(elementsTab, "#a78bfa"); // Light purple theme
 
-        tabPane.getTabs().addAll(contractsTab, ordersTab, elementsTab);
+        tabPane.getTabs().addAll(contractsTab, elementsTab);
 
         Button closeBtn = createStyledButton("Close", "#6b7280", "#4b5563");
         closeBtn.setPrefHeight(50);
@@ -340,18 +337,21 @@ public class SalesStorageController extends BaseModuleController {
         title.setStyle("-fx-text-fill: white; -fx-font-size: 24px; -fx-font-weight: bold;");
         HBox.setHgrow(title, Priority.ALWAYS);
 
-        Button addButton = createStyledButton("+ Add Element", "#22c55e", "#16a34a");
+        Button addButton = createStyledButton("+ Add Element", "#7c3aed", "#6b21a8"); // Purple theme
         addButton.setOnAction(e -> handleAddElementToProject(project, content));
 
-        Button refreshButton = createStyledButton("🔄 Refresh", "#8b5cf6", "#7c3aed");
-        refreshButton.setOnAction(e -> loadProjectElements(project, content));
+        Button refreshButton = createStyledButton("🔄 Refresh", "#a78bfa", "#7c3aed"); // Light purple
+        refreshButton.setOnAction(e -> {
+            loadProjectElements(project, content);
+            refreshCostBreakdown(project, content);
+        });
 
         header.getChildren().addAll(title, addButton, refreshButton);
 
         // ScrollPane with Grid of Element Cards
         ScrollPane scrollPane = new ScrollPane();
         scrollPane.setFitToWidth(true);
-        scrollPane.setPrefHeight(600);
+        scrollPane.setPrefHeight(400); // Reduced height to make room for cost breakdown
         scrollPane.setStyle(
                 "-fx-background: transparent;" +
                         "-fx-background-color: transparent;" +
@@ -367,12 +367,67 @@ public class SalesStorageController extends BaseModuleController {
 
         scrollPane.setContent(elementsGrid);
 
-        content.getChildren().addAll(header, scrollPane);
+        // ✅ NEW: Cost Breakdown Panel
+        com.magictech.modules.sales.ui.CostBreakdownPanel breakdownPanel =
+            new com.magictech.modules.sales.ui.CostBreakdownPanel();
+        breakdownPanel.setId("costBreakdownPanel");
+
+        // Load existing breakdown
+        try {
+            java.util.Optional<com.magictech.modules.sales.entity.ProjectCostBreakdown> existing =
+                costBreakdownService.getBreakdownByProject(project.getId());
+            if (existing.isPresent()) {
+                breakdownPanel.loadBreakdown(existing.get());
+            }
+        } catch (Exception ex) {
+            System.err.println("Error loading cost breakdown: " + ex.getMessage());
+        }
+
+        // Set save callback
+        breakdownPanel.setOnSave(breakdown -> {
+            try {
+                breakdown.setProjectId(project.getId());
+                costBreakdownService.saveBreakdown(breakdown, currentUser.getUsername());
+                showSuccess("Cost breakdown saved successfully!");
+            } catch (Exception ex) {
+                showError("Failed to save breakdown: " + ex.getMessage());
+            }
+        });
+
+        content.getChildren().addAll(header, scrollPane, breakdownPanel);
 
         // Load existing elements
         loadProjectElements(project, content);
 
+        // Calculate and set initial subtotal
+        refreshCostBreakdown(project, content);
+
         return content;
+    }
+
+    // Helper method to refresh cost breakdown
+    private void refreshCostBreakdown(Project project, VBox content) {
+        try {
+            List<ProjectElement> elements = elementService.getElementsByProject(project.getId());
+            java.math.BigDecimal subtotal = java.math.BigDecimal.ZERO;
+
+            for (ProjectElement element : elements) {
+                if (element.getStorageItem() != null && element.getStorageItem().getPrice() != null) {
+                    java.math.BigDecimal price = element.getStorageItem().getPrice();
+                    java.math.BigDecimal quantity = new java.math.BigDecimal(element.getQuantityNeeded());
+                    subtotal = subtotal.add(price.multiply(quantity));
+                }
+            }
+
+            // Update the breakdown panel
+            com.magictech.modules.sales.ui.CostBreakdownPanel panel =
+                (com.magictech.modules.sales.ui.CostBreakdownPanel) content.lookup("#costBreakdownPanel");
+            if (panel != null) {
+                panel.setElementsSubtotal(subtotal);
+            }
+        } catch (Exception ex) {
+            System.err.println("Error refreshing cost breakdown: " + ex.getMessage());
+        }
     }
 
     // ==================== ADD ELEMENT TO PROJECT (FROM SALES MODULE) ====================
@@ -642,6 +697,7 @@ public class SalesStorageController extends BaseModuleController {
                     saveTask.setOnSucceeded(event -> {
                         Platform.runLater(() -> {
                             loadProjectElements(project, contentPane);
+                            refreshCostBreakdown(project, contentPane); // ✅ Refresh cost breakdown
                             showSuccess("✓ Element added! Quantity deducted from storage.");
                             parentDialog.close();
                         });
@@ -1616,8 +1672,25 @@ public class SalesStorageController extends BaseModuleController {
             };
 
             saveTask.setOnSucceeded(e -> {
+                Project savedProject = saveTask.getValue();
                 showSuccess("✓ Project created!");
                 loadProjects(projectsListView);
+
+                // ✅ NEW: Send notification to Projects module
+                try {
+                    notificationService.createRoleNotification(
+                        "PROJECTS",  // Target role
+                        "SALES",     // Source module
+                        "PROJECT_CREATED",
+                        "New Project: " + savedProject.getProjectName(),
+                        "A new project has been created from Sales module. " +
+                        "Project: " + savedProject.getProjectName() +
+                        (savedProject.getProjectLocation() != null ? " | Location: " + savedProject.getProjectLocation() : ""),
+                        currentUser != null ? currentUser.getUsername() : "system"
+                    );
+                } catch (Exception notifEx) {
+                    System.err.println("Failed to send notification: " + notifEx.getMessage());
+                }
             });
 
             new Thread(saveTask).start();
