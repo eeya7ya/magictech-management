@@ -6,7 +6,7 @@ import com.magictech.core.ui.controllers.MainDashboardController;
 import com.magictech.modules.storage.StorageController;
 import com.magictech.modules.maintenance.MaintenanceStorageController;
 import com.magictech.modules.projects.ProjectsStorageController;
-import com.magictech.modules.pricing.PricingStorageController;
+import com.magictech.modules.pricing.PricingController;
 import javafx.animation.FadeTransition;
 import javafx.application.Platform;
 import javafx.fxml.FXMLLoader;
@@ -187,8 +187,8 @@ public class SceneManager {
                     ((MaintenanceStorageController) activeModuleController).immediateCleanup();
                 } else if (activeModuleController instanceof ProjectsStorageController) {
                     ((ProjectsStorageController) activeModuleController).immediateCleanup();
-                } else if (activeModuleController instanceof PricingStorageController) {
-                    ((PricingStorageController) activeModuleController).immediateCleanup();
+                } else if (activeModuleController instanceof PricingController) {
+                    ((PricingController) activeModuleController).immediateCleanup();
                 }
             } catch (Exception e) {
                 System.err.println("Module cleanup warning: " + e.getMessage());
@@ -492,7 +492,7 @@ public class SceneManager {
                 try {
                     immediateCleanup();
 
-                    PricingStorageController pricingController = new PricingStorageController();
+                    PricingController pricingController = new PricingController();
                     context.getAutowireCapableBeanFactory().autowireBean(pricingController);
 
                     ModuleConfig config = ModuleConfig.createPricingConfig();

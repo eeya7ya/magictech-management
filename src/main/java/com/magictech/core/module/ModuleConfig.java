@@ -112,7 +112,7 @@ public class ModuleConfig {
                 .description("Coordinate projects and track progress")
                 .icon("📁")
                 .colorScheme("module-purple")
-                .allowedRoles(UserRole.MASTER, UserRole.PROJECTS)
+                .allowedRoles(UserRole.MASTER, UserRole.PROJECTS, UserRole.PROJECT_SUPPLIER)
                 .build();
     }
 

@@ -45,6 +45,14 @@
                         </HBox>
                     </VBox>
 
+                    <Button fx:id="userManagementButton" text="👥 User Management" onAction="#handleUserManagement"
+                            styleClass="user-management-button"
+                            style="-fx-background-color: #8b5cf6; -fx-text-fill: white; -fx-font-weight: 600; -fx-padding: 10 20; -fx-background-radius: 8; -fx-cursor: hand; -fx-font-size: 13;">
+                        <font>
+                            <Font name="System Bold" size="13"/>
+                        </font>
+                    </Button>
+
                     <Button fx:id="logoutButton" text="Logout" onAction="#handleLogout" styleClass="logout-button">
                         <font>
                             <Font name="System Bold" size="13"/>
