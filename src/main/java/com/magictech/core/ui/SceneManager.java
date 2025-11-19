@@ -524,6 +524,55 @@ public class SceneManager {
     }
 
     /**
+     * Show Customers Module (Customer Management)
+     */
+    public void showCustomersModule() {
+        if (isTransitioning) return;
+
+        showLoading();
+
+        Platform.runLater(() -> {
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException ignored) {}
+
+            Platform.runLater(() -> {
+                try {
+                    immediateCleanup();
+
+                    com.magictech.modules.sales.CustomerManagementController customersController =
+                        new com.magictech.modules.sales.CustomerManagementController();
+                    context.getAutowireCapableBeanFactory().autowireBean(customersController);
+
+                    ModuleConfig config = ModuleConfig.createSalesConfig();
+                    customersController.initialize(currentUser, config);
+
+                    activeModuleController = customersController;
+
+                    Parent root = customersController.getRootPane();
+                    StackPane wrappedRoot = new StackPane(root);
+                    Scene scene = new Scene(wrappedRoot);
+                    scene.getStylesheets().add(getClass().getResource("/css/styles.css").toExternalForm());
+                    scene.getStylesheets().add(getClass().getResource("/css/dashboard.css").toExternalForm());
+
+                    primaryStage.setScene(scene);
+                    primaryStage.setTitle("MagicTech - Customer Management");
+                    primaryStage.setMaximized(true);
+
+                    createLoadingOverlay();
+                    hideLoading();
+                    System.out.println("✓ Customer Management module loaded");
+
+                } catch (Exception e) {
+                    System.err.println("Error loading Customer Management Module: " + e.getMessage());
+                    e.printStackTrace();
+                    hideLoading();
+                }
+            });
+        });
+    }
+
+    /**
      * Generic module routing
      */
     public void showModule(String moduleName) {
@@ -533,6 +582,9 @@ public class SceneManager {
                 break;
             case "sales":
                 showSalesModule();
+                break;
+            case "customers":
+                showCustomersModule();
                 break;
             case "maintenance":
                 showMaintenanceModule();
