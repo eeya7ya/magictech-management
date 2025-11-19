@@ -24,7 +24,8 @@ import java.util.Properties;
         "com.magictech.modules.sales.repository",
         "com.magictech.modules.maintenance",
         "com.magictech.modules.projects",
-        "com.magictech.modules.pricing"
+        "com.magictech.modules.pricing",
+        "com.magictech.modules.notification.repository"
 })
 @EnableTransactionManagement
 public class DatabaseConfig {
@@ -80,7 +81,8 @@ public class DatabaseConfig {
                 "com.magictech.core.approval",
                 "com.magictech.modules.storage.entity",
                 "com.magictech.modules.sales.entity",
-                "com.magictech.modules.projects.entity"
+                "com.magictech.modules.projects.entity",
+                "com.magictech.modules.notification.entity"
         );
 
         HibernateJpaVendorAdapter vendorAdapter = new HibernateJpaVendorAdapter();
