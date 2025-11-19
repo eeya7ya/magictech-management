@@ -693,7 +693,7 @@ public class CustomerManagementController extends BaseModuleController {
         completedBox.setStyle("-fx-text-fill: white; -fx-font-size: 16px; -fx-font-weight: bold;");
         completedBox.setOnAction(e -> {
             task.setIsCompleted(completedBox.isSelected());
-            taskService.updateTask(task.getId(), task);
+            taskService.updateTask(task);
             loadTasksData();
         });
 
@@ -716,15 +716,13 @@ public class CustomerManagementController extends BaseModuleController {
             List<CustomerNote> existingNotes = noteService.getCustomerNotes(selectedCustomer.getId());
 
             if (existingNotes.isEmpty()) {
-                CustomerNote newNote = new CustomerNote();
-                newNote.setCustomer(selectedCustomer);
-                newNote.setNoteContent(importantNotesArea.getText());
-                newNote.setCreatedBy(currentUser != null ? currentUser.getUsername() : "system");
-                noteService.createNote(newNote);
+                String noteContent = importantNotesArea.getText();
+                String createdBy = currentUser != null ? currentUser.getUsername() : "system";
+                noteService.createNote(selectedCustomer, noteContent, createdBy);
             } else {
                 CustomerNote note = existingNotes.get(0);
-                note.setNoteContent(importantNotesArea.getText());
-                noteService.updateNote(note.getId(), note);
+                String newContent = importantNotesArea.getText();
+                noteService.updateNote(note.getId(), newContent);
             }
 
             showSuccess("Notes saved successfully!");
@@ -916,15 +914,8 @@ public class CustomerManagementController extends BaseModuleController {
 
             // Add elements
             for (StorageItem item : selectedItems) {
-                CustomerElement element = new CustomerElement();
-                element.setCustomer(selectedCustomer);
-                element.setStorageItem(item);
-                element.setQuantityNeeded(1); // Default
-                element.setQuantityAllocated(0);
-                element.setStatus("PENDING");
-                element.setCreatedBy(currentUser != null ? currentUser.getUsername() : "system");
-
-                elementService.createElement(element);
+                String createdBy = currentUser != null ? currentUser.getUsername() : "system";
+                elementService.createElement(selectedCustomer, item, 1, createdBy);
             }
 
             showSuccess("Elements added successfully!");

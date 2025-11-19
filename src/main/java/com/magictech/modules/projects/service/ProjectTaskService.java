@@ -69,4 +69,18 @@ public class ProjectTaskService {
     public long getTotalCount(Long projectId) {
         return repository.countByProjectIdAndActiveTrue(projectId);
     }
+
+    /**
+     * Alias method for getTasksByProject - for compatibility
+     */
+    public List<ProjectTask> getProjectTasks(Long projectId) {
+        return getTasksByProject(projectId);
+    }
+
+    /**
+     * Get count of pending tasks for a project
+     */
+    public long getPendingTaskCount(Long projectId) {
+        return repository.countByProjectIdAndIsCompletedAndActiveTrue(projectId, false);
+    }
 }

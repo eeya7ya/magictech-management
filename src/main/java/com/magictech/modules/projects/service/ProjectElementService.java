@@ -62,6 +62,22 @@ public class ProjectElementService {
         element.setActive(false);
         elementRepository.save(element);
     }
+
+    /**
+     * Alias method for getElementsByProject - for compatibility
+     */
+    @Transactional(readOnly = true)
+    public List<ProjectElement> getProjectElements(Long projectId) {
+        return getElementsByProject(projectId);
+    }
+
+    /**
+     * Get count of elements for a project
+     */
+    @Transactional(readOnly = true)
+    public long getElementCount(Long projectId) {
+        return elementRepository.countByProjectIdAndActiveTrue(projectId);
+    }
 }
 
 
