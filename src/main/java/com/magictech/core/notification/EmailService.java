@@ -78,11 +78,21 @@ public class EmailService {
     @Async
     public CompletableFuture<Boolean> sendHtmlEmail(String to, String subject, String htmlBody) {
         if (!emailEnabled) {
-            log.warn("Email sending is disabled. Skipping email to: {}", to);
+            log.warn("📧 Email sending is DISABLED in configuration. Set app.email.enabled=true");
+            return CompletableFuture.completedFuture(false);
+        }
+
+        // Check if email is properly configured
+        if (!isEmailConfigured()) {
+            log.error("📧 Email NOT CONFIGURED! Current fromAddress: '{}'. " +
+                    "Please update application.properties with your Gmail credentials. " +
+                    "See: https://myaccount.google.com/apppasswords", fromAddress);
             return CompletableFuture.completedFuture(false);
         }
 
         try {
+            log.info("📧 Attempting to send email to: {} | Subject: {}", to, subject);
+
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
@@ -91,12 +101,28 @@ public class EmailService {
             helper.setSubject(subject);
             helper.setText(htmlBody, true); // true = HTML
 
+            log.debug("📧 Sending via SMTP: {}...", fromAddress);
             mailSender.send(message);
-            log.info("✓ HTML email sent successfully to: {}", to);
+
+            log.info("✅ Email SENT successfully! To: {} | From: {}", to, fromAddress);
             return CompletableFuture.completedFuture(true);
 
+        } catch (jakarta.mail.AuthenticationFailedException e) {
+            log.error("❌ AUTHENTICATION FAILED! Gmail credentials are incorrect. " +
+                    "Please check spring.mail.username and spring.mail.password in application.properties. " +
+                    "You need an App Password (16 characters) from: https://myaccount.google.com/apppasswords");
+            log.error("Error details: {}", e.getMessage());
+            return CompletableFuture.completedFuture(false);
+
+        } catch (jakarta.mail.MessagingException e) {
+            log.error("❌ Email MESSAGING ERROR! Recipient: {} | Error: {}", to, e.getMessage());
+            log.error("Check if the email address is valid and SMTP settings are correct.");
+            return CompletableFuture.completedFuture(false);
+
         } catch (Exception e) {
-            log.error("✗ Failed to send HTML email to: {}. Error: {}", to, e.getMessage());
+            log.error("❌ UNEXPECTED ERROR sending email to: {} | Error: {} | Type: {}",
+                    to, e.getMessage(), e.getClass().getSimpleName());
+            e.printStackTrace();
             return CompletableFuture.completedFuture(false);
         }
     }
