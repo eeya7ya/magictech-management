@@ -178,4 +178,64 @@ public class NotificationService {
     public Optional<Notification> getNotificationById(Long id) {
         return notificationRepository.findById(id);
     }
+
+    /**
+     * Create a notification with detailed relationship information
+     * This method creates a notification with additional context about the related entity
+     *
+     * @param targetRole The role that should receive this notification (e.g., "PRICING", "SALES")
+     * @param module The module this notification is related to (e.g., "PRICING", "PROJECTS")
+     * @param type The type of notification (e.g., "PROJECT_COMPLETED", "ORDER_CREATED")
+     * @param title The notification title
+     * @param message The notification message
+     * @param relatedId The ID of the related entity
+     * @param relatedType The type of the related entity (e.g., "PROJECT", "ORDER")
+     * @param priority The priority level (e.g., "HIGH", "MEDIUM", "LOW")
+     * @param createdBy The username of the user who triggered this notification
+     * @return The created notification
+     */
+    public Notification createNotificationWithRelation(
+            String targetRole,
+            String module,
+            String type,
+            String title,
+            String message,
+            Long relatedId,
+            String relatedType,
+            String priority,
+            String createdBy) {
+
+        Notification notification = new Notification();
+
+        // Set basic fields
+        notification.setType(type);
+        notification.setTitle(title);
+
+        // Enhance message with priority if provided
+        String enhancedMessage = message;
+        if (priority != null && !priority.isEmpty()) {
+            enhancedMessage = String.format("[%s PRIORITY] %s", priority, message);
+        }
+        notification.setMessage(enhancedMessage);
+
+        // Set entity relationship
+        notification.setEntityType(relatedType);
+        notification.setEntityId(relatedId);
+
+        // Set creator
+        notification.setCreatedBy(createdBy);
+
+        // Set target user/role
+        // Note: targetRole could be used to filter by role later
+        // For now, we'll use it as targetUser to filter notifications
+        notification.setTargetUser(targetRole);
+
+        // Mark as unread
+        notification.setIsRead(false);
+
+        logger.info("Creating notification with relation: type={}, title={}, module={}, targetRole={}, priority={}, relatedType={}, relatedId={}",
+                type, title, module, targetRole, priority, relatedType, relatedId);
+
+        return createNotification(notification);
+    }
 }
