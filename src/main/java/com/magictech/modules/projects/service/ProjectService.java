@@ -22,7 +22,7 @@ public class ProjectService {
     private ProjectRepository repository;
 
     @Autowired
-    private com.magictech.modules.notification.service.NotificationService notificationService;
+    private com.magictech.core.notification.NotificationService notificationService;
 
     /**
      * Get all active projects
@@ -59,10 +59,16 @@ public class ProjectService {
 
         // Create notification for new project
         try {
-            notificationService.createProjectNotification(
-                savedProject.getId(),
-                savedProject.getProjectName(),
-                savedProject.getCreatedBy()
+            notificationService.createNotificationWithRelation(
+                "PROJECTS",  // targetRole
+                "PROJECTS",  // module
+                "PROJECT_CREATED",  // type
+                "New Project Created",  // title
+                String.format("Project '%s' has been created", savedProject.getProjectName()),  // message
+                savedProject.getId(),  // relatedId
+                "PROJECT",  // relatedType
+                "NORMAL",  // priority
+                savedProject.getCreatedBy() != null ? savedProject.getCreatedBy() : "System"  // createdBy
             );
             System.out.println("🔔 Notification created for new project: " + savedProject.getProjectName());
         } catch (Exception e) {
@@ -200,10 +206,16 @@ public class ProjectService {
         // Create notifications for all new projects
         try {
             savedProjects.forEach(project -> {
-                notificationService.createProjectNotification(
-                    project.getId(),
-                    project.getProjectName(),
-                    project.getCreatedBy()
+                notificationService.createNotificationWithRelation(
+                    "PROJECTS",  // targetRole
+                    "PROJECTS",  // module
+                    "PROJECT_CREATED",  // type
+                    "New Project Created",  // title
+                    String.format("Project '%s' has been created", project.getProjectName()),  // message
+                    project.getId(),  // relatedId
+                    "PROJECT",  // relatedType
+                    "NORMAL",  // priority
+                    project.getCreatedBy() != null ? project.getCreatedBy() : "System"  // createdBy
                 );
             });
             System.out.println("🔔 Notifications created for " + savedProjects.size() + " new projects");
