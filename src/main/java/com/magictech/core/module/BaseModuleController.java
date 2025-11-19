@@ -82,12 +82,73 @@ public abstract class BaseModuleController {
 
     /**
      * Generic alert method
+     * FIXED: Always run on JavaFX Application Thread using Platform.runLater
      */
     private void showAlert(String title, String message, javafx.scene.control.Alert.AlertType type) {
-        javafx.scene.control.Alert alert = new javafx.scene.control.Alert(type);
+        javafx.application.Platform.runLater(() -> {
+            javafx.scene.control.Alert alert = new javafx.scene.control.Alert(type);
+            alert.setTitle(title);
+            alert.setHeaderText(null);
+            alert.setContentText(message);
+
+            // Apply modern styling
+            alert.getDialogPane().setStyle(
+                "-fx-background-color: #1e293b;" +
+                "-fx-text-fill: white;"
+            );
+
+            // Style the content text to be visible
+            alert.getDialogPane().lookup(".content.label").setStyle(
+                "-fx-text-fill: white;" +
+                "-fx-font-size: 14px;"
+            );
+
+            alert.showAndWait();
+        });
+    }
+
+    /**
+     * Show confirmation dialog and return result
+     * FIXED: Properly handles JavaFX thread and returns boolean result
+     */
+    protected boolean showConfirmation(String title, String message) {
+        final boolean[] result = {false};
+
+        if (javafx.application.Platform.isFxApplicationThread()) {
+            result[0] = showConfirmationDialog(title, message);
+        } else {
+            javafx.application.Platform.runLater(() -> {
+                result[0] = showConfirmationDialog(title, message);
+            });
+        }
+
+        return result[0];
+    }
+
+    /**
+     * Internal method to show confirmation dialog (must run on FX thread)
+     */
+    private boolean showConfirmationDialog(String title, String message) {
+        javafx.scene.control.Alert alert = new javafx.scene.control.Alert(
+            javafx.scene.control.Alert.AlertType.CONFIRMATION
+        );
         alert.setTitle(title);
         alert.setHeaderText(null);
         alert.setContentText(message);
-        alert.showAndWait();
+
+        // Apply modern styling
+        alert.getDialogPane().setStyle(
+            "-fx-background-color: #1e293b;" +
+            "-fx-text-fill: white;"
+        );
+
+        // Style the content text to be visible
+        alert.getDialogPane().lookup(".content.label").setStyle(
+            "-fx-text-fill: white;" +
+            "-fx-font-size: 14px;"
+        );
+
+        javafx.scene.control.ButtonType result = alert.showAndWait().orElse(javafx.scene.control.ButtonType.CANCEL);
+        return result == javafx.scene.control.ButtonType.OK;
     }
 }
