@@ -51,6 +51,49 @@ public class NotificationService {
     }
 
     /**
+     * Create a notification with relation to an entity
+     *
+     * @param targetRole Target user role (e.g., PRICING, SALES, etc.)
+     * @param module Module name (e.g., PRICING, SALES, PROJECTS, etc.)
+     * @param type Notification type (e.g., PROJECT_COMPLETED, ORDER_CREATED, etc.)
+     * @param title Notification title
+     * @param message Notification message
+     * @param relatedId ID of the related entity
+     * @param relatedType Type of the related entity (e.g., PROJECT, ORDER, etc.)
+     * @param priority Priority level (e.g., HIGH, MEDIUM, LOW)
+     * @param createdBy User who created the notification
+     * @return Created notification
+     */
+    public Notification createNotificationWithRelation(
+            String targetRole,
+            String module,
+            String type,
+            String title,
+            String message,
+            Long relatedId,
+            String relatedType,
+            String priority,
+            String createdBy) {
+
+        Notification notification = new Notification();
+        notification.setTargetRole(targetRole);
+        notification.setModule(module);
+        notification.setType(type);
+        notification.setTitle(title);
+        notification.setMessage(message);
+        notification.setEntityId(relatedId);
+        notification.setEntityType(relatedType);
+        notification.setPriority(priority);
+        notification.setCreatedBy(createdBy);
+        notification.setIsRead(false);
+
+        logger.info("Creating notification with relation: type={}, targetRole={}, module={}, relatedType={}, relatedId={}, priority={}",
+                type, targetRole, module, relatedType, relatedId, priority);
+
+        return createNotification(notification);
+    }
+
+    /**
      * Get all notifications
      */
     public List<Notification> getAllNotifications() {

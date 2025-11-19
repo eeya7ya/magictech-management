@@ -41,6 +41,15 @@ public class Notification {
     @Column(name = "target_user")
     private String targetUser; // Specific user, or null for all users
 
+    @Column(name = "target_role")
+    private String targetRole; // Target user role (e.g., PRICING, SALES, etc.)
+
+    @Column(name = "module")
+    private String module; // Module name (e.g., PRICING, SALES, PROJECTS, etc.)
+
+    @Column(name = "priority")
+    private String priority; // Priority level (e.g., HIGH, MEDIUM, LOW)
+
     @PrePersist
     protected void onCreate() {
         if (createdAt == null) {
@@ -145,6 +154,30 @@ public class Notification {
         this.targetUser = targetUser;
     }
 
+    public String getTargetRole() {
+        return targetRole;
+    }
+
+    public void setTargetRole(String targetRole) {
+        this.targetRole = targetRole;
+    }
+
+    public String getModule() {
+        return module;
+    }
+
+    public void setModule(String module) {
+        this.module = module;
+    }
+
+    public String getPriority() {
+        return priority;
+    }
+
+    public void setPriority(String priority) {
+        this.priority = priority;
+    }
+
     @Override
     public String toString() {
         return "Notification{" +
@@ -158,6 +191,9 @@ public class Notification {
                 ", createdAt=" + createdAt +
                 ", isRead=" + isRead +
                 ", targetUser='" + targetUser + '\'' +
+                ", targetRole='" + targetRole + '\'' +
+                ", module='" + module + '\'' +
+                ", priority='" + priority + '\'' +
                 '}';
     }
 }
