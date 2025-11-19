@@ -12,12 +12,13 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * REST API controller for managing notifications
+ * REST API controller for managing notifications (Old System - core.notification)
+ * Note: This uses the old notification system. Consider migrating to modules.notification system.
  */
 @RestController
-@RequestMapping("/api/notifications")
+@RequestMapping("/api/notifications/legacy")
 @CrossOrigin(origins = "*")
-public class NotificationController {
+public class NotificationApiController {
 
     @Autowired
     private NotificationService notificationService;
