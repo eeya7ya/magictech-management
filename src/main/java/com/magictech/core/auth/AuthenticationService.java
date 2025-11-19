@@ -64,22 +64,40 @@ public class AuthenticationService {
      */
     @Transactional
     public User authenticate(String username, String password) {
+        System.out.println("🔐 Authentication attempt for user: " + username);
+
         if (username == null || password == null || username.trim().isEmpty()) {
+            System.out.println("❌ Authentication failed: Empty username or password");
             return null;
         }
 
         Optional<User> userOpt = userRepository.findByUsernameIgnoreCaseAndActiveTrue(username);
 
-        if (userOpt.isPresent()) {
-            User user = userOpt.get();
+        if (userOpt.isEmpty()) {
+            System.out.println("❌ Authentication failed: User not found or inactive: " + username);
 
-            // In production, use BCrypt or similar for password hashing
-            if (user.getPassword().equals(password)) {
-                // Update last login time
-                user.setLastLogin(LocalDateTime.now());
-                userRepository.save(user);
-                return user;
+            // Debug: Check if user exists but is inactive
+            Optional<User> anyUserOpt = userRepository.findByUsernameIgnoreCase(username);
+            if (anyUserOpt.isPresent()) {
+                User debugUser = anyUserOpt.get();
+                System.out.println("⚠️  User exists but: Active=" + debugUser.getActive() + " | Role=" + debugUser.getRole());
             }
+
+            return null;
+        }
+
+        User user = userOpt.get();
+        System.out.println("✓ User found: " + user.getUsername() + " | Role: " + user.getRole() + " | Active: " + user.getActive());
+
+        // In production, use BCrypt or similar for password hashing
+        if (user.getPassword().equals(password)) {
+            System.out.println("✓ Password match! Authentication successful");
+            // Update last login time
+            user.setLastLogin(LocalDateTime.now());
+            userRepository.save(user);
+            return user;
+        } else {
+            System.out.println("❌ Password mismatch for user: " + username);
         }
 
         return null;
@@ -215,10 +233,25 @@ public class AuthenticationService {
      */
     @Transactional
     public User createUser(User user) {
+        System.out.println("📝 Creating user: " + user.getUsername() + " | Role: " + user.getRole() + " | Active: " + user.getActive());
+
         if (userRepository.existsByUsernameIgnoreCase(user.getUsername())) {
             throw new IllegalArgumentException("Username already exists");
         }
-        return userRepository.save(user);
+
+        // Ensure active flag is set
+        if (user.getActive() == null) {
+            user.setActive(true);
+        }
+
+        User savedUser = userRepository.save(user);
+        System.out.println("✓ User created successfully: ID=" + savedUser.getId() + " | Username=" + savedUser.getUsername() + " | Active=" + savedUser.getActive());
+
+        // Verify the user can be found
+        boolean canFind = userRepository.existsByUsernameIgnoreCase(savedUser.getUsername());
+        System.out.println("✓ User verification: Can find " + savedUser.getUsername() + "? " + canFind);
+
+        return savedUser;
     }
 
     /**
