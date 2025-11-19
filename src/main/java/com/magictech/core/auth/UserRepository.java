@@ -46,6 +46,11 @@ public interface UserRepository extends JpaRepository<User, Long> {
     List<User> findByRoleAndActive(UserRole role, Boolean active);
 
     /**
+     * Find all active users by role (convenience method)
+     */
+    List<User> findByRoleAndActiveTrue(UserRole role);
+
+    /**
      * Custom query to find master users
      */
     @Query("SELECT u FROM User u WHERE u.role = 'MASTER' AND u.active = true")

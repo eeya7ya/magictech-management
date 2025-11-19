@@ -1,7 +1,11 @@
 package com.magictech.core.notification;
 
 import com.magictech.core.auth.User;
+import com.magictech.core.auth.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -10,17 +14,28 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Service for managing notifications
+ * Service for managing notifications with multi-channel delivery (in-app, email, push, SMS)
  */
 @Service
 @Transactional
 public class NotificationService {
 
+    private static final Logger log = LoggerFactory.getLogger(NotificationService.class);
+
     @Autowired
     private NotificationRepository notificationRepository;
 
+    @Autowired
+    private EmailService emailService;
+
+    @Autowired
+    private NotificationPreferencesService preferencesService;
+
+    @Autowired
+    private UserRepository userRepository;
+
     /**
-     * Create a notification for a specific user
+     * Create a notification for a specific user (with email delivery)
      */
     public Notification createUserNotification(Long userId, String module, String type,
                                                String title, String message, String createdBy) {
@@ -31,11 +46,22 @@ public class NotificationService {
         notification.setTitle(title);
         notification.setMessage(message);
         notification.setCreatedBy(createdBy);
-        return notificationRepository.save(notification);
+
+        // Default priority if not set
+        if (notification.getPriority() == null) {
+            notification.setPriority("NORMAL");
+        }
+
+        Notification saved = notificationRepository.save(notification);
+
+        // Send email notification asynchronously
+        sendEmailForNotification(userId, saved);
+
+        return saved;
     }
 
     /**
-     * Create a notification for all users with a specific role
+     * Create a notification for all users with a specific role (with email delivery)
      */
     public Notification createRoleNotification(String targetRole, String module, String type,
                                                String title, String message, String createdBy) {
@@ -46,11 +72,22 @@ public class NotificationService {
         notification.setTitle(title);
         notification.setMessage(message);
         notification.setCreatedBy(createdBy);
-        return notificationRepository.save(notification);
+
+        // Default priority if not set
+        if (notification.getPriority() == null) {
+            notification.setPriority("NORMAL");
+        }
+
+        Notification saved = notificationRepository.save(notification);
+
+        // Send email to all users with this role asynchronously
+        sendEmailForRoleNotification(targetRole, saved);
+
+        return saved;
     }
 
     /**
-     * Create a notification with related entity information
+     * Create a notification with related entity information (with email delivery)
      */
     public Notification createNotificationWithRelation(String targetRole, String module, String type,
                                                        String title, String message,
@@ -66,7 +103,13 @@ public class NotificationService {
         notification.setRelatedType(relatedType);
         notification.setPriority(priority);
         notification.setCreatedBy(createdBy);
-        return notificationRepository.save(notification);
+
+        Notification saved = notificationRepository.save(notification);
+
+        // Send email to all users with this role asynchronously
+        sendEmailForRoleNotification(targetRole, saved);
+
+        return saved;
     }
 
     /**
@@ -188,5 +231,121 @@ public class NotificationService {
      */
     public long getUnreadCountByModule(Long userId, String userRole, String module) {
         return notificationRepository.countUnreadByModule(userId, userRole, module);
+    }
+
+    // ==================== Email Notification Helpers ====================
+
+    /**
+     * Send email notification to a specific user
+     */
+    @Async
+    protected void sendEmailForNotification(Long userId, Notification notification) {
+        try {
+            // Get user details
+            Optional<User> userOpt = userRepository.findById(userId);
+            if (userOpt.isEmpty()) {
+                log.warn("User not found for email notification: {}", userId);
+                return;
+            }
+
+            User user = userOpt.get();
+            if (user.getEmail() == null || user.getEmail().isEmpty()) {
+                log.debug("User {} has no email address. Skipping email notification.", userId);
+                return;
+            }
+
+            // Check user preferences
+            if (!preferencesService.shouldSendEmail(userId, notification.getPriority())) {
+                log.debug("User {} has disabled email notifications for priority: {}",
+                        userId, notification.getPriority());
+                return;
+            }
+
+            // Check notification type preference
+            if (!preferencesService.isNotificationTypeEnabled(userId, notification.getType())) {
+                log.debug("User {} has disabled notifications for type: {}", userId, notification.getType());
+                return;
+            }
+
+            // Send email
+            String subject = "🔔 " + notification.getTitle();
+            String actionUrl = buildActionUrl(notification);
+
+            emailService.sendNotificationEmail(
+                    user.getEmail(),
+                    subject,
+                    notification.getTitle(),
+                    notification.getMessage(),
+                    notification.getPriority(),
+                    actionUrl
+            );
+
+            log.info("Email notification sent to user: {} ({})", user.getUsername(), user.getEmail());
+
+        } catch (Exception e) {
+            log.error("Failed to send email notification to user {}: {}", userId, e.getMessage());
+        }
+    }
+
+    /**
+     * Send email notification to all users with a specific role
+     */
+    @Async
+    protected void sendEmailForRoleNotification(String targetRole, Notification notification) {
+        try {
+            // Get all users with this role
+            List<User> users = userRepository.findByRoleAndActiveTrue(com.magictech.core.auth.UserRole.valueOf(targetRole));
+
+            if (users.isEmpty()) {
+                log.warn("No users found with role: {}", targetRole);
+                return;
+            }
+
+            log.info("Sending email notification to {} users with role: {}", users.size(), targetRole);
+
+            for (User user : users) {
+                if (user.getEmail() != null && !user.getEmail().isEmpty()) {
+                    // Check user preferences
+                    if (preferencesService.shouldSendEmail(user.getId(), notification.getPriority()) &&
+                            preferencesService.isNotificationTypeEnabled(user.getId(), notification.getType())) {
+
+                        String subject = "🔔 " + notification.getTitle();
+                        String actionUrl = buildActionUrl(notification);
+
+                        emailService.sendNotificationEmail(
+                                user.getEmail(),
+                                subject,
+                                notification.getTitle(),
+                                notification.getMessage(),
+                                notification.getPriority(),
+                                actionUrl
+                        );
+                    }
+                }
+            }
+
+            log.info("Role-based email notification completed for role: {}", targetRole);
+
+        } catch (Exception e) {
+            log.error("Failed to send role-based email notification: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Build action URL from notification
+     */
+    private String buildActionUrl(Notification notification) {
+        if (notification.getRelatedId() != null && notification.getRelatedType() != null) {
+            return String.format("magictech://open/%s/%d",
+                    notification.getRelatedType().toLowerCase(),
+                    notification.getRelatedId());
+        }
+
+        // Module-based URLs
+        if (notification.getModule() != null) {
+            return "magictech://open/" + notification.getModule().toLowerCase();
+        }
+
+        return null;
     }
 }
