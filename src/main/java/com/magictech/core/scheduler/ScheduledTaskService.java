@@ -1,7 +1,7 @@
 package com.magictech.core.scheduler;
 
 import com.magictech.core.approval.PendingApprovalService;
-import com.magictech.core.notification.NotificationService;
+import com.magictech.core.notification.CoreNotificationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,7 +19,7 @@ public class ScheduledTaskService {
     private static final Logger logger = LoggerFactory.getLogger(ScheduledTaskService.class);
 
     @Autowired
-    private NotificationService notificationService;
+    private CoreNotificationService notificationService;
 
     @Autowired
     private PendingApprovalService approvalService;

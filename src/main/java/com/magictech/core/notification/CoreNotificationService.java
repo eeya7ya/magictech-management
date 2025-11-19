@@ -10,11 +10,12 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Service for managing notifications
+ * Service for managing notifications (Legacy Core System)
+ * Note: This is the old notification system. New code should use modules.notification.service.NotificationService
  */
-@Service
+@Service("coreNotificationService")
 @Transactional
-public class NotificationService {
+public class CoreNotificationService {
 
     @Autowired
     private NotificationRepository notificationRepository;

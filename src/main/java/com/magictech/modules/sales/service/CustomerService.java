@@ -1,6 +1,6 @@
 package com.magictech.modules.sales.service;
 
-import com.magictech.core.notification.NotificationService;
+import com.magictech.core.notification.CoreNotificationService;
 import com.magictech.modules.sales.entity.Customer;
 import com.magictech.modules.sales.repository.CustomerRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,7 +23,7 @@ public class CustomerService {
     private CustomerRepository customerRepository;
 
     @Autowired
-    private NotificationService notificationService;
+    private CoreNotificationService notificationService;
 
     /**
      * Get all active customers
