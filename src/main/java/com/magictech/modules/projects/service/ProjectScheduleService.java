@@ -48,4 +48,11 @@ public class ProjectScheduleService {
     public long getScheduleCount(Long projectId) {
         return repository.countByProjectIdAndActiveTrue(projectId);
     }
+
+    /**
+     * Alias method for getSchedulesByProject - for compatibility
+     */
+    public List<ProjectSchedule> getProjectSchedules(Long projectId) {
+        return getSchedulesByProject(projectId);
+    }
 }
