@@ -21,6 +21,12 @@ public class User {
     @Column(nullable = false, length = 20)
     private UserRole role;
 
+    @Column(unique = true, length = 100)
+    private String email;
+
+    @Column(name = "phone_number", length = 20)
+    private String phoneNumber;
+
     @Column(name = "photo_path")
     private String photoPath;
 
@@ -105,6 +111,22 @@ public class User {
 
     public void setPhotoPath(String photoPath) {
         this.photoPath = photoPath;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
+    public String getPhoneNumber() {
+        return phoneNumber;
+    }
+
+    public void setPhoneNumber(String phoneNumber) {
+        this.phoneNumber = phoneNumber;
     }
 
     public LocalDateTime getCreatedAt() {
