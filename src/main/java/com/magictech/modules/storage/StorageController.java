@@ -60,6 +60,9 @@ public class StorageController extends BaseModuleController {
     @Autowired
     private com.magictech.modules.storage.service.AnalyticsService analyticsService;
 
+    @Autowired
+    private AnalysisDashboardController analysisDashboardController;
+
     // Active table tracker
     private enum ActiveTable { STORAGE, ANALYTICS }
     private ActiveTable currentTable = ActiveTable.STORAGE;
@@ -608,7 +611,7 @@ public class StorageController extends BaseModuleController {
         }
     }
 
-    // ==================== ANALYTICS DASHBOARD ====================
+    // ==================== ANALYSIS DASHBOARD ====================
 
     private ScrollPane createAnalyticsView() {
         ScrollPane scrollPane = new ScrollPane();
@@ -620,14 +623,60 @@ public class StorageController extends BaseModuleController {
 
         VBox content = new VBox(30);
         content.setPadding(new Insets(30));
+        content.setAlignment(Pos.CENTER);
         content.setStyle("-fx-background-color: transparent;");
 
         // Title
-        Label title = new Label("📊 Business Analytics Dashboard");
-        title.setStyle("-fx-text-fill: white; -fx-font-size: 28px; -fx-font-weight: bold;");
+        Label title = new Label("📊 Analysis Dashboard");
+        title.setStyle("-fx-text-fill: white; -fx-font-size: 32px; -fx-font-weight: bold;");
 
-        Label subtitle = new Label("Comprehensive business insights and performance metrics");
-        subtitle.setStyle("-fx-text-fill: rgba(255, 255, 255, 0.7); -fx-font-size: 14px;");
+        Label subtitle = new Label("View detailed project and customer information (Read-Only)");
+        subtitle.setStyle("-fx-text-fill: rgba(255, 255, 255, 0.7); -fx-font-size: 16px;");
+
+        // Launch button
+        Button launchButton = new Button("🔍 Open Analysis Dashboard");
+        launchButton.setStyle(
+                "-fx-background-color: linear-gradient(to right, #6366f1, #8b5cf6);" +
+                        "-fx-text-fill: white;" +
+                        "-fx-font-size: 18px;" +
+                        "-fx-font-weight: bold;" +
+                        "-fx-padding: 20 40;" +
+                        "-fx-background-radius: 12;" +
+                        "-fx-cursor: hand;" +
+                        "-fx-effect: dropshadow(gaussian, rgba(99, 102, 241, 0.6), 20, 0, 0, 5);"
+        );
+        launchButton.setOnAction(e -> {
+            if (analysisDashboardController != null) {
+                analysisDashboardController.show();
+            } else {
+                showError("Analysis Dashboard is not available");
+            }
+        });
+
+        Label infoLabel = new Label("📋 View comprehensive details for any project or customer\n\n" +
+                "✓ Project schedules, tasks, elements, and documents\n" +
+                "✓ Customer orders, pricing, and delivery schedules\n" +
+                "✓ All data is READ-ONLY for analysis purposes\n\n" +
+                "Click the button above to launch the dashboard");
+        infoLabel.setStyle(
+                "-fx-text-fill: rgba(255, 255, 255, 0.8);" +
+                        "-fx-font-size: 14px;" +
+                        "-fx-text-alignment: center;" +
+                        "-fx-padding: 30;"
+        );
+        infoLabel.setWrapText(true);
+        infoLabel.setMaxWidth(700);
+
+        content.getChildren().addAll(title, subtitle, launchButton, infoLabel);
+        scrollPane.setContent(content);
+
+        return scrollPane;
+    }
+
+    // DEPRECATED: Old analytics view removed - replaced with AnalysisDashboardController
+    private void loadAnalyticsData() {
+        // This method is now deprecated
+        // Analytics data is loaded on-demand in AnalysisDashboardController
 
         // Metrics Cards
         HBox metricsCards = new HBox(20);
