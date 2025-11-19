@@ -32,6 +32,13 @@ public class StorageService {
     }
 
     /**
+     * Alias method for getAllItems - for compatibility
+     */
+    public List<StorageItem> findAllActive() {
+        return getAllItems();
+    }
+
+    /**
      * Get ALL items including deleted (for admin/debugging)
      */
     public List<StorageItem> getAllItemsIncludingDeleted() {

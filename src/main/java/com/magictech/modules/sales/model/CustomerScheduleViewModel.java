@@ -1,5 +1,6 @@
 package com.magictech.modules.sales.model;
 
+import com.magictech.modules.sales.entity.CustomerSchedule;
 import javafx.beans.property.*;
 
 public class CustomerScheduleViewModel {
@@ -13,6 +14,16 @@ public class CustomerScheduleViewModel {
     private final StringProperty assignedTo = new SimpleStringProperty();
 
     public CustomerScheduleViewModel() {}
+
+    public CustomerScheduleViewModel(CustomerSchedule schedule) {
+        this.id.set(schedule.getId() != null ? schedule.getId() : 0L);
+        this.taskName.set(schedule.getTaskName() != null ? schedule.getTaskName() : "");
+        this.startDate.set(schedule.getStartDate() != null ? schedule.getStartDate().toString() : "");
+        this.endDate.set(schedule.getEndDate() != null ? schedule.getEndDate().toString() : "");
+        this.status.set(schedule.getStatus() != null ? schedule.getStatus() : "");
+        this.progress.set(0); // Default value as entity doesn't have this field
+        this.assignedTo.set(""); // Default value as entity doesn't have this field
+    }
 
     // ID
     public long getId() { return id.get(); }
