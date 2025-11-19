@@ -97,8 +97,8 @@ public class ComprehensiveExcelExportService {
         rowNum++;
 
         // Dates
-        if (customer.getDateAdded() != null) {
-            addRow(sheet, rowNum++, "Created Date:", customer.getDateAdded().format(DATETIME_FORMATTER), null);
+        if (customer.getCreatedAt() != null) {
+            addRow(sheet, rowNum++, "Created Date:", customer.getCreatedAt().format(DATETIME_FORMATTER), null);
         }
 
         // Statistics
