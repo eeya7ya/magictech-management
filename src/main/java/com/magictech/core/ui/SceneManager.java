@@ -210,8 +210,8 @@ public class SceneManager {
 
             primaryStage.setScene(scene);
             primaryStage.setTitle("MagicTech - Login");
+            primaryStage.setMaximized(true); // ✅ Keep fullscreen mode consistent
             primaryStage.centerOnScreen();
-            primaryStage.setMaximized(false);
 
         } catch (IOException e) {
             System.err.println("Error loading login screen: " + e.getMessage());

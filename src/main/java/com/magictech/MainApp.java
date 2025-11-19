@@ -44,6 +44,7 @@ public class MainApp extends Application {
             primaryStage.setTitle("MagicTech Management System");
             primaryStage.setMinWidth(1024);
             primaryStage.setMinHeight(768);
+            primaryStage.setMaximized(true); // ✅ Start in fullscreen mode
             sceneManager.showLogin();
             primaryStage.show();
             System.out.println("JavaFX UI initialized and displayed successfully!");

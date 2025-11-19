@@ -49,9 +49,21 @@ public class User {
         this.active = true;
     }
 
+    @PrePersist
+    protected void onCreate() {
+        if (this.createdAt == null) {
+            this.createdAt = LocalDateTime.now();
+        }
+        if (this.active == null) {
+            this.active = true;
+        }
+        System.out.println("✓ User @PrePersist: " + username + " | Active: " + active + " | Role: " + role);
+    }
+
     @PreUpdate
     protected void onUpdate() {
         this.updatedAt = LocalDateTime.now();
+        System.out.println("✓ User @PreUpdate: " + username + " | Active: " + active);
     }
 
     // Getters and Setters
