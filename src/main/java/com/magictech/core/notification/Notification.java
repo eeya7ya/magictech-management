@@ -7,8 +7,8 @@ import java.time.LocalDateTime;
  * Notification entity for cross-module communication
  * Supports real-time notifications with 3-month retention policy
  */
-@Entity
-@Table(name = "notifications")
+@Entity(name = "CoreNotification")
+@Table(name = "core_notifications")
 public class Notification {
 
     @Id
