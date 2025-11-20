@@ -37,8 +37,8 @@ public class LoginController {
         passwordField.setOnAction(e -> handleLogin());
         usernameField.setOnAction(e -> passwordField.requestFocus());
 
-        // Entrance animation
-        playEntranceAnimation();
+        // Entrance animation - DISABLED to fix blank screen issue
+        // playEntranceAnimation();
 
         // Add focus styling enhancement
         setupFieldAnimations();
