@@ -1587,21 +1587,36 @@ public class SalesStorageController extends BaseModuleController {
         TableView<StorageItem> storageTable = new TableView<>();
         storageTable.setPrefHeight(500);
         storageTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+        storageTable.setStyle(
+                "-fx-background-color: rgba(30, 41, 59, 0.6);" +
+                "-fx-background-radius: 12;" +
+                "-fx-border-color: rgba(139, 92, 246, 0.3);" +
+                "-fx-border-width: 2;" +
+                "-fx-border-radius: 12;"
+        );
 
         // Storage table columns
         TableColumn<StorageItem, String> nameCol = new TableColumn<>("Product Name");
         nameCol.setCellValueFactory(new PropertyValueFactory<>("productName"));
+        nameCol.setPrefWidth(350);
         styleTableColumn(nameCol);
 
-        TableColumn<StorageItem, Integer> qtyCol = new TableColumn<>("Available Quantity");
-        qtyCol.setCellValueFactory(new PropertyValueFactory<>("quantity"));
-        styleTableColumn(qtyCol);
+        // Availability column (NO QUANTITIES SHOWN - Sales should not see actual stock numbers)
+        TableColumn<StorageItem, String> availabilityCol = new TableColumn<>("Availability");
+        availabilityCol.setCellValueFactory(data -> {
+            StorageItem item = data.getValue();
+            boolean available = item.getQuantity() != null && item.getQuantity() > 0;
+            return new javafx.beans.property.SimpleStringProperty(available ? "✅ AVAILABLE" : "❌ OUT OF STOCK");
+        });
+        availabilityCol.setPrefWidth(200);
+        styleTableColumn(availabilityCol);
 
         TableColumn<StorageItem, BigDecimal> priceCol = new TableColumn<>("Unit Price");
         priceCol.setCellValueFactory(new PropertyValueFactory<>("price"));
+        priceCol.setPrefWidth(150);
         styleTableColumn(priceCol);
 
-        storageTable.getColumns().addAll(nameCol, qtyCol, priceCol);
+        storageTable.getColumns().addAll(nameCol, availabilityCol, priceCol);
 
         // Load storage items
         Task<List<StorageItem>> loadTask = new Task<>() {
@@ -1652,12 +1667,13 @@ public class SalesStorageController extends BaseModuleController {
                                     com.magictech.modules.sales.ui.CustomerCostBreakdownPanel breakdownPanel) {
         Dialog<Integer> dialog = new Dialog<>();
         dialog.setTitle("Enter Quantity");
-        dialog.setHeaderText("How many units of " + item.getProductName() + "?\nAvailable: " + item.getQuantity());
+        dialog.setHeaderText("How many units of " + item.getProductName() + " do you need?");
 
         ButtonType addButtonType = new ButtonType("Add", ButtonBar.ButtonData.OK_DONE);
         dialog.getDialogPane().getButtonTypes().addAll(addButtonType, ButtonType.CANCEL);
 
-        Spinner<Integer> spinner = new Spinner<>(1, item.getQuantity(), 1);
+        // Don't expose actual quantity - allow sales to enter any number
+        Spinner<Integer> spinner = new Spinner<>(1, 9999, 1);
         spinner.setEditable(true);
         dialog.getDialogPane().setContent(spinner);
 
@@ -1669,6 +1685,13 @@ public class SalesStorageController extends BaseModuleController {
         });
 
         dialog.showAndWait().ifPresent(quantity -> {
+            // Check availability internally (Sales doesn't see actual numbers)
+            if (item.getQuantity() == null || item.getQuantity() < quantity) {
+                showError("❌ Insufficient stock available for " + item.getProductName() +
+                         "\n\nRequested: " + quantity + " units\nPlease reduce the quantity or contact Storage team.");
+                return;
+            }
+
             // Deduct from storage
             Task<Void> deductTask = new Task<>() {
                 @Override
