@@ -98,6 +98,12 @@ public class LoginController {
         pause.play();
     }
 
+    @FXML
+    private void handleGmailSignIn() {
+        // Gmail sign-in not yet implemented
+        showError("⚠️ Gmail sign-in is not available yet. Please use username and password.");
+    }
+
     private void performAuthentication(String username, String password) {
         // Authenticate user
         User user = authService.authenticate(username, password);
