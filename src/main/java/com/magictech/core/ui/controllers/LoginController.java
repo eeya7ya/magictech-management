@@ -119,24 +119,15 @@ public class LoginController {
             gradientBackground.stopAnimation();
         }
 
-        // Smooth fade out transition
-        PauseTransition beforeFade = new PauseTransition(Duration.millis(600));
-        beforeFade.setOnFinished(e -> {
-            if (loginRoot != null) {
-                FadeTransition fadeOut = new FadeTransition(Duration.millis(400), loginRoot);
-                fadeOut.setFromValue(1.0);
-                fadeOut.setToValue(0.0);
-                fadeOut.setOnFinished(evt -> {
-                    SceneManager.getInstance().setCurrentUser(user);
-                    SceneManager.getInstance().showMainDashboard();
-                });
-                fadeOut.play();
-            } else {
-                SceneManager.getInstance().setCurrentUser(user);
-                SceneManager.getInstance().showMainDashboard();
-            }
+        // ✅ IMMEDIATE transition - no delays to prevent white flash
+        PauseTransition beforeTransition = new PauseTransition(Duration.millis(400));
+        beforeTransition.setOnFinished(e -> {
+            // Set user immediately
+            SceneManager.getInstance().setCurrentUser(user);
+            // Transition immediately without fade to prevent white flash
+            SceneManager.getInstance().showMainDashboard();
         });
-        beforeFade.play();
+        beforeTransition.play();
     }
 
     private void showError(String message) {
