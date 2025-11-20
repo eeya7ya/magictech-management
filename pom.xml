@@ -103,6 +103,13 @@
             <version>${ikonli.version}</version>
         </dependency>
 
+        <!-- ControlsFX for Advanced JavaFX Controls and Notifications -->
+        <dependency>
+            <groupId>org.controlsfx</groupId>
+            <artifactId>controlsfx</artifactId>
+            <version>11.2.1</version>
+        </dependency>
+
         <!-- Spring Boot Dependencies -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
