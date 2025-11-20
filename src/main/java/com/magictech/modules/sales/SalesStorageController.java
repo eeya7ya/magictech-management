@@ -47,6 +47,7 @@ public class SalesStorageController extends BaseModuleController {
     @Autowired private StorageService storageService;
     @Autowired private ProjectElementService elementService;
     @Autowired private com.magictech.modules.sales.service.ProjectCostBreakdownService costBreakdownService;
+    @Autowired private com.magictech.modules.sales.service.CustomerCostBreakdownService customerCostBreakdownService;
     @Autowired private com.magictech.modules.sales.service.SalesExcelExportService salesExcelExportService;
 
     private com.magictech.core.ui.components.DashboardBackgroundPane backgroundPane;
@@ -1278,14 +1279,12 @@ public class SalesStorageController extends BaseModuleController {
         contractsTab.setContent(createSimplePDFTabForCustomer(customer));
         styleTab(contractsTab, "#f59e0b");
 
-        // Fast Selling Tab (Orders)
-        Tab ordersTab = new Tab("💰 Fast Selling");
-        ordersTab.setContent(createCustomerOrdersTabRedesigned(customer));
-        styleTab(ordersTab, "#22c55e");
+        // Cost Breakdown & Order Items Tab (replacing Fast Selling)
+        Tab costBreakdownTab = new Tab("💰 Cost Breakdown");
+        costBreakdownTab.setContent(createCustomerCostBreakdownTab(customer));
+        styleTab(costBreakdownTab, "#7c3aed");
 
-        // ❌ REMOVED Elements tab for customers - they only need orders
-
-        tabPane.getTabs().addAll(contractsTab, ordersTab);
+        tabPane.getTabs().addAll(contractsTab, costBreakdownTab);
 
         Button closeBtn = createStyledButton("Close", "#6b7280", "#4b5563");
         closeBtn.setPrefHeight(50);
@@ -1338,6 +1337,426 @@ public class SalesStorageController extends BaseModuleController {
 
         content.getChildren().addAll(header, previewArea);
         return content;
+    }
+
+    // ==================== CUSTOMER COST BREAKDOWN TAB ====================
+    private VBox createCustomerCostBreakdownTab(Customer customer) {
+        VBox content = new VBox(15);
+        content.setPadding(new Insets(20));
+        content.setStyle("-fx-background-color: rgba(15, 23, 42, 0.6);");
+        VBox.setVgrow(content, Priority.ALWAYS);
+
+        // Create TabPane for Cost Breakdown and Order Items
+        TabPane subTabPane = new TabPane();
+        subTabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
+        VBox.setVgrow(subTabPane, Priority.ALWAYS);
+
+        // ============ TAB 1: Cost Breakdown ============
+        Tab costTab = new Tab("💰 Cost Breakdown");
+        VBox costContent = new VBox(20);
+        costContent.setPadding(new Insets(30));
+        costContent.setStyle("-fx-background-color: rgba(15, 23, 42, 0.6);");
+
+        com.magictech.modules.sales.ui.CustomerCostBreakdownPanel breakdownPanel =
+            new com.magictech.modules.sales.ui.CustomerCostBreakdownPanel();
+        breakdownPanel.setId("customerCostBreakdownPanel");
+
+        // Load existing breakdown
+        try {
+            List<com.magictech.modules.sales.entity.CustomerCostBreakdown> breakdowns =
+                customerCostBreakdownService.getBreakdownsByCustomer(customer.getId());
+            if (!breakdowns.isEmpty()) {
+                // Load the most recent breakdown
+                breakdownPanel.loadBreakdown(breakdowns.get(0));
+            }
+        } catch (Exception ex) {
+            System.err.println("Error loading cost breakdown: " + ex.getMessage());
+        }
+
+        // Set save callback
+        breakdownPanel.setOnSave(breakdown -> {
+            try {
+                breakdown.setCustomerId(customer.getId());
+                if (breakdown.getId() == null) {
+                    customerCostBreakdownService.createBreakdown(breakdown, currentUser.getUsername());
+                } else {
+                    customerCostBreakdownService.updateBreakdown(breakdown.getId(), breakdown, currentUser.getUsername());
+                }
+                showSuccess("Cost breakdown saved successfully!");
+            } catch (Exception ex) {
+                showError("Failed to save breakdown: " + ex.getMessage());
+            }
+        });
+
+        costContent.getChildren().add(breakdownPanel);
+        costTab.setContent(costContent);
+        styleTab(costTab, "#eab308"); // Gold theme
+
+        // ============ TAB 2: Order Items ============
+        Tab orderItemsTab = new Tab("📦 Order Items");
+        VBox orderItemsContent = createCustomerOrderItemsTabContent(customer, breakdownPanel);
+        orderItemsTab.setContent(orderItemsContent);
+        styleTab(orderItemsTab, "#a78bfa"); // Light purple theme
+
+        // Add tabs to TabPane
+        subTabPane.getTabs().addAll(costTab, orderItemsTab);
+
+        content.getChildren().add(subTabPane);
+
+        return content;
+    }
+
+    // ==================== ORDER ITEMS TAB CONTENT ====================
+    private VBox createCustomerOrderItemsTabContent(Customer customer, com.magictech.modules.sales.ui.CustomerCostBreakdownPanel breakdownPanel) {
+        VBox content = new VBox(20);
+        content.setPadding(new Insets(30));
+        content.setStyle("-fx-background-color: rgba(15, 23, 42, 0.6);");
+        VBox.setVgrow(content, Priority.ALWAYS);
+
+        HBox header = new HBox(20);
+        header.setAlignment(Pos.CENTER_LEFT);
+
+        Label titleLabel = new Label("📦 Order Items");
+        titleLabel.setStyle("-fx-text-fill: white; -fx-font-size: 24px; -fx-font-weight: bold;");
+        HBox.setHgrow(titleLabel, Priority.ALWAYS);
+
+        Button addItemsBtn = createStyledButton("+ Add Items", "#22c55e", "#16a34a");
+        addItemsBtn.setOnAction(e -> handleAddItemsToCustomerWithPanel(customer, content, breakdownPanel));
+
+        Button clearBtn = createStyledButton("🗑 Clear All", "#ef4444", "#dc2626");
+        clearBtn.setOnAction(e -> handleClearCustomerOrderWithPanel(customer, content, breakdownPanel));
+
+        header.getChildren().addAll(titleLabel, addItemsBtn, clearBtn);
+
+        TableView<OrderItemRow> itemsTable = new TableView<>();
+        itemsTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+        VBox.setVgrow(itemsTable, Priority.ALWAYS);
+        itemsTable.setStyle(
+                "-fx-background-color: rgba(15, 23, 42, 0.9);" +
+                        "-fx-control-inner-background: rgba(15, 23, 42, 0.95);" +
+                        "-fx-border-color: rgba(34, 197, 94, 0.4);" +
+                        "-fx-border-width: 2;" +
+                        "-fx-border-radius: 8;"
+        );
+
+        TableColumn<OrderItemRow, String> nameCol = new TableColumn<>("Product Name");
+        nameCol.setCellValueFactory(cellData -> new SimpleStringProperty(cellData.getValue().productName));
+        styleTableColumn(nameCol);
+
+        TableColumn<OrderItemRow, String> qtyCol = new TableColumn<>("Quantity");
+        qtyCol.setPrefWidth(100);
+        qtyCol.setCellValueFactory(cellData -> new SimpleStringProperty(String.valueOf(cellData.getValue().quantity)));
+        styleTableColumn(qtyCol);
+
+        TableColumn<OrderItemRow, String> priceCol = new TableColumn<>("Unit Price");
+        priceCol.setPrefWidth(120);
+        priceCol.setCellValueFactory(cellData ->
+                new SimpleStringProperty("$" + cellData.getValue().unitPrice.setScale(2, RoundingMode.HALF_UP).toString())
+        );
+        styleTableColumn(priceCol);
+
+        TableColumn<OrderItemRow, String> totalCol = new TableColumn<>("Total");
+        totalCol.setPrefWidth(130);
+        totalCol.setCellValueFactory(cellData -> {
+            BigDecimal total = cellData.getValue().unitPrice.multiply(new BigDecimal(cellData.getValue().quantity));
+            return new SimpleStringProperty("$" + total.setScale(2, RoundingMode.HALF_UP).toString());
+        });
+        totalCol.setCellFactory(col -> new TableCell<>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                    setStyle("");
+                } else {
+                    setText(item);
+                    setStyle("-fx-text-fill: #22c55e; -fx-font-weight: bold; -fx-font-size: 14px; -fx-alignment: CENTER-RIGHT;");
+                }
+            }
+        });
+
+        TableColumn<OrderItemRow, Void> deleteCol = new TableColumn<>("Action");
+        deleteCol.setPrefWidth(100);
+        deleteCol.setCellFactory(col -> new TableCell<>() {
+            private final Button deleteBtn = new Button("🗑️");
+
+            {
+                deleteBtn.setStyle(
+                        "-fx-background-color: #ef4444;" +
+                                "-fx-text-fill: white;" +
+                                "-fx-font-weight: bold;" +
+                                "-fx-padding: 8 16;" +
+                                "-fx-background-radius: 6;" +
+                                "-fx-cursor: hand;"
+                );
+
+                deleteBtn.setOnAction(e -> {
+                    OrderItemRow row = getTableView().getItems().get(getIndex());
+
+                    // Return items to storage IMMEDIATELY
+                    Task<Void> returnTask = new Task<>() {
+                        @Override
+                        protected Void call() {
+                            try {
+                                StorageItem item = storageService.getItemById(row.storageItemId).orElse(null);
+                                if (item != null) {
+                                    int newQuantity = item.getQuantity() + row.quantity;
+                                    item.setQuantity(newQuantity);
+                                    storageService.updateItem(item.getId(), item);
+                                }
+                            } catch (Exception ex) {
+                                ex.printStackTrace();
+                            }
+                            return null;
+                        }
+                    };
+
+                    returnTask.setOnSucceeded(event -> {
+                        getTableView().getItems().remove(row);
+                        updateCustomerCostBreakdownPanel(getTableView(), breakdownPanel);
+                        showSuccess("✓ Item removed and returned to storage!");
+                    });
+
+                    returnTask.setOnFailed(event -> {
+                        showError("Failed to return item to storage!");
+                    });
+
+                    new Thread(returnTask).start();
+                });
+            }
+
+            @Override
+            protected void updateItem(Void item, boolean empty) {
+                super.updateItem(item, empty);
+                setGraphic(empty ? null : deleteBtn);
+            }
+        });
+
+        itemsTable.getColumns().addAll(nameCol, qtyCol, priceCol, totalCol, deleteCol);
+
+        content.getChildren().addAll(header, itemsTable);
+
+        // Load existing order items
+        loadExistingCustomerOrderItems(customer, itemsTable, breakdownPanel);
+
+        return content;
+    }
+
+    // ==================== CUSTOMER ORDER HELPER METHODS ====================
+
+    /**
+     * Update cost breakdown panel based on table items
+     */
+    private void updateCustomerCostBreakdownPanel(TableView<OrderItemRow> itemsTable,
+                                                   com.magictech.modules.sales.ui.CustomerCostBreakdownPanel breakdownPanel) {
+        BigDecimal subtotal = BigDecimal.ZERO;
+        for (OrderItemRow row : itemsTable.getItems()) {
+            BigDecimal itemTotal = row.unitPrice.multiply(new BigDecimal(row.quantity));
+            subtotal = subtotal.add(itemTotal);
+        }
+        breakdownPanel.setItemsSubtotal(subtotal);
+    }
+
+    /**
+     * Load existing customer order items
+     */
+    private void loadExistingCustomerOrderItems(Customer customer, TableView<OrderItemRow> itemsTable,
+                                                com.magictech.modules.sales.ui.CustomerCostBreakdownPanel breakdownPanel) {
+        // TODO: Load from database if there's an existing order
+        // For now, start with empty table
+        itemsTable.setItems(FXCollections.observableArrayList());
+        updateCustomerCostBreakdownPanel(itemsTable, breakdownPanel);
+    }
+
+    /**
+     * Handle adding items to customer order with panel update
+     */
+    private void handleAddItemsToCustomerWithPanel(Customer customer, VBox orderTabContent,
+                                                    com.magictech.modules.sales.ui.CustomerCostBreakdownPanel breakdownPanel) {
+        Stage dialogStage = new Stage();
+        dialogStage.setTitle("📦 Select Storage Items");
+        dialogStage.initModality(Modality.APPLICATION_MODAL);
+
+        VBox mainLayout = new VBox(20);
+        mainLayout.setPadding(new Insets(30));
+        mainLayout.setStyle("-fx-background-color: linear-gradient(to bottom right, #1e293b, #0f172a);");
+
+        Label titleLabel = new Label("Select Items from Storage");
+        titleLabel.setStyle("-fx-text-fill: white; -fx-font-size: 24px; -fx-font-weight: bold;");
+
+        TableView<StorageItem> storageTable = new TableView<>();
+        storageTable.setPrefHeight(500);
+        storageTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+
+        // Storage table columns
+        TableColumn<StorageItem, String> nameCol = new TableColumn<>("Product Name");
+        nameCol.setCellValueFactory(new PropertyValueFactory<>("productName"));
+        styleTableColumn(nameCol);
+
+        TableColumn<StorageItem, Integer> qtyCol = new TableColumn<>("Available Quantity");
+        qtyCol.setCellValueFactory(new PropertyValueFactory<>("quantity"));
+        styleTableColumn(qtyCol);
+
+        TableColumn<StorageItem, BigDecimal> priceCol = new TableColumn<>("Unit Price");
+        priceCol.setCellValueFactory(new PropertyValueFactory<>("price"));
+        styleTableColumn(priceCol);
+
+        storageTable.getColumns().addAll(nameCol, qtyCol, priceCol);
+
+        // Load storage items
+        Task<List<StorageItem>> loadTask = new Task<>() {
+            @Override
+            protected List<StorageItem> call() {
+                return storageService.getAllActiveItems();
+            }
+        };
+
+        loadTask.setOnSucceeded(e -> {
+            List<StorageItem> items = loadTask.getValue();
+            storageTable.setItems(FXCollections.observableArrayList(items));
+        });
+
+        new Thread(loadTask).start();
+
+        // Buttons
+        Button addBtn = createStyledButton("Add Selected Items", "#22c55e", "#16a34a");
+        addBtn.setPrefHeight(50);
+        addBtn.setMaxWidth(Double.MAX_VALUE);
+        addBtn.setOnAction(e -> {
+            StorageItem selected = storageTable.getSelectionModel().getSelectedItem();
+            if (selected != null && selected.getQuantity() > 0) {
+                // Show quantity dialog
+                showQuantityDialog(selected, customer, orderTabContent, breakdownPanel);
+                dialogStage.close();
+            } else {
+                showWarning("Please select an item with available quantity");
+            }
+        });
+
+        Button cancelBtn = createStyledButton("Cancel", "#6b7280", "#4b5563");
+        cancelBtn.setPrefHeight(50);
+        cancelBtn.setMaxWidth(Double.MAX_VALUE);
+        cancelBtn.setOnAction(e -> dialogStage.close());
+
+        mainLayout.getChildren().addAll(titleLabel, storageTable, addBtn, cancelBtn);
+
+        Scene scene = new Scene(mainLayout, 800, 700);
+        dialogStage.setScene(scene);
+        dialogStage.showAndWait();
+    }
+
+    /**
+     * Show quantity dialog for adding items
+     */
+    private void showQuantityDialog(StorageItem item, Customer customer, VBox orderTabContent,
+                                    com.magictech.modules.sales.ui.CustomerCostBreakdownPanel breakdownPanel) {
+        Dialog<Integer> dialog = new Dialog<>();
+        dialog.setTitle("Enter Quantity");
+        dialog.setHeaderText("How many units of " + item.getProductName() + "?\nAvailable: " + item.getQuantity());
+
+        ButtonType addButtonType = new ButtonType("Add", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(addButtonType, ButtonType.CANCEL);
+
+        Spinner<Integer> spinner = new Spinner<>(1, item.getQuantity(), 1);
+        spinner.setEditable(true);
+        dialog.getDialogPane().setContent(spinner);
+
+        dialog.setResultConverter(dialogButton -> {
+            if (dialogButton == addButtonType) {
+                return spinner.getValue();
+            }
+            return null;
+        });
+
+        dialog.showAndWait().ifPresent(quantity -> {
+            // Deduct from storage
+            Task<Void> deductTask = new Task<>() {
+                @Override
+                protected Void call() {
+                    item.setQuantity(item.getQuantity() - quantity);
+                    storageService.updateItem(item.getId(), item);
+                    return null;
+                }
+            };
+
+            deductTask.setOnSucceeded(e -> {
+                // Find the items table in orderTabContent
+                TableView<OrderItemRow> itemsTable = findItemsTableInContent(orderTabContent);
+                if (itemsTable != null) {
+                    // Add to order
+                    OrderItemRow newRow = new OrderItemRow();
+                    newRow.storageItemId = item.getId();
+                    newRow.productName = item.getProductName();
+                    newRow.quantity = quantity;
+                    newRow.unitPrice = item.getPrice() != null ? item.getPrice() : BigDecimal.ZERO;
+                    itemsTable.getItems().add(newRow);
+
+                    // Update cost breakdown
+                    updateCustomerCostBreakdownPanel(itemsTable, breakdownPanel);
+
+                    showSuccess("✓ " + quantity + " units of " + item.getProductName() + " added to order!");
+                }
+            });
+
+            new Thread(deductTask).start();
+        });
+    }
+
+    /**
+     * Find items table in content
+     */
+    private TableView<OrderItemRow> findItemsTableInContent(VBox content) {
+        for (javafx.scene.Node node : content.getChildren()) {
+            if (node instanceof TableView) {
+                return (TableView<OrderItemRow>) node;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Handle clearing customer order with panel update
+     */
+    private void handleClearCustomerOrderWithPanel(Customer customer, VBox orderTabContent,
+                                                    com.magictech.modules.sales.ui.CustomerCostBreakdownPanel breakdownPanel) {
+        Alert confirmAlert = new Alert(Alert.AlertType.CONFIRMATION);
+        confirmAlert.setTitle("Clear All Items");
+        confirmAlert.setHeaderText("Are you sure you want to clear all items?");
+        confirmAlert.setContentText("This will return all items to storage.");
+
+        confirmAlert.showAndWait().ifPresent(response -> {
+            if (response == ButtonType.OK) {
+                TableView<OrderItemRow> itemsTable = findItemsTableInContent(orderTabContent);
+                if (itemsTable != null) {
+                    // Return items to storage
+                    Task<Void> returnTask = new Task<>() {
+                        @Override
+                        protected Void call() {
+                            for (OrderItemRow row : itemsTable.getItems()) {
+                                try {
+                                    StorageItem item = storageService.getItemById(row.storageItemId).orElse(null);
+                                    if (item != null) {
+                                        item.setQuantity(item.getQuantity() + row.quantity);
+                                        storageService.updateItem(item.getId(), item);
+                                    }
+                                } catch (Exception ex) {
+                                    ex.printStackTrace();
+                                }
+                            }
+                            return null;
+                        }
+                    };
+
+                    returnTask.setOnSucceeded(e -> {
+                        itemsTable.getItems().clear();
+                        updateCustomerCostBreakdownPanel(itemsTable, breakdownPanel);
+                        showSuccess("✓ All items cleared and returned to storage!");
+                    });
+
+                    new Thread(returnTask).start();
+                }
+            }
+        });
     }
 
     // ==================== ORDERS TAB (Keep existing implementation) ====================
