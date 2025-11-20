@@ -1,5 +1,11 @@
 package com.magictech.modules.sales.service;
 
+import com.magictech.core.auth.User;
+import com.magictech.core.auth.UserRepository;
+import com.magictech.core.auth.UserRole;
+import com.magictech.modules.notifications.entity.NotificationPriority;
+import com.magictech.modules.notifications.entity.NotificationType;
+import com.magictech.modules.notifications.service.NotificationService;
 import com.magictech.modules.sales.entity.SalesOrder;
 import com.magictech.modules.sales.entity.SalesOrderItem;
 import com.magictech.modules.sales.repository.SalesOrderRepository;
@@ -13,8 +19,8 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Sales Order Service - FIXED
- * Business logic for sales order management with automatic database updates
+ * Sales Order Service - WITH NOTIFICATIONS
+ * Business logic for sales order management with automatic database updates and notifications
  *
  * NOTE: This service requires StorageService and ProjectElementService
  * Uncomment the @Autowired sections below when those services are available
@@ -28,6 +34,12 @@ public class SalesOrderService {
 
     @Autowired
     private SalesOrderItemRepository salesOrderItemRepository;
+
+    @Autowired(required = false)
+    private NotificationService notificationService;
+
+    @Autowired(required = false)
+    private UserRepository userRepository;
 
     // TODO: Uncomment when StorageService is available
     // @Autowired
@@ -46,7 +58,70 @@ public class SalesOrderService {
         salesOrder.setActive(true);
         salesOrder.setStatus("DRAFT");
         salesOrder.calculateTotals(); // Calculate all totals
-        return salesOrderRepository.save(salesOrder);
+
+        SalesOrder savedOrder = salesOrderRepository.save(salesOrder);
+
+        // Send notification to MASTER and SALES users
+        sendOrderCreatedNotification(savedOrder);
+
+        return savedOrder;
+    }
+
+    /**
+     * Send notification when order is created
+     */
+    private void sendOrderCreatedNotification(SalesOrder order) {
+        if (notificationService == null || userRepository == null) {
+            return; // Notifications not configured
+        }
+
+        try {
+            String customerName = order.getCustomer() != null
+                ? order.getCustomer().getName()
+                : "Unknown Customer";
+
+            String title = "New Sales Order #" + order.getId();
+            String message = String.format(
+                "New order created for %s - Total: $%.2f",
+                customerName,
+                order.getTotalAmount()
+            );
+
+            // Notify MASTER users
+            List<User> masterUsers = userRepository.findByRoleAndActiveTrue(UserRole.MASTER);
+            for (User user : masterUsers) {
+                notificationService.createNotification(
+                    user.getId(),
+                    title,
+                    message,
+                    NotificationType.NEW_SALES_ORDER,
+                    NotificationPriority.NORMAL,
+                    "SALES",
+                    order.getId(),
+                    "SalesOrder",
+                    "/sales/orders/" + order.getId()
+                );
+            }
+
+            // Notify SALES users
+            List<User> salesUsers = userRepository.findByRoleAndActiveTrue(UserRole.SALES);
+            for (User user : salesUsers) {
+                notificationService.createNotification(
+                    user.getId(),
+                    title,
+                    message,
+                    NotificationType.NEW_SALES_ORDER,
+                    NotificationPriority.NORMAL,
+                    "SALES",
+                    order.getId(),
+                    "SalesOrder",
+                    "/sales/orders/" + order.getId()
+                );
+            }
+        } catch (Exception e) {
+            // Don't fail the order creation if notification fails
+            System.err.println("Failed to send order created notification: " + e.getMessage());
+        }
     }
 
     /**
