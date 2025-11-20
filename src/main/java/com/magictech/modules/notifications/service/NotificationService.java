@@ -2,6 +2,7 @@ package com.magictech.modules.notifications.service;
 
 import com.magictech.core.auth.User;
 import com.magictech.core.auth.UserRepository;
+import com.magictech.core.auth.UserRole;
 import com.magictech.modules.notifications.entity.Notification;
 import com.magictech.modules.notifications.entity.NotificationPriority;
 import com.magictech.modules.notifications.entity.NotificationType;
