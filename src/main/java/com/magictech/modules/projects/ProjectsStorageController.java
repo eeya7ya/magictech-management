@@ -2020,43 +2020,47 @@ public class ProjectsStorageController extends BaseModuleController {
 
             availableAlert.showAndWait().ifPresent(response -> {
                 if (response == ButtonType.OK) {
-                    // ✅ NEW: Create approval request instead of directly adding element
-                    Task<com.magictech.core.approval.PendingApproval> approvalTask = new Task<>() {
+                    // Create project element and update storage
+                    Task<ProjectElement> addElementTask = new Task<>() {
                         @Override
-                        protected com.magictech.core.approval.PendingApproval call() {
-                            // Create approval request
-                            String notes = "Request to add " + requestedQty + " x " + storageItem.getProductName() +
-                                         " to project " + selectedProject.getProjectName();
-                            if (!notesField.getText().isEmpty()) {
-                                notes += " | Notes: " + notesField.getText();
-                            }
+                        protected ProjectElement call() {
+                            // Create project element
+                            ProjectElement element = new ProjectElement();
+                            element.setProject(selectedProject);
+                            element.setStorageItem(storageItem);
+                            element.setQuantityNeeded(requestedQty);
+                            element.setQuantityAllocated(requestedQty);
+                            element.setStatus("ALLOCATED");
+                            element.setNotes(notesField.getText());
+                            element.setDateAdded(LocalDateTime.now());
+                            element.setCreatedBy(currentUser != null ? currentUser.getUsername() : "system");
+                            element.setActive(true);
 
-                            return approvalService.createProjectElementApproval(
-                                selectedProject.getId(),
-                                storageItem.getId(),
-                                requestedQty,
-                                currentUser != null ? currentUser.getUsername() : "system",
-                                currentUser != null ? currentUser.getId() : null,
-                                notes
-                            );
+                            // Save element
+                            ProjectElement saved = elementService.createElement(element);
+
+                            // Update storage quantity
+                            storageItem.setQuantity(storageItem.getQuantity() - requestedQty);
+                            storageService.updateItem(storageItem);
+
+                            return saved;
                         }
                     };
 
-                    approvalTask.setOnSucceeded(event -> {
+                    addElementTask.setOnSucceeded(event -> {
                         Platform.runLater(() -> {
-                            loadElementsData(); // Refresh to show pending approval status
-                            showSuccess("⏳ Approval request sent to Sales team!\n\n" +
-                                      "The element will be added once approved.\n" +
-                                      "Auto-rejects after 2 days if not approved.");
+                            loadElementsData(); // Refresh elements
+                            showSuccess("✓ Element added successfully!\n" +
+                                      "Storage quantity updated.");
                             parentDialog.close();
                         });
                     });
 
-                    approvalTask.setOnFailed(event ->
-                            showError("Failed to create approval request: " + approvalTask.getException().getMessage())
+                    addElementTask.setOnFailed(event ->
+                            showError("Failed to add element: " + addElementTask.getException().getMessage())
                     );
 
-                    new Thread(approvalTask).start();
+                    new Thread(addElementTask).start();
                 }
             });
         });

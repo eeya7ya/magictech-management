@@ -54,25 +54,6 @@ public class ProjectService {
         project.setActive(true);
         Project savedProject = repository.save(project);
 
-        // Create notification for new project
-        try {
-            notificationService.createNotificationWithRelation(
-                "PROJECTS",  // targetRole
-                "PROJECTS",  // module
-                "PROJECT_CREATED",  // type
-                "New Project Created",  // title
-                String.format("Project '%s' has been created", savedProject.getProjectName()),  // message
-                savedProject.getId(),  // relatedId
-                "PROJECT",  // relatedType
-                "NORMAL",  // priority
-                savedProject.getCreatedBy() != null ? savedProject.getCreatedBy() : "System"  // createdBy
-            );
-            System.out.println("🔔 Notification created for new project: " + savedProject.getProjectName());
-        } catch (Exception e) {
-            System.err.println("⚠️ Failed to create notification: " + e.getMessage());
-            // Don't fail the project creation if notification fails
-        }
-
         return savedProject;
     }
 
@@ -95,26 +76,6 @@ public class ProjectService {
             project.setLastUpdated(LocalDateTime.now());
 
             Project saved = repository.save(project);
-
-            // If project status changed to "Completed", notify PRICING module
-            if (updatedProject.getStatus() != null &&
-                updatedProject.getStatus().equalsIgnoreCase("Completed") &&
-                !updatedProject.getStatus().equalsIgnoreCase(oldStatus)) {
-
-                notificationService.createNotificationWithRelation(
-                    "PRICING",  // targetRole
-                    "PRICING",  // module
-                    "PROJECT_COMPLETED",  // type
-                    "Project Completed",  // title
-                    String.format("Project '%s' has been completed and needs pricing finalization", saved.getProjectName()),  // message
-                    saved.getId(),  // relatedId
-                    "PROJECT",  // relatedType
-                    "HIGH",  // priority
-                    project.getCreatedBy() != null ? project.getCreatedBy() : "System"  // createdBy
-                );
-
-                System.out.println("✓ Pricing notification created for completed project: " + saved.getProjectName());
-            }
 
             return saved;
         }
@@ -199,27 +160,6 @@ public class ProjectService {
             project.setActive(true);
         });
         List<Project> savedProjects = repository.saveAll(projects);
-
-        // Create notifications for all new projects
-        try {
-            savedProjects.forEach(project -> {
-                notificationService.createNotificationWithRelation(
-                    "PROJECTS",  // targetRole
-                    "PROJECTS",  // module
-                    "PROJECT_CREATED",  // type
-                    "New Project Created",  // title
-                    String.format("Project '%s' has been created", project.getProjectName()),  // message
-                    project.getId(),  // relatedId
-                    "PROJECT",  // relatedType
-                    "NORMAL",  // priority
-                    project.getCreatedBy() != null ? project.getCreatedBy() : "System"  // createdBy
-                );
-            });
-            System.out.println("🔔 Notifications created for " + savedProjects.size() + " new projects");
-        } catch (Exception e) {
-            System.err.println("⚠️ Failed to create notifications: " + e.getMessage());
-            // Don't fail the bulk creation if notifications fail
-        }
 
         return savedProjects;
     }

@@ -1709,22 +1709,6 @@ public class SalesStorageController extends BaseModuleController {
                 Project savedProject = saveTask.getValue();
                 showSuccess("✓ Project created!");
                 loadProjects(projectsListView);
-
-                // ✅ NEW: Send notification to Projects module
-                try {
-                    notificationService.createRoleNotification(
-                        "PROJECTS",  // Target role
-                        "SALES",     // Source module
-                        "PROJECT_CREATED",
-                        "New Project: " + savedProject.getProjectName(),
-                        "A new project has been created from Sales module. " +
-                        "Project: " + savedProject.getProjectName() +
-                        (savedProject.getProjectLocation() != null ? " | Location: " + savedProject.getProjectLocation() : ""),
-                        currentUser != null ? currentUser.getUsername() : "system"
-                    );
-                } catch (Exception notifEx) {
-                    System.err.println("Failed to send notification: " + notifEx.getMessage());
-                }
             });
 
             new Thread(saveTask).start();
