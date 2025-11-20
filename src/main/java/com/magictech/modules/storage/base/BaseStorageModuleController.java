@@ -621,10 +621,10 @@
                 }
 
                 String lower = searchText.toLowerCase();
-                return item.getManufacture().toLowerCase().contains(lower) ||
-                        item.getProductName().toLowerCase().contains(lower) ||
-                        item.getCode().toLowerCase().contains(lower) ||
-                        item.getSerialNumber().toLowerCase().contains(lower);
+                return (item.getManufacture() != null && item.getManufacture().toLowerCase().contains(lower)) ||
+                        (item.getProductName() != null && item.getProductName().toLowerCase().contains(lower)) ||
+                        (item.getCode() != null && item.getCode().toLowerCase().contains(lower)) ||
+                        (item.getSerialNumber() != null && item.getSerialNumber().toLowerCase().contains(lower));
             });
         }
 

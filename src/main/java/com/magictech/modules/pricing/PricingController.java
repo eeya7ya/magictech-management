@@ -256,6 +256,7 @@ public class PricingController extends BaseModuleController {
         TableView<StorageItemViewModel> table = new TableView<>();
         table.setStyle("-fx-background-color: rgba(30, 41, 59, 0.5); -fx-background-radius: 12; -fx-border-color: rgba(234, 179, 8, 0.3); -fx-border-radius: 12; -fx-border-width: 2;");
         table.setColumnResizePolicy(TableView.UNCONSTRAINED_RESIZE_POLICY);
+        table.setEditable(true);  // Enable editing on the table
         buildPricingColumns(table);
         return table;
     }
@@ -265,6 +266,7 @@ public class PricingController extends BaseModuleController {
         selectCol.setPrefWidth(40);
         selectCol.setMaxWidth(40);
         selectCol.setMinWidth(40);
+        selectCol.setEditable(true);  // Enable editing on the column
 
         CheckBox selectAll = new CheckBox();
         selectAll.setOnAction(e -> {
@@ -288,6 +290,7 @@ public class PricingController extends BaseModuleController {
         selectCol.setCellFactory(col -> {
             CheckBoxTableCell<StorageItemViewModel, Boolean> cell = new CheckBoxTableCell<>();
             cell.setAlignment(Pos.CENTER);
+            cell.setEditable(true);  // Enable editing on the cell
             return cell;
         });
 

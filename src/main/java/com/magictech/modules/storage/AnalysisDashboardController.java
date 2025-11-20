@@ -64,8 +64,46 @@ public class AnalysisDashboardController {
     private static final DateTimeFormatter DATETIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
     /**
-     * Show analysis dashboard window
+     * Create embedded analysis dashboard view (no modal window)
      */
+    public VBox createEmbeddedView() {
+        VBox root = new VBox(20);
+        root.setPadding(new Insets(30));
+        root.setStyle("-fx-background-color: transparent;");
+
+        // Header
+        Label titleLabel = new Label("📊 ANALYSIS DASHBOARD");
+        titleLabel.setStyle("-fx-text-fill: white; -fx-font-size: 28px; -fx-font-weight: bold;");
+
+        Label subtitleLabel = new Label("View Project & Customer Details (Read-Only)");
+        subtitleLabel.setStyle("-fx-text-fill: rgba(255, 255, 255, 0.7); -fx-font-size: 16px;");
+
+        VBox header = new VBox(10, titleLabel, subtitleLabel);
+        header.setAlignment(Pos.CENTER);
+
+        // Selection tabs
+        TabPane tabPane = new TabPane();
+        tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
+        tabPane.setStyle("-fx-background-color: transparent;");
+
+        Tab projectsTab = new Tab("📁 Projects");
+        projectsTab.setContent(createProjectsViewEmbedded());
+
+        Tab customersTab = new Tab("👥 Customers");
+        customersTab.setContent(createCustomersViewEmbedded());
+
+        tabPane.getTabs().addAll(projectsTab, customersTab);
+        VBox.setVgrow(tabPane, Priority.ALWAYS);
+
+        root.getChildren().addAll(header, tabPane);
+
+        return root;
+    }
+
+    /**
+     * Show analysis dashboard window (DEPRECATED - use createEmbeddedView instead)
+     */
+    @Deprecated
     public void show() {
         Stage stage = new Stage();
         stage.initModality(Modality.APPLICATION_MODAL);
@@ -119,6 +157,148 @@ public class AnalysisDashboardController {
         Scene scene = new Scene(root, 1000, 700);
         stage.setScene(scene);
         stage.show();
+    }
+
+    /**
+     * Create embedded projects view (no Stage reference)
+     */
+    private VBox createProjectsViewEmbedded() {
+        VBox view = new VBox(15);
+        view.setPadding(new Insets(20));
+        view.setStyle("-fx-background-color: rgba(30, 41, 59, 0.6); -fx-background-radius: 12;");
+
+        Label infoLabel = new Label("ℹ️ Select a project to view its complete details (READ-ONLY)");
+        infoLabel.setStyle("-fx-text-fill: #fbbf24; -fx-font-size: 14px; -fx-font-weight: bold;");
+
+        // Projects list
+        ListView<Project> projectsListView = new ListView<>();
+        projectsListView.setPrefHeight(400);
+        projectsListView.setStyle("-fx-background-color: rgba(51, 65, 85, 0.8);");
+
+        projectsListView.setCellFactory(lv -> new ListCell<Project>() {
+            @Override
+            protected void updateItem(Project project, boolean empty) {
+                super.updateItem(project, empty);
+                if (empty || project == null) {
+                    setText(null);
+                    setGraphic(null);
+                } else {
+                    VBox cellContent = new VBox(5);
+                    cellContent.setPadding(new Insets(10));
+
+                    Label nameLabel = new Label("📁 " + project.getProjectName());
+                    nameLabel.setStyle("-fx-text-fill: white; -fx-font-size: 14px; -fx-font-weight: bold;");
+
+                    Label detailsLabel = new Label(
+                            "Location: " + (project.getProjectLocation() != null ? project.getProjectLocation() : "N/A") +
+                                    " • Status: " + (project.getStatus() != null ? project.getStatus() : "ACTIVE")
+                    );
+                    detailsLabel.setStyle("-fx-text-fill: rgba(255, 255, 255, 0.7); -fx-font-size: 12px;");
+
+                    cellContent.getChildren().addAll(nameLabel, detailsLabel);
+                    setGraphic(cellContent);
+                    setStyle("-fx-background-color: transparent;");
+                }
+            }
+        });
+
+        // Load projects
+        loadProjects(projectsListView);
+
+        // View button
+        Button viewButton = new Button("👁️ View Details");
+        viewButton.setStyle(
+                "-fx-background-color: #3b82f6;" +
+                        "-fx-text-fill: white;" +
+                        "-fx-font-size: 14px;" +
+                        "-fx-padding: 10 20;" +
+                        "-fx-background-radius: 8;" +
+                        "-fx-cursor: hand;"
+        );
+        viewButton.setOnAction(e -> {
+            Project selected = projectsListView.getSelectionModel().getSelectedItem();
+            if (selected != null) {
+                showProjectDetails(selected);
+            } else {
+                showAlert("Please select a project first");
+            }
+        });
+
+        VBox.setVgrow(projectsListView, Priority.ALWAYS);
+        view.getChildren().addAll(infoLabel, projectsListView, viewButton);
+
+        return view;
+    }
+
+    /**
+     * Create embedded customers view (no Stage reference)
+     */
+    private VBox createCustomersViewEmbedded() {
+        VBox view = new VBox(15);
+        view.setPadding(new Insets(20));
+        view.setStyle("-fx-background-color: rgba(30, 41, 59, 0.6); -fx-background-radius: 12;");
+
+        Label infoLabel = new Label("ℹ️ Select a customer to view their complete details (READ-ONLY)");
+        infoLabel.setStyle("-fx-text-fill: #fbbf24; -fx-font-size: 14px; -fx-font-weight: bold;");
+
+        // Customers list
+        ListView<Customer> customersListView = new ListView<>();
+        customersListView.setPrefHeight(400);
+        customersListView.setStyle("-fx-background-color: rgba(51, 65, 85, 0.8);");
+
+        customersListView.setCellFactory(lv -> new ListCell<Customer>() {
+            @Override
+            protected void updateItem(Customer customer, boolean empty) {
+                super.updateItem(customer, empty);
+                if (empty || customer == null) {
+                    setText(null);
+                    setGraphic(null);
+                } else {
+                    VBox cellContent = new VBox(5);
+                    cellContent.setPadding(new Insets(10));
+
+                    Label nameLabel = new Label("👤 " + customer.getName());
+                    nameLabel.setStyle("-fx-text-fill: white; -fx-font-size: 14px; -fx-font-weight: bold;");
+
+                    Label detailsLabel = new Label(
+                            "Email: " + (customer.getEmail() != null ? customer.getEmail() : "N/A") +
+                                    " • Phone: " + (customer.getPhone() != null ? customer.getPhone() : "N/A")
+                    );
+                    detailsLabel.setStyle("-fx-text-fill: rgba(255, 255, 255, 0.7); -fx-font-size: 12px;");
+
+                    cellContent.getChildren().addAll(nameLabel, detailsLabel);
+                    setGraphic(cellContent);
+                    setStyle("-fx-background-color: transparent;");
+                }
+            }
+        });
+
+        // Load customers
+        loadCustomers(customersListView);
+
+        // View button
+        Button viewButton = new Button("👁️ View Details");
+        viewButton.setStyle(
+                "-fx-background-color: #3b82f6;" +
+                        "-fx-text-fill: white;" +
+                        "-fx-font-size: 14px;" +
+                        "-fx-padding: 10 20;" +
+                        "-fx-background-radius: 8;" +
+                        "-fx-cursor: hand;"
+        );
+        viewButton.setOnAction(e -> {
+            Customer selected = customersListView.getSelectionModel().getSelectedItem();
+            if (selected != null) {
+                showCustomerDetails(selected);
+            } else {
+                showAlert("Please select a customer first");
+            }
+        });
+
+        VBox.setVgrow(customersListView, Priority.ALWAYS);
+        view.getChildren().addAll(infoLabel, customersListView, viewButton);
+
+        return view;
     }
 
     /**

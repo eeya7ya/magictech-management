@@ -44,8 +44,14 @@
     -fx-background-color: transparent !important;
 }
 
-/* Force all layout containers to be transparent */
-VBox, HBox, BorderPane, StackPane, Pane, AnchorPane, FlowPane {
+/* Force layout containers inside content to be transparent (but not root StackPane) */
+VBox, HBox, BorderPane, Pane, AnchorPane, FlowPane {
+    -fx-background: transparent !important;
+    -fx-background-color: transparent !important;
+}
+
+/* Allow root StackPane to have background, only force transparency on nested ones */
+.dashboard-root StackPane {
     -fx-background: transparent !important;
     -fx-background-color: transparent !important;
 }
