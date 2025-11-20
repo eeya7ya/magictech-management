@@ -5,6 +5,7 @@ import com.magictech.modules.notifications.entity.NotificationPriority;
 import com.magictech.modules.notifications.entity.NotificationType;
 import com.magictech.modules.notifications.service.NotificationService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -22,6 +23,7 @@ import java.util.Map;
 public class NotificationController {
 
     @Autowired
+    @Qualifier("moduleNotificationService")
     private NotificationService notificationService;
 
     /**

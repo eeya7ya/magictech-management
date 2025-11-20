@@ -13,6 +13,7 @@ import javafx.util.Duration;
 import org.kordamp.ikonli.javafx.FontIcon;
 import org.kordamp.ikonli.fontawesome5.FontAwesomeSolid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -27,6 +28,7 @@ import java.util.List;
 public class NotificationCenterPane extends HBox {
 
     @Autowired
+    @Qualifier("moduleNotificationService")
     private NotificationService notificationService;
 
     @Value("${app.notifications.polling.interval:5000}")

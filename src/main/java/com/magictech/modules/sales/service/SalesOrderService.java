@@ -11,6 +11,7 @@ import com.magictech.modules.sales.entity.SalesOrderItem;
 import com.magictech.modules.sales.repository.SalesOrderRepository;
 import com.magictech.modules.sales.repository.SalesOrderItemRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,6 +37,7 @@ public class SalesOrderService {
     private SalesOrderItemRepository salesOrderItemRepository;
 
     @Autowired(required = false)
+    @Qualifier("moduleNotificationService")
     private NotificationService notificationService;
 
     @Autowired(required = false)
