@@ -20,12 +20,19 @@ public class LoginController {
     @FXML private TextField usernameField;
     @FXML private PasswordField passwordField;
     @FXML private Button loginButton;
+    @FXML private Button gmailSignInButton;
     @FXML private Label errorLabel;
     @FXML private StackPane loginRoot;
     @FXML private GradientBackgroundPane gradientBackground;
 
     @Autowired
     private AuthenticationService authService;
+
+    @Autowired
+    private com.magictech.core.auth.OAuth2Service oauth2Service;
+
+    @Autowired
+    private com.magictech.core.auth.UserRepository userRepository;
 
     @FXML
     public void initialize() {
@@ -348,5 +355,200 @@ public class LoginController {
 
         ParallelTransition buttonAnim = new ParallelTransition(buttonFade, buttonSlide);
         buttonAnim.play();
+    }
+
+    /**
+     * Handle Gmail Sign-In flow for desktop application
+     */
+    @FXML
+    private void handleGmailSignIn() {
+        System.out.println("🔐 Gmail Sign-In initiated...");
+
+        // Check if OAuth2 is configured
+        if (!oauth2Service.isOAuth2Configured()) {
+            showError("❌ Gmail Sign-In is not configured. Please contact your administrator.");
+            return;
+        }
+
+        // Ask user for their username to link OAuth account
+        TextInputDialog usernameDialog = new TextInputDialog();
+        usernameDialog.setTitle("Sign in with Google");
+        usernameDialog.setHeaderText("Link Your Google Account");
+        usernameDialog.setContentText("Enter your MagicTech username:");
+        usernameDialog.getDialogPane().setStyle(
+            "-fx-background-color: linear-gradient(to bottom, #1e293b, #0f172a);" +
+            "-fx-border-color: rgba(139, 92, 246, 0.3);" +
+            "-fx-border-width: 1;"
+        );
+
+        usernameDialog.showAndWait().ifPresent(username -> {
+            if (username == null || username.trim().isEmpty()) {
+                showError("⚠️ Username is required");
+                return;
+            }
+
+            // Verify user exists
+            java.util.Optional<User> userOpt = userRepository.findByUsernameIgnoreCase(username.trim());
+            if (userOpt.isEmpty()) {
+                showError("❌ User not found: " + username);
+                return;
+            }
+
+            User user = userOpt.get();
+
+            // Check if user is active
+            if (!user.getActive()) {
+                showError("❌ This account is inactive. Please contact your administrator.");
+                return;
+            }
+
+            try {
+                // Get authorization URL
+                String authUrl = oauth2Service.getAuthorizationUrl(user.getId());
+                System.out.println("🔗 Authorization URL: " + authUrl);
+
+                // Open browser for OAuth consent
+                openBrowser(authUrl);
+
+                // Show waiting dialog
+                showOAuthWaitingDialog(user);
+
+            } catch (Exception e) {
+                System.err.println("✗ Error initiating Gmail Sign-In: " + e.getMessage());
+                e.printStackTrace();
+                showError("❌ Failed to initiate Gmail Sign-In: " + e.getMessage());
+            }
+        });
+    }
+
+    /**
+     * Open system browser with given URL
+     */
+    private void openBrowser(String url) {
+        try {
+            java.awt.Desktop desktop = java.awt.Desktop.getDesktop();
+            if (desktop.isSupported(java.awt.Desktop.Action.BROWSE)) {
+                desktop.browse(new java.net.URI(url));
+                System.out.println("✓ Browser opened for OAuth consent");
+            } else {
+                System.err.println("✗ Desktop browsing not supported");
+                showError("❌ Unable to open browser. Please configure manually.");
+            }
+        } catch (Exception e) {
+            System.err.println("✗ Failed to open browser: " + e.getMessage());
+            e.printStackTrace();
+            showError("❌ Failed to open browser: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Show waiting dialog while user completes OAuth in browser
+     */
+    private void showOAuthWaitingDialog(User user) {
+        // Create alert dialog
+        Alert waitingDialog = new Alert(Alert.AlertType.INFORMATION);
+        waitingDialog.setTitle("Sign in with Google");
+        waitingDialog.setHeaderText("Complete Sign-In in Your Browser");
+        waitingDialog.setContentText(
+            "1. Authorize MagicTech in the browser window that opened\n" +
+            "2. Grant permission to send emails via Gmail\n" +
+            "3. Wait for confirmation\n\n" +
+            "This dialog will close automatically once you're authenticated."
+        );
+
+        // Style the dialog
+        waitingDialog.getDialogPane().setStyle(
+            "-fx-background-color: linear-gradient(to bottom, #1e293b, #0f172a);" +
+            "-fx-border-color: rgba(139, 92, 246, 0.3);" +
+            "-fx-border-width: 1;"
+        );
+
+        // Add a progress indicator
+        javafx.scene.control.ProgressIndicator progress = new javafx.scene.control.ProgressIndicator();
+        progress.setMaxWidth(50);
+        progress.setMaxHeight(50);
+        waitingDialog.getDialogPane().setGraphic(progress);
+
+        // Make dialog non-modal so user can interact with browser
+        waitingDialog.initModality(javafx.stage.Modality.NONE);
+
+        // Show dialog
+        waitingDialog.show();
+
+        // Poll for OAuth completion (check every 2 seconds)
+        javafx.concurrent.Task<Boolean> pollTask = new javafx.concurrent.Task<>() {
+            @Override
+            protected Boolean call() throws Exception {
+                int attempts = 0;
+                int maxAttempts = 60; // 2 minutes timeout
+
+                while (attempts < maxAttempts) {
+                    Thread.sleep(2000); // Check every 2 seconds
+
+                    // Check if user has completed OAuth
+                    if (oauth2Service.isUserAuthenticated(user.getId())) {
+                        return true;
+                    }
+
+                    attempts++;
+                }
+                return false; // Timeout
+            }
+        };
+
+        pollTask.setOnSucceeded(e -> {
+            waitingDialog.close();
+
+            Boolean success = pollTask.getValue();
+            if (success) {
+                System.out.println("✓ OAuth authentication completed for user: " + user.getUsername());
+                showSuccess();
+
+                // Log user in
+                javafx.application.Platform.runLater(() -> {
+                    // Stop gradient animation before transition
+                    if (gradientBackground != null) {
+                        gradientBackground.stopAnimation();
+                    }
+
+                    // Update last login
+                    user.setLastLogin(java.time.LocalDateTime.now());
+                    userRepository.save(user);
+
+                    // Smooth transition to dashboard
+                    PauseTransition beforeFade = new PauseTransition(Duration.millis(600));
+                    beforeFade.setOnFinished(evt -> {
+                        if (loginRoot != null) {
+                            FadeTransition fadeOut = new FadeTransition(Duration.millis(400), loginRoot);
+                            fadeOut.setFromValue(1.0);
+                            fadeOut.setToValue(0.0);
+                            fadeOut.setOnFinished(event -> {
+                                SceneManager.getInstance().setCurrentUser(user);
+                                SceneManager.getInstance().showMainDashboard();
+                            });
+                            fadeOut.play();
+                        } else {
+                            SceneManager.getInstance().setCurrentUser(user);
+                            SceneManager.getInstance().showMainDashboard();
+                        }
+                    });
+                    beforeFade.play();
+                });
+            } else {
+                System.err.println("✗ OAuth authentication timeout");
+                showError("❌ Sign-in timeout. Please try again.");
+            }
+        });
+
+        pollTask.setOnFailed(e -> {
+            waitingDialog.close();
+            System.err.println("✗ OAuth polling failed: " + pollTask.getException().getMessage());
+            showError("❌ Sign-in failed: " + pollTask.getException().getMessage());
+        });
+
+        // Run polling task in background
+        Thread pollThread = new Thread(pollTask);
+        pollThread.setDaemon(true);
+        pollThread.start();
     }
 }
