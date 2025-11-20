@@ -16,14 +16,14 @@ import java.util.Optional;
 /**
  * Service for managing notifications with multi-channel delivery (in-app, email, push, SMS)
  */
-@Service
+@Service("coreNotificationService")
 @Transactional
-public class NotificationService {
+public class CoreNotificationService {
 
-    private static final Logger log = LoggerFactory.getLogger(NotificationService.class);
+    private static final Logger log = LoggerFactory.getLogger(CoreNotificationService.class);
 
     @Autowired
-    private NotificationRepository notificationRepository;
+    private CoreNotificationRepository notificationRepository;
 
     @Autowired
     private EmailService emailService;

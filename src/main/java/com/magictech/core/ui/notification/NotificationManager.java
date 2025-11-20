@@ -2,7 +2,7 @@ package com.magictech.core.ui.notification;
 
 import com.magictech.core.auth.User;
 import com.magictech.core.notification.Notification;
-import com.magictech.core.notification.NotificationService;
+import com.magictech.core.notification.CoreNotificationService;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -27,7 +27,7 @@ import java.util.function.Consumer;
 public class NotificationManager {
 
     @Autowired
-    private NotificationService notificationService;
+    private CoreNotificationService notificationService;
 
     private User currentUser;
     private Stage primaryStage;

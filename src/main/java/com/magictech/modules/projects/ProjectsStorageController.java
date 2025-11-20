@@ -63,7 +63,7 @@ public class ProjectsStorageController extends BaseModuleController {
     private com.magictech.core.approval.PendingApprovalService approvalService;
 
     @Autowired
-    private com.magictech.core.notification.NotificationService notificationService;
+    private com.magictech.core.notification.CoreNotificationService notificationService;
 
     // UI Components
     private com.magictech.core.ui.components.DashboardBackgroundPane backgroundPane;

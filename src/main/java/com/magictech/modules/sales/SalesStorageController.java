@@ -46,7 +46,7 @@ public class SalesStorageController extends BaseModuleController {
     @Autowired private ProjectService projectService;
     @Autowired private StorageService storageService;
     @Autowired private ProjectElementService elementService;
-    @Autowired private com.magictech.core.notification.NotificationService notificationService;
+    @Autowired private com.magictech.core.notification.CoreNotificationService notificationService;
     @Autowired private com.magictech.modules.sales.service.ProjectCostBreakdownService costBreakdownService;
     @Autowired private com.magictech.modules.sales.service.SalesExcelExportService salesExcelExportService;
 

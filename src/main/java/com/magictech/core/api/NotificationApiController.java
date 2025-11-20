@@ -1,7 +1,7 @@
 package com.magictech.core.api;
 
 import com.magictech.core.notification.Notification;
-import com.magictech.core.notification.NotificationService;
+import com.magictech.core.notification.CoreNotificationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -21,7 +21,7 @@ import java.util.Map;
 public class NotificationApiController {
 
     @Autowired
-    private NotificationService notificationService;
+    private CoreNotificationService notificationService;
 
     /**
      * Get all notifications for a user

@@ -1,6 +1,6 @@
 package com.magictech.core.approval;
 
-import com.magictech.core.notification.NotificationService;
+import com.magictech.core.notification.CoreNotificationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,7 +20,7 @@ public class PendingApprovalService {
     private PendingApprovalRepository approvalRepository;
 
     @Autowired
-    private NotificationService notificationService;
+    private CoreNotificationService notificationService;
 
     /**
      * Create a new approval request for project element addition
