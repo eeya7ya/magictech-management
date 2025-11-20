@@ -67,26 +67,6 @@ public class CustomerService {
 
         Customer saved = customerRepository.save(existing);
 
-        // If customer status changed to "Completed", notify PRICING module
-        if (customerDetails.getStatus() != null &&
-            customerDetails.getStatus().equalsIgnoreCase("Completed") &&
-            !customerDetails.getStatus().equalsIgnoreCase(oldStatus)) {
-
-            notificationService.createNotificationWithRelation(
-                "PRICING",  // targetRole
-                "PRICING",  // module
-                "CUSTOMER_COMPLETED",  // type
-                "Customer Order Completed",  // title
-                String.format("Customer '%s' order has been completed and needs pricing finalization", saved.getName()),  // message
-                saved.getId(),  // relatedId
-                "CUSTOMER",  // relatedType
-                "HIGH",  // priority
-                existing.getUpdatedBy() != null ? existing.getUpdatedBy() : "System"  // createdBy
-            );
-
-            System.out.println("✓ Pricing notification created for completed customer: " + saved.getName());
-        }
-
         return saved;
     }
 
