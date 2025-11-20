@@ -193,16 +193,19 @@ public class UserManagementController {
 
         // Actions Column
         TableColumn<UserViewModel, Void> actionsCol = new TableColumn<>("Actions");
-        actionsCol.setPrefWidth(200);
+        actionsCol.setPrefWidth(250);
         actionsCol.setCellFactory(col -> new TableCell<>() {
             private final Button editBtn = new Button("✏️ Edit");
             private final Button toggleBtn = new Button("🔄");
-            private final HBox container = new HBox(8, editBtn, toggleBtn);
+            private final Button deleteBtn = new Button("🗑️ Delete");
+            private final HBox container = new HBox(8, editBtn, toggleBtn, deleteBtn);
 
             {
                 editBtn.setStyle("-fx-background-color: #3b82f6; -fx-text-fill: white; " +
                         "-fx-font-size: 12px; -fx-padding: 5 10; -fx-background-radius: 6; -fx-cursor: hand;");
                 toggleBtn.setStyle("-fx-background-color: #f59e0b; -fx-text-fill: white; " +
+                        "-fx-font-size: 12px; -fx-padding: 5 10; -fx-background-radius: 6; -fx-cursor: hand;");
+                deleteBtn.setStyle("-fx-background-color: #ef4444; -fx-text-fill: white; " +
                         "-fx-font-size: 12px; -fx-padding: 5 10; -fx-background-radius: 6; -fx-cursor: hand;");
                 container.setAlignment(Pos.CENTER);
 
@@ -214,6 +217,11 @@ public class UserManagementController {
                 toggleBtn.setOnAction(e -> {
                     UserViewModel user = getTableView().getItems().get(getIndex());
                     toggleUserStatus(user);
+                });
+
+                deleteBtn.setOnAction(e -> {
+                    UserViewModel user = getTableView().getItems().get(getIndex());
+                    handleDeleteUser(user);
                 });
             }
 
@@ -432,7 +440,7 @@ public class UserManagementController {
 
             User user = userOpt.get();
             boolean newStatus = !user.getActive();
-            
+
             if (newStatus) {
                 authService.activateUser(user.getId());
                 showAlert(Alert.AlertType.INFORMATION, "Success", "User activated");
@@ -440,10 +448,33 @@ public class UserManagementController {
                 authService.deactivateUser(user.getId());
                 showAlert(Alert.AlertType.INFORMATION, "Success", "User deactivated");
             }
-            
+
             loadUsers();
         } catch (Exception e) {
             showAlert(Alert.AlertType.ERROR, "Error", "Failed to update user status: " + e.getMessage());
+        }
+    }
+
+    private void handleDeleteUser(UserViewModel userVM) {
+        // Confirmation dialog
+        Alert confirmAlert = new Alert(Alert.AlertType.CONFIRMATION);
+        confirmAlert.setTitle("Delete User");
+        confirmAlert.setHeaderText("Permanently Delete User");
+        confirmAlert.setContentText("Are you sure you want to permanently delete user '" + userVM.getUsername() +
+                "'?\n\nThis action cannot be undone!");
+
+        DialogPane dialogPane = confirmAlert.getDialogPane();
+        dialogPane.setStyle("-fx-background-color: #1e293b; -fx-text-fill: white;");
+
+        Optional<ButtonType> result = confirmAlert.showAndWait();
+        if (result.isPresent() && result.get() == ButtonType.OK) {
+            try {
+                authService.deleteUser(userVM.getId());
+                showAlert(Alert.AlertType.INFORMATION, "Success", "User deleted permanently");
+                loadUsers();
+            } catch (Exception e) {
+                showAlert(Alert.AlertType.ERROR, "Error", "Failed to delete user: " + e.getMessage());
+            }
         }
     }
 
