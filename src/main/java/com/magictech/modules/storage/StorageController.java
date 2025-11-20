@@ -184,170 +184,88 @@ public class StorageController extends BaseModuleController {
         content.setPadding(new Insets(30));
         content.setStyle("-fx-background-color: transparent;");
 
-        // TAB SWITCHER
-        HBox tabSwitcher = createTabSwitcher();
+        // ✅ FIXED: Use proper TabPane instead of button switcher
+        TabPane tabPane = new TabPane();
+        tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
+        tabPane.setStyle("-fx-background-color: transparent;");
+        VBox.setVgrow(tabPane, Priority.ALWAYS);
 
-        HBox toolbar = createToolbar();
+        // Tab 1: Storage Management
+        Tab storageTab = new Tab("📦 Storage Management");
+        VBox storageTabContent = new VBox(15);
+        storageTabContent.setPadding(new Insets(15));
+        storageTabContent.setStyle("-fx-background-color: transparent;");
 
-        tableContainer = new StackPane();
+        HBox storageToolbar = createStorageToolbar();
         storageTable = createStorageTable();
-        analyticsView = createAnalyticsView();
-
         loadingIndicator = new ProgressIndicator();
         loadingIndicator.setVisible(false);
         loadingIndicator.setMaxSize(60, 60);
 
-        // Show storage table by default
-        tableContainer.getChildren().addAll(storageTable, loadingIndicator);
-        analyticsView.setVisible(false);
-
+        tableContainer = new StackPane(storageTable, loadingIndicator);
         VBox.setVgrow(tableContainer, Priority.ALWAYS);
 
-        content.getChildren().addAll(tabSwitcher, toolbar, tableContainer);
-        return content;
-    }
+        storageTabContent.getChildren().addAll(storageToolbar, tableContainer);
+        storageTab.setContent(storageTabContent);
 
-    private HBox createTabSwitcher() {
-        HBox tabBox = new HBox(10);
-        tabBox.setAlignment(Pos.CENTER_LEFT);
-        tabBox.setPadding(new Insets(0, 0, 10, 0));
+        // Tab 2: Analytics Dashboard
+        Tab analyticsTab = new Tab("📊 Analytics Dashboard");
+        analyticsView = createAnalyticsView();
+        VBox.setVgrow(analyticsView, Priority.ALWAYS);
+        analyticsTab.setContent(analyticsView);
 
-        storageTabButton = createTabButton("📦 Storage Management", true);
-        storageTabButton.setOnAction(e -> switchToStorageTable());
-
-        projectsTabButton = createTabButton("📊 Analytics Dashboard", false);
-        projectsTabButton.setOnAction(e -> switchToAnalyticsView());
-
-        tabBox.getChildren().addAll(storageTabButton, projectsTabButton);
-        return tabBox;
-    }
-
-    private Button createTabButton(String text, boolean active) {
-        Button btn = new Button(text);
-        updateTabButtonStyle(btn, active);
-        return btn;
-    }
-
-    private void updateTabButtonStyle(Button btn, boolean active) {
-        if (active) {
-            btn.setStyle(
-                    "-fx-background-color: linear-gradient(to right, #ef4444, #dc2626);" +
-                            "-fx-text-fill: white;" +
-                            "-fx-font-size: 14px;" +
-                            "-fx-font-weight: bold;" +
-                            "-fx-padding: 12 24;" +
-                            "-fx-background-radius: 8;" +
-                            "-fx-border-color: rgba(239, 68, 68, 0.6);" +
-                            "-fx-border-width: 2;" +
-                            "-fx-border-radius: 8;" +
-                            "-fx-cursor: hand;" +
-                            "-fx-effect: dropshadow(gaussian, rgba(239, 68, 68, 0.4), 10, 0, 0, 3);"
-            );
-        } else {
-            btn.setStyle(
-                    "-fx-background-color: rgba(30, 41, 59, 0.6);" +
-                            "-fx-text-fill: rgba(255, 255, 255, 0.7);" +
-                            "-fx-font-size: 14px;" +
-                            "-fx-font-weight: bold;" +
-                            "-fx-padding: 12 24;" +
-                            "-fx-background-radius: 8;" +
-                            "-fx-border-color: rgba(239, 68, 68, 0.3);" +
-                            "-fx-border-width: 1;" +
-                            "-fx-border-radius: 8;" +
-                            "-fx-cursor: hand;"
-            );
-        }
-
-        btn.setOnMouseEntered(e -> {
-            if (!active) {
-                btn.setStyle(
-                        "-fx-background-color: rgba(30, 41, 59, 0.8);" +
-                                "-fx-text-fill: white;" +
-                                "-fx-font-size: 14px;" +
-                                "-fx-font-weight: bold;" +
-                                "-fx-padding: 12 24;" +
-                                "-fx-background-radius: 8;" +
-                                "-fx-border-color: rgba(239, 68, 68, 0.5);" +
-                                "-fx-border-width: 1;" +
-                                "-fx-border-radius: 8;" +
-                                "-fx-cursor: hand;"
-                );
+        // Listen for tab changes to refresh data
+        tabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
+            if (newTab == analyticsTab) {
+                currentTable = ActiveTable.ANALYTICS;
+                refreshAnalytics();
+                updateButtonVisibility(false);
+            } else {
+                currentTable = ActiveTable.STORAGE;
+                updateButtonVisibility(true);
             }
         });
 
-        btn.setOnMouseExited(e -> updateTabButtonStyle(btn, active));
+        tabPane.getTabs().addAll(storageTab, analyticsTab);
+
+        content.getChildren().add(tabPane);
+        return content;
     }
 
-    private void switchToStorageTable() {
-        currentTable = ActiveTable.STORAGE;
+    // ✅ OLD TAB SWITCHER METHODS REMOVED - Now using proper TabPane
 
-        tableContainer.getChildren().clear();
-        tableContainer.getChildren().addAll(storageTable, loadingIndicator);
-        storageTable.setVisible(true);
-        analyticsView.setVisible(false);
-
-        updateTabButtonStyle(storageTabButton, true);
-        updateTabButtonStyle(projectsTabButton, false);
-
-        // Show storage-specific buttons
-        importButton.setVisible(true);
-        importButton.setManaged(true);
-        exportButton.setVisible(true);
-        exportButton.setManaged(true);
-        columnsButton.setVisible(true);
-        columnsButton.setManaged(true);
-        openProjectButton.setVisible(false);
-        openProjectButton.setManaged(false);
-        addButton.setVisible(true);
-        addButton.setManaged(true);
-        editButton.setVisible(true);
-        editButton.setManaged(true);
-        deleteButton.setVisible(true);
-        deleteButton.setManaged(true);
-
-        storageTable.refresh();
-        updateSelectedCount();
-
-        System.out.println("✓ Switched to Storage Table");
+    // ✅ Helper method to show/hide buttons based on active tab
+    private void updateButtonVisibility(boolean showStorageButtons) {
+        if (showStorageButtons) {
+            addButton.setVisible(true);
+            addButton.setManaged(true);
+            editButton.setVisible(true);
+            editButton.setManaged(true);
+            deleteButton.setVisible(true);
+            deleteButton.setManaged(true);
+            importButton.setVisible(true);
+            importButton.setManaged(true);
+            exportButton.setVisible(true);
+            exportButton.setManaged(true);
+            columnsButton.setVisible(true);
+            columnsButton.setManaged(true);
+        } else {
+            addButton.setVisible(false);
+            addButton.setManaged(false);
+            editButton.setVisible(false);
+            editButton.setManaged(false);
+            deleteButton.setVisible(false);
+            deleteButton.setManaged(false);
+            importButton.setVisible(false);
+            importButton.setManaged(false);
+            exportButton.setVisible(false);
+            exportButton.setManaged(false);
+            columnsButton.setVisible(false);
+            columnsButton.setManaged(false);
+        }
     }
 
-    private void switchToAnalyticsView() {
-        currentTable = ActiveTable.ANALYTICS;
-
-        tableContainer.getChildren().clear();
-        tableContainer.getChildren().addAll(analyticsView, loadingIndicator);
-        analyticsView.setVisible(true);
-        storageTable.setVisible(false);
-
-        updateTabButtonStyle(storageTabButton, false);
-        updateTabButtonStyle(projectsTabButton, true);
-
-        // Hide all edit buttons (analytics is read-only)
-        importButton.setVisible(false);
-        importButton.setManaged(false);
-        exportButton.setVisible(false);
-        exportButton.setManaged(false);
-        columnsButton.setVisible(false);
-        columnsButton.setManaged(false);
-        openProjectButton.setVisible(false);
-        openProjectButton.setManaged(false);
-        addButton.setVisible(false);
-        addButton.setManaged(false);
-        editButton.setVisible(false);
-        editButton.setManaged(false);
-        deleteButton.setVisible(false);
-        deleteButton.setManaged(false);
-
-        storageSelectionMap.forEach((item, prop) -> prop.set(false));
-        selectedCountLabel.setVisible(false);
-
-        // Refresh analytics data
-        refreshAnalytics();
-
-        System.out.println("✓ Switched to Analytics Dashboard");
-    }
-
-    private HBox createToolbar() {
+    private HBox createStorageToolbar() {
         HBox toolbar = new HBox(12);
         toolbar.setAlignment(Pos.CENTER_LEFT);
         toolbar.setPadding(new Insets(0, 0, 15, 0));
@@ -499,12 +417,11 @@ public class StorageController extends BaseModuleController {
             });
         });
 
-        selectCol.setCellFactory(col -> {
-            CheckBoxTableCell<StorageItemViewModel, Boolean> cell = new CheckBoxTableCell<>();
-            cell.setAlignment(Pos.CENTER);
-            cell.setEditable(true);
-            return cell;
-        });
+        // ✅ FIXED: Proper CheckBoxTableCell with index callback
+        selectCol.setCellFactory(col -> new CheckBoxTableCell<>(index -> {
+            StorageItemViewModel item = storageTable.getItems().get(index);
+            return storageSelectionMap.get(item);
+        }));
 
         table.getColumns().add(selectCol);
 

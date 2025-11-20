@@ -212,60 +212,52 @@ public class SceneManager {
     }
 
     /**
-     * ✅ FIXED: Show main dashboard with loading overlay
+     * ✅ FIXED: Show main dashboard with NO white flash
      */
     public void showMainDashboard() {
         if (isTransitioning) return;
+        isTransitioning = true;
 
-        showLoading();
-
-        // Small delay to ensure loading shows before heavy work
         Platform.runLater(() -> {
             try {
-                Thread.sleep(100); // Let loading appear
-            } catch (InterruptedException ignored) {}
+                // STEP 1: Cleanup immediately
+                immediateCleanup();
 
-            Platform.runLater(() -> {
-                try {
-                    // STEP 1: Cleanup
-                    immediateCleanup();
+                // STEP 2: Load new dashboard
+                FXMLLoader loader = springFXMLLoader.getLoader("/fxml/main-dashboard.fxml");
+                Parent root = loader.load();
 
-                    // STEP 2: Load new dashboard
-                    FXMLLoader loader = springFXMLLoader.getLoader("/fxml/main-dashboard.fxml");
-                    Parent root = loader.load();
+                MainDashboardController controller = loader.getController();
+                controller.initializeWithUser(currentUser);
 
-                    MainDashboardController controller = loader.getController();
-                    controller.initializeWithUser(currentUser);
+                activeDashboard = controller;
 
-                    activeDashboard = controller;
+                // STEP 3: Wrap in StackPane with DARK background
+                StackPane wrappedRoot = new StackPane(root);
+                wrappedRoot.setStyle("-fx-background-color: rgb(15, 20, 28);");
 
-                    // STEP 3: Wrap in StackPane for loading overlay
-                    StackPane wrappedRoot = new StackPane(root);
-                    // Set fallback background to prevent white flash
-                    wrappedRoot.setStyle("-fx-background-color: rgb(15, 20, 28);");
+                // STEP 4: Create scene with DARK fill to prevent white flash
+                Scene scene = new Scene(wrappedRoot);
+                scene.setFill(javafx.scene.paint.Color.rgb(15, 20, 28));
+                scene.getStylesheets().add(getClass().getResource("/css/styles.css").toExternalForm());
+                scene.getStylesheets().add(getClass().getResource("/css/dashboard.css").toExternalForm());
 
-                    Scene scene = new Scene(wrappedRoot);
-                    // Set scene fill to dark color to prevent white flash
-                    scene.setFill(javafx.scene.paint.Color.rgb(15, 20, 28));
-                    scene.getStylesheets().add(getClass().getResource("/css/styles.css").toExternalForm());
-                    scene.getStylesheets().add(getClass().getResource("/css/dashboard.css").toExternalForm());
+                // STEP 5: Set scene IMMEDIATELY (no delays)
+                primaryStage.setScene(scene);
+                primaryStage.setTitle("MagicTech - Dashboard");
+                primaryStage.setMaximized(true);
 
-                    primaryStage.setScene(scene);
-                    primaryStage.setTitle("MagicTech - Dashboard");
-                    primaryStage.setMaximized(true);
+                // Recreate loading overlay for new scene
+                createLoadingOverlay();
+                isTransitioning = false;
 
-                    // Recreate loading overlay for new scene
-                    createLoadingOverlay();
+                System.out.println("✓ Dashboard loaded - NO WHITE FLASH");
 
-                    hideLoading();
-                    System.out.println("✓ Dashboard loaded");
-
-                } catch (Exception e) {
-                    System.err.println("Error loading dashboard: " + e.getMessage());
-                    e.printStackTrace();
-                    hideLoading();
-                }
-            });
+            } catch (Exception e) {
+                System.err.println("Error loading dashboard: " + e.getMessage());
+                e.printStackTrace();
+                isTransitioning = false;
+            }
         });
     }
 

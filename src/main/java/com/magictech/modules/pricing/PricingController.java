@@ -287,12 +287,11 @@ public class PricingController extends BaseModuleController {
             });
         });
 
-        selectCol.setCellFactory(col -> {
-            CheckBoxTableCell<StorageItemViewModel, Boolean> cell = new CheckBoxTableCell<>();
-            cell.setAlignment(Pos.CENTER);
-            cell.setEditable(true);  // Enable editing on the cell
-            return cell;
-        });
+        // ✅ FIXED: Proper CheckBoxTableCell with index callback for selection
+        selectCol.setCellFactory(col -> new CheckBoxTableCell<>(index -> {
+            StorageItemViewModel item = table.getItems().get(index);
+            return selectionMap.get(item);
+        }));
 
         table.getColumns().add(selectCol);
 
