@@ -12,7 +12,7 @@ import java.util.List;
  * Repository for Notification entity
  */
 @Repository
-public interface NotificationRepository extends JpaRepository<Notification, Long> {
+public interface CoreNotificationRepository extends JpaRepository<Notification, Long> {
 
     /**
      * Find unread notifications for a specific user

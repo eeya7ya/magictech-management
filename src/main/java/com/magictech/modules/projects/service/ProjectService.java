@@ -22,7 +22,7 @@ public class ProjectService {
     private ProjectRepository repository;
 
     @Autowired
-    private com.magictech.core.notification.NotificationService notificationService;
+    private com.magictech.core.notification.CoreNotificationService notificationService;
 
     /**
      * Get all active projects
