@@ -118,29 +118,6 @@
                     </VBox.margin>
                 </Button>
 
-                <!-- Divider with OR -->
-                <HBox alignment="CENTER" spacing="12">
-                    <VBox.margin>
-                        <Insets top="16" bottom="8"/>
-                    </VBox.margin>
-                    <Region style="-fx-background-color: rgba(255, 255, 255, 0.2); -fx-pref-height: 1;" HBox.hgrow="ALWAYS"/>
-                    <Label text="OR" style="-fx-text-fill: rgba(255, 255, 255, 0.5); -fx-font-size: 12px; -fx-font-weight: 600;"/>
-                    <Region style="-fx-background-color: rgba(255, 255, 255, 0.2); -fx-pref-height: 1;" HBox.hgrow="ALWAYS"/>
-                </HBox>
-
-                <!-- Gmail Sign-in Button -->
-                <Button fx:id="gmailSignInButton"
-                        onAction="#handleGmailSignIn"
-                        maxWidth="Infinity"
-                        style="-fx-background-color: rgba(255, 255, 255, 0.95); -fx-text-fill: #3c4043; -fx-pref-height: 52px; -fx-background-radius: 12; -fx-font-size: 15px; -fx-font-weight: 600; -fx-cursor: hand; -fx-border-color: rgba(255, 255, 255, 0.3); -fx-border-width: 1; -fx-border-radius: 12; -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.1), 10, 0, 0, 2);">
-                    <graphic>
-                        <HBox alignment="CENTER" spacing="12">
-                            <Label text="🔐" style="-fx-font-size: 20px;"/>
-                            <Label text="Sign in with Google" style="-fx-font-size: 15px; -fx-font-weight: 600; -fx-text-fill: #3c4043;"/>
-                        </HBox>
-                    </graphic>
-                </Button>
-
             </VBox>
         </VBox>
 

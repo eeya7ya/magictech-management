@@ -9,8 +9,8 @@ import java.util.Arrays;
 import java.util.Base64;
 
 /**
- * Utility class for encrypting and decrypting sensitive data (OAuth2 tokens)
- * Uses AES-256 encryption
+ * Utility class for encrypting and decrypting sensitive data
+ * Uses AES encryption
  *
  * IMPORTANT: Set ENCRYPTION_KEY environment variable in production!
  * Example: ENCRYPTION_KEY=your-32-character-secret-key-here
