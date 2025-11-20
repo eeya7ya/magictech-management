@@ -25,7 +25,7 @@ import java.util.Optional;
 /**
  * Service for managing notifications
  */
-@Service
+@Service("moduleNotificationService")
 @Transactional
 public class NotificationService {
 
