@@ -43,16 +43,16 @@ public class Notification {
     @Column(name = "reference_type", length = 50)
     private String referenceType;  // Entity type (SalesOrder, Project, etc.)
 
-    @Column(name = "is_read", nullable = false)
+    @Column(name = "is_read")
     private Boolean isRead = false;
 
     @Column(name = "read_at")
     private LocalDateTime readAt;
 
-    @Column(name = "is_sent_email", nullable = false)
+    @Column(name = "is_sent_email")
     private Boolean isSentEmail = false;
 
-    @Column(name = "is_sent_desktop", nullable = false)
+    @Column(name = "is_sent_desktop")
     private Boolean isSentDesktop = false;
 
     @Column(name = "created_at", nullable = false)
@@ -61,7 +61,7 @@ public class Notification {
     @Column(name = "expires_at")
     private LocalDateTime expiresAt;
 
-    @Column(nullable = false)
+    @Column
     private Boolean active = true;
 
     // Action URL (optional, for clickable notifications)
