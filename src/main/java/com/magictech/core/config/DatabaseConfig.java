@@ -18,14 +18,11 @@ import java.util.Properties;
 @Configuration
 @EnableJpaRepositories(basePackages = {
         "com.magictech.core.auth",
-        "com.magictech.core.notification",
-        "com.magictech.core.approval",
         "com.magictech.modules.storage",
         "com.magictech.modules.sales.repository",
         "com.magictech.modules.maintenance",
         "com.magictech.modules.projects",
-        "com.magictech.modules.pricing",
-        "com.magictech.modules.notifications.repository"
+        "com.magictech.modules.pricing"
 })
 @EnableTransactionManagement
 public class DatabaseConfig {
@@ -74,15 +71,12 @@ public class DatabaseConfig {
         LocalContainerEntityManagerFactoryBean em = new LocalContainerEntityManagerFactoryBean();
         em.setDataSource(dataSource());
 
-        // ✅ UPDATED: Scan ALL entity packages including new notification, approval, and sales entities
+        // ✅ UPDATED: Scan ALL entity packages
         em.setPackagesToScan(
                 "com.magictech.core.auth",
-                "com.magictech.core.notification",
-                "com.magictech.core.approval",
                 "com.magictech.modules.storage.entity",
                 "com.magictech.modules.sales.entity",
-                "com.magictech.modules.projects.entity",
-                "com.magictech.modules.notifications.entity"
+                "com.magictech.modules.projects.entity"
         );
 
         HibernateJpaVendorAdapter vendorAdapter = new HibernateJpaVendorAdapter();
