@@ -256,7 +256,7 @@ public class NotificationService {
      */
     public void notifyUsersByRole(String role, String title, String message,
                                   NotificationType type, NotificationPriority priority) {
-        List<User> users = userRepository.findByRole(role);
+        List<User> users = userRepository.findByRole(UserRole.valueOf(role));
         for (User user : users) {
             createNotification(user.getId(), title, message, type, priority);
         }
