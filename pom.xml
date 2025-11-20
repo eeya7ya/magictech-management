@@ -161,6 +161,13 @@
             <version>v1-rev20230925-2.0.0</version>
         </dependency>
 
+        <!-- Google Auth Library for OAuth2 HTTP -->
+        <dependency>
+            <groupId>com.google.auth</groupId>
+            <artifactId>google-auth-library-oauth2-http</artifactId>
+            <version>1.19.0</version>
+        </dependency>
+
         <!-- Database Drivers -->
         <dependency>
             <groupId>org.postgresql</groupId>
