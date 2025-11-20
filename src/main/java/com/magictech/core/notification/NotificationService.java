@@ -29,6 +29,12 @@ public class NotificationService {
     private EmailService emailService;
 
     @Autowired
+    private GmailOAuth2Service gmailOAuth2Service;
+
+    @Autowired
+    private WebSocketNotificationService webSocketService;
+
+    @Autowired
     private NotificationPreferencesService preferencesService;
 
     @Autowired
@@ -57,6 +63,13 @@ public class NotificationService {
         // Send email notification asynchronously
         sendEmailForNotification(userId, saved);
 
+        // Send WebSocket notification for real-time delivery
+        try {
+            webSocketService.sendToUser(userId, saved);
+        } catch (Exception e) {
+            log.warn("Failed to send WebSocket notification to user {}: {}", userId, e.getMessage());
+        }
+
         return saved;
     }
 
@@ -83,6 +96,13 @@ public class NotificationService {
         // Send email to all users with this role asynchronously
         sendEmailForRoleNotification(targetRole, saved);
 
+        // Send WebSocket notification for real-time delivery to all users with role
+        try {
+            webSocketService.sendToRole(targetRole, saved);
+        } catch (Exception e) {
+            log.warn("Failed to send WebSocket notification to role {}: {}", targetRole, e.getMessage());
+        }
+
         return saved;
     }
 
@@ -108,6 +128,13 @@ public class NotificationService {
 
         // Send email to all users with this role asynchronously
         sendEmailForRoleNotification(targetRole, saved);
+
+        // Send WebSocket notification for real-time delivery to all users with role
+        try {
+            webSocketService.sendToRole(targetRole, saved);
+        } catch (Exception e) {
+            log.warn("Failed to send WebSocket notification to role {}: {}", targetRole, e.getMessage());
+        }
 
         return saved;
     }
@@ -267,20 +294,41 @@ public class NotificationService {
                 return;
             }
 
-            // Send email
+            // Send email via OAuth2 if user has linked Google account, otherwise fallback to SMTP
             String subject = "🔔 " + notification.getTitle();
             String actionUrl = buildActionUrl(notification);
 
-            emailService.sendNotificationEmail(
-                    user.getEmail(),
-                    subject,
-                    notification.getTitle(),
-                    notification.getMessage(),
-                    notification.getPriority(),
-                    actionUrl
-            );
+            boolean emailSent = false;
 
-            log.info("Email notification sent to user: {} ({})", user.getUsername(), user.getEmail());
+            // Try OAuth2 Gmail first
+            if (gmailOAuth2Service.canSendEmail(userId)) {
+                try {
+                    emailSent = gmailOAuth2Service.sendNotificationEmail(
+                            user,
+                            user.getEmail(),
+                            notification.getTitle(),
+                            notification.getMessage(),
+                            notification.getPriority(),
+                            actionUrl
+                    ).get(); // Wait for async completion
+                    log.info("Email sent via OAuth2 Gmail to: {} ({})", user.getUsername(), user.getEmail());
+                } catch (Exception e) {
+                    log.warn("OAuth2 email failed for user {}, falling back to SMTP: {}", userId, e.getMessage());
+                }
+            }
+
+            // Fallback to SMTP if OAuth2 failed or not configured
+            if (!emailSent) {
+                emailService.sendNotificationEmail(
+                        user.getEmail(),
+                        subject,
+                        notification.getTitle(),
+                        notification.getMessage(),
+                        notification.getPriority(),
+                        actionUrl
+                );
+                log.info("Email notification sent via SMTP to user: {} ({})", user.getUsername(), user.getEmail());
+            }
 
         } catch (Exception e) {
             log.error("Failed to send email notification to user {}: {}", userId, e.getMessage());
@@ -312,14 +360,35 @@ public class NotificationService {
                         String subject = "🔔 " + notification.getTitle();
                         String actionUrl = buildActionUrl(notification);
 
-                        emailService.sendNotificationEmail(
-                                user.getEmail(),
-                                subject,
-                                notification.getTitle(),
-                                notification.getMessage(),
-                                notification.getPriority(),
-                                actionUrl
-                        );
+                        boolean emailSent = false;
+
+                        // Try OAuth2 Gmail first
+                        if (gmailOAuth2Service.canSendEmail(user.getId())) {
+                            try {
+                                emailSent = gmailOAuth2Service.sendNotificationEmail(
+                                        user,
+                                        user.getEmail(),
+                                        notification.getTitle(),
+                                        notification.getMessage(),
+                                        notification.getPriority(),
+                                        actionUrl
+                                ).get(); // Wait for async completion
+                            } catch (Exception e) {
+                                log.warn("OAuth2 email failed for user {}, falling back to SMTP", user.getId());
+                            }
+                        }
+
+                        // Fallback to SMTP if OAuth2 failed or not configured
+                        if (!emailSent) {
+                            emailService.sendNotificationEmail(
+                                    user.getEmail(),
+                                    subject,
+                                    notification.getTitle(),
+                                    notification.getMessage(),
+                                    notification.getPriority(),
+                                    actionUrl
+                            );
+                        }
                     }
                 }
             }
