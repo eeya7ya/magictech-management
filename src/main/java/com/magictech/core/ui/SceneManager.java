@@ -241,7 +241,12 @@ public class SceneManager {
 
                     // STEP 3: Wrap in StackPane for loading overlay
                     StackPane wrappedRoot = new StackPane(root);
+                    // Set fallback background to prevent white flash
+                    wrappedRoot.setStyle("-fx-background-color: rgb(15, 20, 28);");
+
                     Scene scene = new Scene(wrappedRoot);
+                    // Set scene fill to dark color to prevent white flash
+                    scene.setFill(javafx.scene.paint.Color.rgb(15, 20, 28));
                     scene.getStylesheets().add(getClass().getResource("/css/styles.css").toExternalForm());
                     scene.getStylesheets().add(getClass().getResource("/css/dashboard.css").toExternalForm());
 
