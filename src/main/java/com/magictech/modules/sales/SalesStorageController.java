@@ -1607,7 +1607,7 @@ public class SalesStorageController extends BaseModuleController {
         Task<List<StorageItem>> loadTask = new Task<>() {
             @Override
             protected List<StorageItem> call() {
-                return storageService.getAllActiveItems();
+                return storageService.getAllItems();
             }
         };
 
@@ -1684,11 +1684,12 @@ public class SalesStorageController extends BaseModuleController {
                 TableView<OrderItemRow> itemsTable = findItemsTableInContent(orderTabContent);
                 if (itemsTable != null) {
                     // Add to order
-                    OrderItemRow newRow = new OrderItemRow();
-                    newRow.storageItemId = item.getId();
-                    newRow.productName = item.getProductName();
-                    newRow.quantity = quantity;
-                    newRow.unitPrice = item.getPrice() != null ? item.getPrice() : BigDecimal.ZERO;
+                    OrderItemRow newRow = new OrderItemRow(
+                        item.getId(),
+                        item.getProductName(),
+                        quantity,
+                        item.getPrice() != null ? item.getPrice() : BigDecimal.ZERO
+                    );
                     itemsTable.getItems().add(newRow);
 
                     // Update cost breakdown
