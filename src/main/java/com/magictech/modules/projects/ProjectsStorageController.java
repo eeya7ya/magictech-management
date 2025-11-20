@@ -2032,8 +2032,8 @@ public class ProjectsStorageController extends BaseModuleController {
                             element.setQuantityAllocated(requestedQty);
                             element.setStatus("ALLOCATED");
                             element.setNotes(notesField.getText());
-                            element.setDateAdded(LocalDateTime.now());
-                            element.setCreatedBy(currentUser != null ? currentUser.getUsername() : "system");
+                            element.setAddedDate(LocalDateTime.now());
+                            element.setAddedBy(currentUser != null ? currentUser.getUsername() : "system");
                             element.setActive(true);
 
                             // Save element
@@ -2041,7 +2041,7 @@ public class ProjectsStorageController extends BaseModuleController {
 
                             // Update storage quantity
                             storageItem.setQuantity(storageItem.getQuantity() - requestedQty);
-                            storageService.updateItem(storageItem);
+                            storageService.updateItem(storageItem.getId(), storageItem);
 
                             return saved;
                         }
