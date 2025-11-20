@@ -20,16 +20,12 @@ public class LoginController {
     @FXML private TextField usernameField;
     @FXML private PasswordField passwordField;
     @FXML private Button loginButton;
-    @FXML private Button gmailSignInButton;
     @FXML private Label errorLabel;
     @FXML private StackPane loginRoot;
     @FXML private GradientBackgroundPane gradientBackground;
 
     @Autowired
     private AuthenticationService authService;
-
-    @Autowired
-    private com.magictech.core.auth.OAuth2Service oauth2Service;
 
     @FXML
     public void initialize() {
@@ -352,157 +348,5 @@ public class LoginController {
 
         ParallelTransition buttonAnim = new ParallelTransition(buttonFade, buttonSlide);
         buttonAnim.play();
-
-        // Animate Gmail sign-in button
-        if (gmailSignInButton != null) {
-            gmailSignInButton.setOpacity(0);
-            gmailSignInButton.setTranslateY(10);
-
-            FadeTransition gmailFade = new FadeTransition(Duration.millis(400), gmailSignInButton);
-            gmailFade.setFromValue(0);
-            gmailFade.setToValue(1);
-            gmailFade.setDelay(Duration.millis(350));
-
-            TranslateTransition gmailSlide = new TranslateTransition(Duration.millis(400), gmailSignInButton);
-            gmailSlide.setFromY(10);
-            gmailSlide.setToY(0);
-            gmailSlide.setDelay(Duration.millis(350));
-
-            ParallelTransition gmailAnim = new ParallelTransition(gmailFade, gmailSlide);
-            gmailAnim.play();
-        }
-    }
-
-    /**
-     * Handle Gmail OAuth2 sign-in
-     */
-    @FXML
-    private void handleGmailSignIn() {
-        try {
-            // Check if OAuth2 is configured
-            if (!oauth2Service.isOAuth2Configured()) {
-                showError("⚠️ Gmail sign-in is not configured.\nPlease contact your administrator to set up Google OAuth2.");
-                return;
-            }
-
-            // Show info message
-            showInfo("🔐 Opening Google sign-in in your browser...\nPlease complete the authentication and return to the application.");
-
-            // For now, we'll create a temporary user or use a placeholder
-            // In a full implementation, you'd want to handle this differently
-            String authUrl = "http://localhost:8085/api/oauth2/authorize?userId=1"; // Admin user for demo
-
-            // Open browser
-            if (java.awt.Desktop.isDesktopSupported()) {
-                java.awt.Desktop desktop = java.awt.Desktop.getDesktop();
-                if (desktop.isSupported(java.awt.Desktop.Action.BROWSE)) {
-                    desktop.browse(new java.net.URI(authUrl));
-
-                    // Show waiting message
-                    gmailSignInButton.setText("Waiting for authentication...");
-                    gmailSignInButton.setDisable(true);
-
-                    // Start polling for authentication completion
-                    pollForAuthenticationCompletion();
-                }
-            } else {
-                showError("❌ Could not open browser.\nPlease navigate to: " + authUrl);
-            }
-
-        } catch (Exception e) {
-            showError("❌ Failed to initiate Gmail sign-in: " + e.getMessage());
-            System.err.println("Gmail sign-in error: " + e.getMessage());
-            e.printStackTrace();
-        }
-    }
-
-    /**
-     * Poll for authentication completion
-     */
-    private void pollForAuthenticationCompletion() {
-        // Create a background task to poll for authentication
-        PauseTransition pollDelay = new PauseTransition(Duration.seconds(3));
-        pollDelay.setOnFinished(e -> {
-            try {
-                // Check if user 1 (admin) has been authenticated
-                boolean authenticated = oauth2Service.isUserAuthenticated(1L);
-
-                if (authenticated) {
-                    // Authentication successful
-                    gmailSignInButton.setText("Sign in with Google");
-                    gmailSignInButton.setDisable(false);
-
-                    // Get user and proceed to dashboard
-                    User user = authService.getUserById(1L).orElse(null);
-                    if (user != null) {
-                        showSuccess();
-
-                        // Stop gradient animation before transition
-                        if (gradientBackground != null) {
-                            gradientBackground.stopAnimation();
-                        }
-
-                        // Navigate to dashboard
-                        PauseTransition beforeFade = new PauseTransition(Duration.millis(600));
-                        beforeFade.setOnFinished(evt -> {
-                            if (loginRoot != null) {
-                                FadeTransition fadeOut = new FadeTransition(Duration.millis(400), loginRoot);
-                                fadeOut.setFromValue(1.0);
-                                fadeOut.setToValue(0.0);
-                                fadeOut.setOnFinished(event -> {
-                                    SceneManager.getInstance().setCurrentUser(user);
-                                    SceneManager.getInstance().showMainDashboard();
-                                });
-                                fadeOut.play();
-                            } else {
-                                SceneManager.getInstance().setCurrentUser(user);
-                                SceneManager.getInstance().showMainDashboard();
-                            }
-                        });
-                        beforeFade.play();
-                    }
-                } else {
-                    // Not authenticated yet, continue polling
-                    pollForAuthenticationCompletion();
-                }
-            } catch (Exception ex) {
-                gmailSignInButton.setText("Sign in with Google");
-                gmailSignInButton.setDisable(false);
-                showError("❌ Authentication failed: " + ex.getMessage());
-            }
-        });
-        pollDelay.play();
-    }
-
-    /**
-     * Show info message
-     */
-    private void showInfo(String message) {
-        errorLabel.setText(message);
-        errorLabel.setStyle("-fx-background-color: rgba(59, 130, 246, 0.15); " +
-                "-fx-text-fill: #93c5fd; " +
-                "-fx-padding: 14 18; " +
-                "-fx-background-radius: 10; " +
-                "-fx-border-color: rgba(59, 130, 246, 0.3); " +
-                "-fx-border-width: 1; " +
-                "-fx-border-radius: 10; " +
-                "-fx-font-size: 13px;");
-        errorLabel.setVisible(true);
-        errorLabel.setManaged(true);
-
-        // Slide in animation
-        errorLabel.setOpacity(0);
-        errorLabel.setTranslateY(-10);
-
-        FadeTransition fade = new FadeTransition(Duration.millis(300), errorLabel);
-        fade.setFromValue(0);
-        fade.setToValue(1);
-
-        TranslateTransition slide = new TranslateTransition(Duration.millis(300), errorLabel);
-        slide.setFromY(-10);
-        slide.setToY(0);
-
-        ParallelTransition parallel = new ParallelTransition(fade, slide);
-        parallel.play();
     }
 }
