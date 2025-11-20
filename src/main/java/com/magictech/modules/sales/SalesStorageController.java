@@ -55,7 +55,7 @@ public class SalesStorageController extends BaseModuleController {
     private VBox dashboardScreen;
     private ListView<Project> projectsListView;
     private ListView<Customer> customersListView;
-    private User currentUser;
+    // Removed: private User currentUser; - inherited from BaseModuleController
 
     @Override
     public void refresh() {
@@ -1618,6 +1618,43 @@ public class SalesStorageController extends BaseModuleController {
 
         storageTable.getColumns().addAll(nameCol, availabilityCol, priceCol);
 
+        // Style table rows to fix white background issue
+        storageTable.setRowFactory(tv -> {
+            TableRow<StorageItem> row = new TableRow<>() {
+                @Override
+                protected void updateItem(StorageItem item, boolean empty) {
+                    super.updateItem(item, empty);
+                    if (empty || item == null) {
+                        setStyle("");
+                    } else {
+                        // Dark background with proper text color
+                        setStyle("-fx-background-color: rgba(30, 41, 59, 0.8); " +
+                                "-fx-text-fill: white; " +
+                                "-fx-border-color: rgba(139, 92, 246, 0.2); " +
+                                "-fx-border-width: 0 0 1 0;");
+                    }
+                }
+            };
+            // Hover effect
+            row.setOnMouseEntered(e -> {
+                if (row.getItem() != null) {
+                    row.setStyle("-fx-background-color: rgba(139, 92, 246, 0.3); " +
+                            "-fx-text-fill: white; " +
+                            "-fx-border-color: rgba(139, 92, 246, 0.5); " +
+                            "-fx-border-width: 0 0 1 0;");
+                }
+            });
+            row.setOnMouseExited(e -> {
+                if (row.getItem() != null) {
+                    row.setStyle("-fx-background-color: rgba(30, 41, 59, 0.8); " +
+                            "-fx-text-fill: white; " +
+                            "-fx-border-color: rgba(139, 92, 246, 0.2); " +
+                            "-fx-border-width: 0 0 1 0;");
+                }
+            });
+            return row;
+        });
+
         // Load storage items
         Task<List<StorageItem>> loadTask = new Task<>() {
             @Override
@@ -2572,6 +2609,43 @@ public class SalesStorageController extends BaseModuleController {
 
         storageTable.getColumns().addAll(nameCol, mfgCol, codeCol, availCol, actionCol);
 
+        // Style table rows to fix white background issue
+        storageTable.setRowFactory(tv -> {
+            TableRow<StorageItem> row = new TableRow<>() {
+                @Override
+                protected void updateItem(StorageItem item, boolean empty) {
+                    super.updateItem(item, empty);
+                    if (empty || item == null) {
+                        setStyle("");
+                    } else {
+                        // Dark background with proper text color
+                        setStyle("-fx-background-color: rgba(30, 41, 59, 0.8); " +
+                                "-fx-text-fill: white; " +
+                                "-fx-border-color: rgba(139, 92, 246, 0.2); " +
+                                "-fx-border-width: 0 0 1 0;");
+                    }
+                }
+            };
+            // Hover effect
+            row.setOnMouseEntered(e -> {
+                if (row.getItem() != null) {
+                    row.setStyle("-fx-background-color: rgba(139, 92, 246, 0.3); " +
+                            "-fx-text-fill: white; " +
+                            "-fx-border-color: rgba(139, 92, 246, 0.5); " +
+                            "-fx-border-width: 0 0 1 0;");
+                }
+            });
+            row.setOnMouseExited(e -> {
+                if (row.getItem() != null) {
+                    row.setStyle("-fx-background-color: rgba(30, 41, 59, 0.8); " +
+                            "-fx-text-fill: white; " +
+                            "-fx-border-color: rgba(139, 92, 246, 0.2); " +
+                            "-fx-border-width: 0 0 1 0;");
+                }
+            });
+            return row;
+        });
+
         Task<List<StorageItem>> loadTask = new Task<>() {
             @Override
             protected List<StorageItem> call() {
@@ -3179,6 +3253,43 @@ public class SalesStorageController extends BaseModuleController {
         });
 
         storageTable.getColumns().addAll(nameCol, mfgCol, codeCol, availCol, actionCol);
+
+        // Style table rows to fix white background issue
+        storageTable.setRowFactory(tv -> {
+            TableRow<StorageItem> row = new TableRow<>() {
+                @Override
+                protected void updateItem(StorageItem item, boolean empty) {
+                    super.updateItem(item, empty);
+                    if (empty || item == null) {
+                        setStyle("");
+                    } else {
+                        // Dark background with proper text color
+                        setStyle("-fx-background-color: rgba(30, 41, 59, 0.8); " +
+                                "-fx-text-fill: white; " +
+                                "-fx-border-color: rgba(139, 92, 246, 0.2); " +
+                                "-fx-border-width: 0 0 1 0;");
+                    }
+                }
+            };
+            // Hover effect
+            row.setOnMouseEntered(e -> {
+                if (row.getItem() != null) {
+                    row.setStyle("-fx-background-color: rgba(139, 92, 246, 0.3); " +
+                            "-fx-text-fill: white; " +
+                            "-fx-border-color: rgba(139, 92, 246, 0.5); " +
+                            "-fx-border-width: 0 0 1 0;");
+                }
+            });
+            row.setOnMouseExited(e -> {
+                if (row.getItem() != null) {
+                    row.setStyle("-fx-background-color: rgba(30, 41, 59, 0.8); " +
+                            "-fx-text-fill: white; " +
+                            "-fx-border-color: rgba(139, 92, 246, 0.2); " +
+                            "-fx-border-width: 0 0 1 0;");
+                }
+            });
+            return row;
+        });
 
         Task<List<StorageItem>> loadTask = new Task<>() {
             @Override
