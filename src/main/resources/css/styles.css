@@ -393,31 +393,102 @@
     -fx-border-width: 0.5;
 }
 
-/* ===== TAB PANE ===== */
+/* ===== TAB PANE - FIXED FOR VISIBILITY ===== */
 
 .tab-pane {
     -fx-background-color: transparent;
 }
 
+.tab-pane .tab-header-area {
+    -fx-background-color: transparent;
+}
+
+.tab-pane .tab-header-background {
+    -fx-background-color: transparent;
+}
+
 .tab {
-    -fx-background-color: rgba(30, 41, 59, 0.4);
-    -fx-text-fill: rgba(255, 255, 255, 0.7);
+    -fx-background-color: rgba(30, 41, 59, 0.5);
     -fx-background-radius: 8 8 0 0;
+    -fx-padding: 12 20;
+    -fx-border-color: rgba(139, 92, 246, 0.3);
+    -fx-border-width: 1 1 0 1;
+    -fx-border-radius: 8 8 0 0;
+}
+
+.tab .tab-label {
+    -fx-text-fill: rgba(255, 255, 255, 0.9) !important;
+    -fx-font-size: 14px !important;
+    -fx-font-weight: bold !important;
 }
 
 .tab:selected {
-    -fx-background-color: rgba(139, 92, 246, 0.3);
-    -fx-text-fill: white;
+    -fx-background-color: rgba(139, 92, 246, 0.6);
+    -fx-border-color: rgba(139, 92, 246, 0.8);
+    -fx-border-width: 2 2 0 2;
+}
+
+.tab:selected .tab-label {
+    -fx-text-fill: white !important;
+    -fx-font-weight: bold !important;
 }
 
 .tab:hover {
-    -fx-background-color: rgba(30, 41, 59, 0.6);
+    -fx-background-color: rgba(59, 130, 246, 0.4);
+}
+
+.tab:hover .tab-label {
+    -fx-text-fill: white !important;
 }
 
 .tab-pane .tab-content-area {
     -fx-background-color: rgba(30, 41, 59, 0.3);
-    -fx-border-color: rgba(255, 255, 255, 0.1);
-    -fx-border-width: 1;
+    -fx-border-color: rgba(139, 92, 246, 0.3);
+    -fx-border-width: 2;
     -fx-border-radius: 0 8 8 8;
     -fx-background-radius: 0 8 8 8;
+}
+
+/* Make sure all text in tabs is visible */
+.tab-pane .tab .text {
+    -fx-fill: white !important;
+}
+
+/* ===== LIST VIEW - IMPROVED SELECTION VISIBILITY ===== */
+
+.list-view {
+    -fx-background-color: rgba(15, 23, 42, 0.7);
+    -fx-border-color: rgba(139, 92, 246, 0.4);
+    -fx-border-width: 2;
+    -fx-border-radius: 12;
+    -fx-background-radius: 12;
+}
+
+.list-view .list-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: rgba(255, 255, 255, 0.9);
+    -fx-padding: 8;
+}
+
+.list-view .list-cell:filled:hover {
+    -fx-background-color: rgba(59, 130, 246, 0.3);
+    -fx-cursor: hand;
+}
+
+.list-view .list-cell:filled:selected {
+    -fx-background-color: rgba(139, 92, 246, 0.7) !important;
+    -fx-border-color: rgba(139, 92, 246, 1.0) !important;
+    -fx-border-width: 2 !important;
+}
+
+.list-view .list-cell:filled:selected:hover {
+    -fx-background-color: rgba(139, 92, 246, 0.8) !important;
+}
+
+.list-view:focused .list-cell:filled:selected {
+    -fx-background-color: rgba(139, 92, 246, 0.8) !important;
+}
+
+.list-view .list-cell .label {
+    -fx-text-fill: white !important;
 }
