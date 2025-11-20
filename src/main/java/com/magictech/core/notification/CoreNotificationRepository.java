@@ -42,7 +42,7 @@ public interface CoreNotificationRepository extends JpaRepository<Notification, 
     /**
      * Find unshown notifications (for popup display)
      */
-    @Query("SELECT n FROM Notification n WHERE n.isShown = false AND " +
+    @Query("SELECT n FROM CoreNotification n WHERE n.isShown = false AND " +
            "(n.userId = :userId OR n.targetRole = :role) " +
            "ORDER BY n.createdAt DESC")
     List<Notification> findUnshownNotifications(@Param("userId") Long userId, @Param("role") String role);
@@ -75,7 +75,7 @@ public interface CoreNotificationRepository extends JpaRepository<Notification, 
     /**
      * Get recent notifications (last N days)
      */
-    @Query("SELECT n FROM Notification n WHERE " +
+    @Query("SELECT n FROM CoreNotification n WHERE " +
            "(n.userId = :userId OR n.targetRole = :role) AND " +
            "n.createdAt >= :since " +
            "ORDER BY n.createdAt DESC")
@@ -88,7 +88,7 @@ public interface CoreNotificationRepository extends JpaRepository<Notification, 
     /**
      * Count unread notifications for a specific module and user
      */
-    @Query("SELECT COUNT(n) FROM Notification n WHERE " +
+    @Query("SELECT COUNT(n) FROM CoreNotification n WHERE " +
            "(n.userId = :userId OR n.targetRole = :role) AND " +
            "n.isRead = false AND n.module = :module")
     long countUnreadByModule(
