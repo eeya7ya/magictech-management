@@ -40,6 +40,7 @@ public class NotificationManager {
     private ScheduledExecutorService heartbeatScheduler;
     private Queue<NotificationPopup> activePopups = new ConcurrentLinkedQueue<>();
     private boolean isInitialized = false;
+    private User currentUser; // Track current user for role-based filtering
 
     /**
      * Initialize notification system for a logged-in user.
@@ -54,7 +55,9 @@ public class NotificationManager {
         }
 
         try {
-            logger.info("Initializing NotificationManager for user {} in module {}", user.getUsername(), moduleType);
+            this.currentUser = user; // Store current user
+            logger.info("Initializing NotificationManager for user {} (role: {}) in module {}",
+                user.getUsername(), user.getRole(), moduleType);
 
             // Register device
             deviceService.registerDevice(user, moduleType);
@@ -169,10 +172,22 @@ public class NotificationManager {
 
     /**
      * Handle incoming notification by showing a popup.
+     * Filters approval notifications based on user role (SALES, STORAGE, MASTER only).
      */
     private void handleNotification(NotificationMessage message) {
         try {
-            logger.info("Received notification: {}", message.getTitle());
+            logger.info("Received notification: {} (action: {})", message.getTitle(), message.getAction());
+
+            // Filter approval notifications - only show to authorized users
+            if ("APPROVAL_REQUESTED".equals(message.getAction())) {
+                if (!isAuthorizedForApprovals()) {
+                    logger.info("User {} (role: {}) is not authorized to see approval notifications - skipping",
+                        currentUser.getUsername(), currentUser.getRole());
+                    return;
+                }
+                logger.info("User {} (role: {}) is authorized to see approval notifications",
+                    currentUser.getUsername(), currentUser.getRole());
+            }
 
             // Create and show popup
             NotificationPopup popup = new NotificationPopup();
@@ -185,6 +200,23 @@ public class NotificationManager {
         } catch (Exception e) {
             logger.error("Error handling notification: {}", e.getMessage(), e);
         }
+    }
+
+    /**
+     * Check if current user is authorized to see approval notifications.
+     * Only SALES, STORAGE, and MASTER users can see approval requests.
+     */
+    private boolean isAuthorizedForApprovals() {
+        if (currentUser == null || currentUser.getRole() == null) {
+            return false;
+        }
+
+        return switch (currentUser.getRole()) {
+            case MASTER -> true;   // Master has full access
+            case SALES -> true;    // Sales can approve project elements
+            case STORAGE -> true;  // Storage management can approve
+            default -> false;      // All other roles cannot see approvals
+        };
     }
 
     /**
@@ -226,6 +258,7 @@ public class NotificationManager {
 
     /**
      * Cleanup notification system (call on logout or app shutdown).
+     * Dismisses all active popups including persistent approval notifications.
      */
     public void cleanup() {
         if (!isInitialized) {
@@ -233,7 +266,7 @@ public class NotificationManager {
         }
 
         try {
-            logger.info("Cleaning up NotificationManager");
+            logger.info("Cleaning up NotificationManager - dismissing all active popups");
 
             // Stop heartbeat scheduler
             if (heartbeatScheduler != null) {
@@ -248,10 +281,15 @@ public class NotificationManager {
                 }
             }
 
-            // Dismiss all active popups
+            // IMPORTANT: Dismiss all active popups (including persistent approval notifications)
+            // This ensures approval notifications don't remain visible after logout
+            logger.info("Dismissing {} active popup(s)", activePopups.size());
             for (NotificationPopup popup : activePopups) {
                 try {
-                    popup.dismiss();
+                    if (popup.isShowing()) {
+                        popup.dismissImmediately(); // Use immediate dismiss to ensure popups close on logout
+                        logger.debug("Dismissed popup immediately");
+                    }
                 } catch (Exception e) {
                     logger.warn("Error dismissing popup: {}", e.getMessage());
                 }
@@ -263,6 +301,9 @@ public class NotificationManager {
 
             // Mark device as offline
             deviceService.deactivateCurrentDevice();
+
+            // Clear user context
+            currentUser = null;
 
             isInitialized = false;
             logger.info("NotificationManager cleaned up successfully");

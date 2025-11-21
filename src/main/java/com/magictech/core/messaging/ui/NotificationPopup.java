@@ -327,6 +327,19 @@ public class NotificationPopup {
     }
 
     /**
+     * Immediately dismiss the notification without animation.
+     * Used during cleanup/logout to ensure popups are closed immediately.
+     */
+    public void dismissImmediately() {
+        if (autoCloseTimeline != null) {
+            autoCloseTimeline.stop();
+        }
+        if (stage != null && stage.isShowing()) {
+            Platform.runLater(() -> stage.close());
+        }
+    }
+
+    /**
      * Check if popup is showing.
      */
     public boolean isShowing() {
