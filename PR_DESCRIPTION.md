@@ -4,7 +4,21 @@
 
 Implements a complete notification system with real-time messaging, missed notification recovery, and approval workflows for cross-module operations.
 
-### ✅ CRITICAL BUG FIX (Latest Update)
+### ✅ LATEST UPDATES
+
+#### 1. **Persistent Approval Notifications** (NEW)
+- Approval notifications now **stay visible until Accept/Reject is clicked**
+- No auto-dismiss for approval requests (user must take action)
+- Orange border indicator shows it's a persistent notification
+- Regular notifications still auto-dismiss after 5 seconds
+
+#### 2. **Notification Sound** (NEW) 🔊
+- Pleasant two-tone beep plays on all notifications
+- Smooth fade in/out envelope for non-intrusive audio
+- 50% volume for comfortable listening
+- Fallback to system beep if sound file missing
+
+#### 3. **Critical Timestamp Bug Fix**
 Fixed timestamp bug that prevented missed notifications from loading. The issue was that `registerDevice()` was updating the `lastSeen` timestamp to NOW, then when querying for missed notifications, it would use this NEW timestamp instead of the OLD one, finding zero results. Now properly captures and uses the previous lastSeen timestamp.
 
 ### Features Implemented
@@ -93,6 +107,24 @@ Projects adds element → Notification saved to DB → Published to Redis
 3. **Logout and login again**
 4. **Should NOT see the same notification again**
 
+#### Test 5: Persistent Approval Notifications (NEW)
+1. Login as **yahya** (MASTER)
+2. Open **Projects** module
+3. Add a storage element to any project
+4. **Logout**
+5. Login as **mosa** (SALES)
+6. **Approval notification appears with orange border**
+7. **Wait 10 seconds** - notification should **STILL be visible** (not auto-dismiss)
+8. Click **Accept** or **Reject** - notification should dismiss
+9. **Expected:** Approval notifications persist until action is taken
+
+#### Test 6: Notification Sound (NEW) 🔊
+1. Login as any user
+2. Have another user create a notification (or wait for missed notification on login)
+3. **Expected:** Hear a pleasant two-tone beep sound
+4. Sound should be moderate volume (50%) and not jarring
+5. If sound file is missing, system beep should play as fallback
+
 ### Bug Fix Details
 
 **Problem:**
@@ -124,8 +156,10 @@ When users logged in, they saw zero notifications even when notifications were c
 - `NotificationManager.java` - UI integration and missed notification loading (✅ Fixed timestamp query)
 - `NotificationService.java` - Notification publishing and storage
 - `NotificationListenerService.java` - Redis subscription handling
-- `NotificationPopup.java` - Popup UI with approval buttons
+- `NotificationPopup.java` - Popup UI with approval buttons (✅ Persistent approval popups + sound)
 - `DeviceRegistrationService.java` - Device tracking (✅ Captures previous lastSeen)
+- `NotificationSoundGenerator.java` - Utility to generate notification sound (NEW)
+- `notification.wav` - Notification sound file (NEW, 35KB)
 
 **Approval Workflow:**
 - `ProjectElementService.java` - Sends approval notification on element creation
@@ -148,6 +182,10 @@ When users logged in, they saw zero notifications even when notifications were c
 - ✅ No duplicate notifications
 - ✅ Approval workflow with Accept/Reject
 - ✅ Role-based notification filtering
+- ✅ **Persistent approval popups** (stay until user action)
+- ✅ **Auto-dismiss regular notifications** (5 seconds)
+- ✅ **Notification sound** with pleasant two-tone beep
+- ✅ **Visual indicators** (orange border for persistent notifications)
 
 ### Future Enhancements
 
