@@ -739,16 +739,12 @@ public class SalesStorageController extends BaseModuleController {
                             element.setProject(project);
                             element.setStorageItem(storageItem);
                             element.setQuantityNeeded(requestedQty);
-                            element.setQuantityAllocated(requestedQty);
                             element.setNotes(notesField.getText());
-                            element.setStatus("Allocated");
                             element.setAddedBy(currentUser != null ? currentUser.getUsername() : "system");
 
-                            ProjectElement saved = elementService.createElement(element);
-
-                            // Deduct from storage
-                            storageItem.setQuantity(storageItem.getQuantity() - requestedQty);
-                            storageService.updateItem(storageItem.getId(), storageItem);
+                            // Sales module adds directly without approval (instant approval)
+                            // This automatically sets status to APPROVED, allocates quantity, and deducts from storage
+                            ProjectElement saved = elementService.createElementDirectly(element);
 
                             return saved;
                         }

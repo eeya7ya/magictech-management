@@ -2029,19 +2029,15 @@ public class ProjectsStorageController extends BaseModuleController {
                             element.setProject(selectedProject);
                             element.setStorageItem(storageItem);
                             element.setQuantityNeeded(requestedQty);
-                            element.setQuantityAllocated(requestedQty);
-                            element.setStatus("ALLOCATED");
                             element.setNotes(notesField.getText());
                             element.setAddedDate(LocalDateTime.now());
                             element.setAddedBy(currentUser != null ? currentUser.getUsername() : "system");
                             element.setActive(true);
 
-                            // Save element
+                            // Save element - this sends approval notification to Sales module
+                            // Status will be PENDING_APPROVAL
+                            // Storage quantity will be deducted ONLY when Sales approves
                             ProjectElement saved = elementService.createElement(element);
-
-                            // Update storage quantity
-                            storageItem.setQuantity(storageItem.getQuantity() - requestedQty);
-                            storageService.updateItem(storageItem.getId(), storageItem);
 
                             return saved;
                         }
