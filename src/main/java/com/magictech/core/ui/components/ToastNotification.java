@@ -2,6 +2,8 @@ package com.magictech.core.ui.components;
 
 import javafx.animation.*;
 import javafx.application.Platform;
+import javafx.beans.property.DoubleProperty;
+import javafx.beans.property.SimpleDoubleProperty;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.geometry.Rectangle2D;
@@ -52,6 +54,10 @@ public class ToastNotification {
     private Stage stage;
     private Timeline autoCloseTimeline;
     private ToastType type;
+
+    // Writable properties for animating stage position
+    private final DoubleProperty xPosition = new SimpleDoubleProperty();
+    private final DoubleProperty yPosition = new SimpleDoubleProperty();
 
     /**
      * Toast types for different feedback scenarios
@@ -129,6 +135,10 @@ public class ToastNotification {
         scene.setFill(javafx.scene.paint.Color.TRANSPARENT);
 
         stage.setScene(scene);
+
+        // Bind stage position to writable properties
+        xPosition.addListener((obs, oldVal, newVal) -> stage.setX(newVal.doubleValue()));
+        yPosition.addListener((obs, oldVal, newVal) -> stage.setY(newVal.doubleValue()));
 
         // Position at top-right with stacking
         positionToast();
@@ -227,8 +237,8 @@ public class ToastNotification {
         int index = activeToasts.size() - 1; // Current toast index
         double y = screenBounds.getMinY() + MARGIN + (index * (TOAST_HEIGHT + STACK_SPACING));
 
-        stage.setX(x);
-        stage.setY(y);
+        xPosition.set(x);
+        yPosition.set(y);
     }
 
     /**
@@ -236,19 +246,19 @@ public class ToastNotification {
      */
     private void slideInAndFadeIn() {
         // Save original X position
-        double originalX = stage.getX();
+        double originalX = xPosition.get();
 
         // Start off-screen to the right
-        stage.setX(originalX + 100);
+        xPosition.set(originalX + 100);
 
         // Slide in animation
         Timeline slideIn = new Timeline(
             new KeyFrame(Duration.ZERO,
-                new KeyValue(stage.xProperty(), originalX + 100),
+                new KeyValue(xPosition, originalX + 100),
                 new KeyValue(stage.opacityProperty(), 0)
             ),
             new KeyFrame(Duration.millis(300),
-                new KeyValue(stage.xProperty(), originalX, Interpolator.EASE_OUT),
+                new KeyValue(xPosition, originalX, Interpolator.EASE_OUT),
                 new KeyValue(stage.opacityProperty(), 1, Interpolator.EASE_IN)
             )
         );
@@ -259,15 +269,15 @@ public class ToastNotification {
      * Slide-out to right and fade-out animation.
      */
     private void slideOutAndFadeOut() {
-        double originalX = stage.getX();
+        double originalX = xPosition.get();
 
         Timeline slideOut = new Timeline(
             new KeyFrame(Duration.ZERO,
-                new KeyValue(stage.xProperty(), originalX),
+                new KeyValue(xPosition, originalX),
                 new KeyValue(stage.opacityProperty(), 1)
             ),
             new KeyFrame(Duration.millis(300),
-                new KeyValue(stage.xProperty(), originalX + 100, Interpolator.EASE_IN),
+                new KeyValue(xPosition, originalX + 100, Interpolator.EASE_IN),
                 new KeyValue(stage.opacityProperty(), 0, Interpolator.EASE_OUT)
             )
         );
@@ -292,8 +302,8 @@ public class ToastNotification {
 
             // Animate to new position
             Timeline reposition = new Timeline(
-                new KeyFrame(Duration.ZERO, new KeyValue(toast.stage.yProperty(), toast.stage.getY())),
-                new KeyFrame(Duration.millis(200), new KeyValue(toast.stage.yProperty(), targetY, Interpolator.EASE_BOTH))
+                new KeyFrame(Duration.ZERO, new KeyValue(toast.yPosition, toast.yPosition.get())),
+                new KeyFrame(Duration.millis(200), new KeyValue(toast.yPosition, targetY, Interpolator.EASE_BOTH))
             );
             reposition.play();
         }
