@@ -51,6 +51,9 @@ public class Notification {
     @Column(name = "created_by", length = 100)
     private String createdBy;
 
+    @Column(name = "source_device_id", length = 100)
+    private String sourceDeviceId; // Device that created this notification
+
     @Column(name = "priority", length = 20)
     private String priority; // LOW, MEDIUM, HIGH, URGENT
 
@@ -205,6 +208,14 @@ public class Notification {
 
     public void setMetadata(String metadata) {
         this.metadata = metadata;
+    }
+
+    public String getSourceDeviceId() {
+        return sourceDeviceId;
+    }
+
+    public void setSourceDeviceId(String sourceDeviceId) {
+        this.sourceDeviceId = sourceDeviceId;
     }
 
     public Boolean getActive() {

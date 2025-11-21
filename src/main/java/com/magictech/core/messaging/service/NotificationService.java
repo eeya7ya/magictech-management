@@ -33,6 +33,9 @@ public class NotificationService {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private DeviceRegistrationService deviceRegistrationService;
+
     /**
      * Publish a notification message to Redis and store in database.
      *
@@ -40,6 +43,14 @@ public class NotificationService {
      */
     public void publishNotification(NotificationMessage message) {
         try {
+            // Set source device ID if not already set
+            if (message.getSourceDeviceId() == null) {
+                String currentDeviceId = deviceRegistrationService.getCurrentDeviceId();
+                if (currentDeviceId != null) {
+                    message.setSourceDeviceId(currentDeviceId);
+                }
+            }
+
             // Store notification in database first
             Notification notification = saveNotificationToDatabase(message);
 
@@ -101,6 +112,7 @@ public class NotificationService {
         notification.setPriority(message.getPriority() != null ?
             message.getPriority() : NotificationConstants.PRIORITY_MEDIUM);
         notification.setCreatedBy(message.getCreatedBy());
+        notification.setSourceDeviceId(message.getSourceDeviceId());
         notification.setMetadata(message.getMetadata());
 
         return notificationRepository.save(notification);
@@ -121,6 +133,7 @@ public class NotificationService {
             .targetModule(NotificationConstants.MODULE_PROJECTS)
             .priority(NotificationConstants.PRIORITY_HIGH)
             .createdBy(createdBy)
+            .excludeSender(true)  // Don't echo back to Sales - they already have instant feedback
             .build();
 
         publishNotification(message);

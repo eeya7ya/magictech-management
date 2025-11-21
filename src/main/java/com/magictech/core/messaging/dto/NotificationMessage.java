@@ -21,6 +21,8 @@ public class NotificationMessage implements Serializable {
     private String targetModule;
     private String priority; // LOW, MEDIUM, HIGH, URGENT
     private String createdBy;
+    private String sourceDeviceId; // Device that created this notification
+    private boolean excludeSender; // If true, don't send notification back to source device
     private LocalDateTime timestamp;
     private String metadata; // JSON string for additional data
 
@@ -102,6 +104,16 @@ public class NotificationMessage implements Serializable {
 
         public Builder metadata(String metadata) {
             message.metadata = metadata;
+            return this;
+        }
+
+        public Builder sourceDeviceId(String sourceDeviceId) {
+            message.sourceDeviceId = sourceDeviceId;
+            return this;
+        }
+
+        public Builder excludeSender(boolean excludeSender) {
+            message.excludeSender = excludeSender;
             return this;
         }
 
@@ -215,6 +227,22 @@ public class NotificationMessage implements Serializable {
         this.metadata = metadata;
     }
 
+    public String getSourceDeviceId() {
+        return sourceDeviceId;
+    }
+
+    public void setSourceDeviceId(String sourceDeviceId) {
+        this.sourceDeviceId = sourceDeviceId;
+    }
+
+    public boolean isExcludeSender() {
+        return excludeSender;
+    }
+
+    public void setExcludeSender(boolean excludeSender) {
+        this.excludeSender = excludeSender;
+    }
+
     @Override
     public String toString() {
         return "NotificationMessage{" +
@@ -224,6 +252,8 @@ public class NotificationMessage implements Serializable {
                 ", title='" + title + '\'' +
                 ", message='" + message + '\'' +
                 ", targetModule='" + targetModule + '\'' +
+                ", sourceDeviceId='" + sourceDeviceId + '\'' +
+                ", excludeSender=" + excludeSender +
                 ", timestamp=" + timestamp +
                 '}';
     }
