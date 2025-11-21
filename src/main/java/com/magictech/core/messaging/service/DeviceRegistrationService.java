@@ -36,8 +36,11 @@ public class DeviceRegistrationService {
 
     private String currentDeviceId;
 
+    private LocalDateTime previousLastSeen;
+
     /**
      * Register or update a device.
+     * Captures the previous lastSeen timestamp before updating (accessible via getPreviousLastSeen()).
      */
     public DeviceRegistration registerDevice(User user, String moduleType) {
         try {
@@ -46,6 +49,9 @@ public class DeviceRegistrationService {
 
             // Check if device already exists
             Optional<DeviceRegistration> existing = deviceRepository.findByDeviceIdAndActiveTrue(deviceId);
+
+            // Capture OLD lastSeen timestamp BEFORE updating
+            previousLastSeen = existing.map(DeviceRegistration::getLastSeen).orElse(null);
 
             DeviceRegistration device;
             if (existing.isPresent()) {
@@ -76,7 +82,8 @@ public class DeviceRegistrationService {
             device = deviceRepository.save(device);
             currentDeviceId = deviceId;
 
-            logger.info("Registered device {} for user {} in module {}", deviceId, user.getUsername(), moduleType);
+            logger.info("Registered device {} for user {} in module {} (previous lastSeen: {})",
+                deviceId, user.getUsername(), moduleType, previousLastSeen);
 
             return device;
 
@@ -196,6 +203,15 @@ public class DeviceRegistrationService {
             logger.error("Error getting last seen time: {}", e.getMessage(), e);
             return null;
         }
+    }
+
+    /**
+     * Get the previous last seen time (before registerDevice() was called).
+     * This is the timestamp that should be used to query for missed notifications.
+     * Returns null if this is a first-time login.
+     */
+    public LocalDateTime getPreviousLastSeen() {
+        return previousLastSeen;
     }
 
     /**
