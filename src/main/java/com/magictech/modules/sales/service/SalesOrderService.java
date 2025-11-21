@@ -1,5 +1,6 @@
 package com.magictech.modules.sales.service;
 
+import com.magictech.core.messaging.service.NotificationService;
 import com.magictech.modules.sales.entity.SalesOrder;
 import com.magictech.modules.sales.entity.SalesOrderItem;
 import com.magictech.modules.sales.repository.SalesOrderRepository;
@@ -28,6 +29,9 @@ public class SalesOrderService {
 
     @Autowired
     private SalesOrderItemRepository salesOrderItemRepository;
+
+    @Autowired
+    private NotificationService notificationService;
 
     // TODO: Uncomment when StorageService is available
     // @Autowired
@@ -194,7 +198,20 @@ public class SalesOrderService {
         order.setUpdatedAt(LocalDateTime.now());
         order.setUpdatedBy(pushedBy);
 
-        return salesOrderRepository.save(order);
+        SalesOrder savedOrder = salesOrderRepository.save(order);
+
+        // Send notification to Projects module that a new project has been created
+        try {
+            notificationService.notifyProjectCreated(
+                order.getProjectId(),
+                "Project from Sales Order #" + orderId,
+                pushedBy
+            );
+        } catch (Exception e) {
+            System.err.println("Failed to send project creation notification: " + e.getMessage());
+        }
+
+        return savedOrder;
     }
 
     /**

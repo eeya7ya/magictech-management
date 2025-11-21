@@ -1,5 +1,6 @@
 package com.magictech.modules.projects.service;
 
+import com.magictech.core.messaging.service.NotificationService;
 import com.magictech.modules.projects.entity.Project;
 import com.magictech.modules.projects.repository.ProjectRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,6 +21,9 @@ public class ProjectService {
 
     @Autowired
     private ProjectRepository repository;
+
+    @Autowired
+    private NotificationService notificationService;
 
     /**
      * Get all active projects
@@ -174,5 +178,60 @@ public class ProjectService {
                 .distinct()
                 .sorted()
                 .toList();
+    }
+
+    /**
+     * Request confirmation from Sales module for additional elements.
+     * Sends a notification to Sales module.
+     */
+    public Project requestConfirmation(Long projectId, String requestedBy, String reason) {
+        Project project = repository.findById(projectId)
+                .orElseThrow(() -> new RuntimeException("Project not found with id: " + projectId));
+
+        project.setLastUpdated(LocalDateTime.now());
+        Project savedProject = repository.save(project);
+
+        // Send notification to Sales module
+        try {
+            notificationService.notifyConfirmationRequested(
+                projectId,
+                project.getProjectName(),
+                requestedBy
+            );
+            System.out.println("✉️ Confirmation request sent to Sales for project: " + project.getProjectName());
+        } catch (Exception e) {
+            System.err.println("Failed to send confirmation request notification: " + e.getMessage());
+        }
+
+        return savedProject;
+    }
+
+    /**
+     * Mark project as completed and notify Storage and Pricing modules.
+     * Sends notifications to both Storage and Pricing modules for analysis.
+     */
+    public Project completeProject(Long projectId, String completedBy) {
+        Project project = repository.findById(projectId)
+                .orElseThrow(() -> new RuntimeException("Project not found with id: " + projectId));
+
+        // Update project status to COMPLETED
+        project.setStatus("COMPLETED");
+        project.setDateOfCompletion(java.time.LocalDate.now());
+        project.setLastUpdated(LocalDateTime.now());
+        Project savedProject = repository.save(project);
+
+        // Send notifications to Storage and Pricing modules
+        try {
+            notificationService.notifyProjectCompleted(
+                projectId,
+                project.getProjectName(),
+                completedBy
+            );
+            System.out.println("✉️ Project completion notifications sent to Storage and Pricing modules for: " + project.getProjectName());
+        } catch (Exception e) {
+            System.err.println("Failed to send project completion notifications: " + e.getMessage());
+        }
+
+        return savedProject;
     }
 }

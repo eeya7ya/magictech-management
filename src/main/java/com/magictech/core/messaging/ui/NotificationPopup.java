@@ -1,0 +1,226 @@
+package com.magictech.core.messaging.ui;
+
+import com.magictech.core.messaging.dto.NotificationMessage;
+import javafx.animation.*;
+import javafx.application.Platform;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import javafx.geometry.Rectangle2D;
+import javafx.scene.Scene;
+import javafx.scene.control.Label;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.VBox;
+import javafx.stage.Screen;
+import javafx.stage.Stage;
+import javafx.stage.StageStyle;
+import javafx.util.Duration;
+import org.kordamp.ikonli.fontawesome5.FontAwesomeSolid;
+import org.kordamp.ikonli.javafx.FontIcon;
+
+/**
+ * JavaFX notification popup that displays notifications in the bottom-right corner.
+ * Auto-dismisses after 5 seconds with fade-in/fade-out animations.
+ */
+public class NotificationPopup {
+
+    private static final double POPUP_WIDTH = 350;
+    private static final double POPUP_HEIGHT = 100;
+    private static final double MARGIN = 20;
+    private static final int AUTO_DISMISS_SECONDS = 5;
+
+    private Stage stage;
+    private Timeline autoCloseTimeline;
+
+    /**
+     * Show a notification popup.
+     *
+     * @param message The notification message to display
+     */
+    public void show(NotificationMessage message) {
+        Platform.runLater(() -> {
+            try {
+                createAndShowPopup(message);
+            } catch (Exception e) {
+                System.err.println("Error showing notification popup: " + e.getMessage());
+                e.printStackTrace();
+            }
+        });
+    }
+
+    /**
+     * Create and show the notification popup.
+     */
+    private void createAndShowPopup(NotificationMessage message) {
+        stage = new Stage();
+        stage.initStyle(StageStyle.TRANSPARENT);
+        stage.setAlwaysOnTop(true);
+
+        // Create UI
+        VBox root = createNotificationUI(message);
+        Scene scene = new Scene(root, POPUP_WIDTH, POPUP_HEIGHT);
+        scene.setFill(javafx.scene.paint.Color.TRANSPARENT);
+
+        // Apply CSS styling
+        applyStyles(root, message.getType());
+
+        stage.setScene(scene);
+
+        // Position at bottom-right
+        positionPopup();
+
+        // Initial opacity for fade-in animation
+        stage.setOpacity(0);
+        stage.show();
+
+        // Animate fade-in
+        fadeIn();
+
+        // Setup auto-dismiss
+        setupAutoDismiss();
+
+        // Click to dismiss
+        root.setOnMouseClicked(event -> dismiss());
+    }
+
+    /**
+     * Create the notification UI.
+     */
+    private VBox createNotificationUI(NotificationMessage message) {
+        // Icon based on type
+        FontIcon icon = getIconForType(message.getType());
+        icon.setIconSize(24);
+
+        // Title
+        Label titleLabel = new Label(message.getTitle());
+        titleLabel.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: white;");
+
+        // Message
+        Label messageLabel = new Label(message.getMessage());
+        messageLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: white;");
+        messageLabel.setWrapText(true);
+        messageLabel.setMaxWidth(POPUP_WIDTH - 80);
+
+        // Module badge
+        Label moduleLabel = new Label(message.getModule().toUpperCase());
+        moduleLabel.setStyle("-fx-font-size: 10px; -fx-padding: 2 6; -fx-background-color: rgba(255,255,255,0.3); " +
+                            "-fx-background-radius: 3; -fx-text-fill: white;");
+
+        // Layout
+        VBox textBox = new VBox(5);
+        textBox.getChildren().addAll(titleLabel, messageLabel, moduleLabel);
+
+        HBox contentBox = new HBox(15);
+        contentBox.setAlignment(Pos.CENTER_LEFT);
+        contentBox.getChildren().addAll(icon, textBox);
+
+        VBox root = new VBox();
+        root.setPadding(new Insets(15));
+        root.getChildren().add(contentBox);
+        root.setStyle("-fx-background-radius: 10; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 10, 0, 0, 2);");
+
+        return root;
+    }
+
+    /**
+     * Get icon based on notification type.
+     */
+    private FontIcon getIconForType(String type) {
+        FontIcon icon = switch (type != null ? type.toUpperCase() : "INFO") {
+            case "SUCCESS" -> new FontIcon(FontAwesomeSolid.CHECK_CIRCLE);
+            case "WARNING" -> new FontIcon(FontAwesomeSolid.EXCLAMATION_TRIANGLE);
+            case "ERROR" -> new FontIcon(FontAwesomeSolid.TIMES_CIRCLE);
+            default -> new FontIcon(FontAwesomeSolid.INFO_CIRCLE);
+        };
+        icon.setIconColor(javafx.scene.paint.Color.WHITE);
+        return icon;
+    }
+
+    /**
+     * Apply CSS styles based on notification type.
+     */
+    private void applyStyles(VBox root, String type) {
+        String backgroundColor = switch (type != null ? type.toUpperCase() : "INFO") {
+            case "SUCCESS" -> "-fx-background-color: linear-gradient(to right, #11998e, #38ef7d);";
+            case "WARNING" -> "-fx-background-color: linear-gradient(to right, #f39c12, #f1c40f);";
+            case "ERROR" -> "-fx-background-color: linear-gradient(to right, #e74c3c, #c0392b);";
+            default -> "-fx-background-color: linear-gradient(to right, #3498db, #2980b9);";
+        };
+
+        root.setStyle(root.getStyle() + backgroundColor);
+    }
+
+    /**
+     * Position popup at bottom-right of screen.
+     */
+    private void positionPopup() {
+        Rectangle2D screenBounds = Screen.getPrimary().getVisualBounds();
+
+        double x = screenBounds.getMaxX() - POPUP_WIDTH - MARGIN;
+        double y = screenBounds.getMaxY() - POPUP_HEIGHT - MARGIN;
+
+        stage.setX(x);
+        stage.setY(y);
+    }
+
+    /**
+     * Fade-in animation.
+     */
+    private void fadeIn() {
+        FadeTransition fadeIn = new FadeTransition(Duration.millis(300), stage.getScene().getRoot());
+        fadeIn.setFromValue(0);
+        fadeIn.setToValue(1);
+        fadeIn.play();
+
+        // Also animate stage opacity
+        Timeline stageOpacity = new Timeline(
+            new KeyFrame(Duration.ZERO, new KeyValue(stage.opacityProperty(), 0)),
+            new KeyFrame(Duration.millis(300), new KeyValue(stage.opacityProperty(), 1))
+        );
+        stageOpacity.play();
+    }
+
+    /**
+     * Fade-out animation.
+     */
+    private void fadeOut() {
+        FadeTransition fadeOut = new FadeTransition(Duration.millis(300), stage.getScene().getRoot());
+        fadeOut.setFromValue(1);
+        fadeOut.setToValue(0);
+        fadeOut.setOnFinished(event -> stage.close());
+        fadeOut.play();
+
+        // Also animate stage opacity
+        Timeline stageOpacity = new Timeline(
+            new KeyFrame(Duration.ZERO, new KeyValue(stage.opacityProperty(), 1)),
+            new KeyFrame(Duration.millis(300), new KeyValue(stage.opacityProperty(), 0))
+        );
+        stageOpacity.play();
+    }
+
+    /**
+     * Setup auto-dismiss timer.
+     */
+    private void setupAutoDismiss() {
+        autoCloseTimeline = new Timeline(
+            new KeyFrame(Duration.seconds(AUTO_DISMISS_SECONDS), event -> dismiss())
+        );
+        autoCloseTimeline.play();
+    }
+
+    /**
+     * Dismiss the notification.
+     */
+    public void dismiss() {
+        if (autoCloseTimeline != null) {
+            autoCloseTimeline.stop();
+        }
+        fadeOut();
+    }
+
+    /**
+     * Check if popup is showing.
+     */
+    public boolean isShowing() {
+        return stage != null && stage.isShowing();
+    }
+}
