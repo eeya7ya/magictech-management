@@ -132,12 +132,13 @@ public class NotificationManager {
             java.time.LocalDateTime lastSeen = deviceService.getPreviousLastSeen();
 
             if (lastSeen == null) {
-                // First time login - skip regular notifications (but approvals were already shown)
-                logger.info("First login detected, skipping regular historical notifications");
-                return;
+                // First time login - load notifications from the last 7 days
+                // This ensures new users see recent important notifications
+                lastSeen = java.time.LocalDateTime.now().minusDays(7);
+                logger.info("First login detected, loading notifications from the last 7 days (since {})", lastSeen);
             }
 
-            // Get missed notifications since last logout
+            // Get missed notifications since last logout (or last 7 days for first login)
             List<Notification> missedNotifications;
 
             if (NotificationConstants.MODULE_STORAGE.equalsIgnoreCase(moduleType)) {
@@ -192,6 +193,7 @@ public class NotificationManager {
     /**
      * Handle incoming notification by showing a popup.
      * Filters approval notifications based on user role (SALES, STORAGE, MASTER only).
+     * Popups stack vertically to avoid overlapping.
      */
     private void handleNotification(NotificationMessage message) {
         try {
@@ -208,9 +210,14 @@ public class NotificationManager {
                     currentUser.getUsername(), currentUser.getRole());
             }
 
-            // Create and show popup
+            // Calculate stack index based on currently active popups
+            // This ensures new popups appear above existing ones instead of overlapping
+            int stackIndex = activePopups.size();
+            logger.debug("Creating popup at stack index {} (currently {} active popups)", stackIndex, activePopups.size());
+
+            // Create and show popup at calculated stack position
             NotificationPopup popup = new NotificationPopup();
-            popup.show(message, currentUser.getUsername()); // Pass username for marking as resolved
+            popup.show(message, currentUser.getUsername(), stackIndex); // Pass stack index for proper positioning
             activePopups.add(popup);
 
             // Remove from active popups after it auto-dismisses
