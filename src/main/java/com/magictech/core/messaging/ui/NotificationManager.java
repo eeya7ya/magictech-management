@@ -108,8 +108,9 @@ public class NotificationManager {
      */
     private void loadMissedNotifications(String moduleType) {
         try {
-            // Get the last time this device was online
-            java.time.LocalDateTime lastSeen = deviceService.getLastSeenTime();
+            // Get the PREVIOUS last seen time (before this login)
+            // This is critical - using getLastSeenTime() would return the CURRENT timestamp
+            java.time.LocalDateTime lastSeen = deviceService.getPreviousLastSeen();
 
             if (lastSeen == null) {
                 // First time login - don't show any historical notifications

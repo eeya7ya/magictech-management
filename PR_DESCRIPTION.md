@@ -4,6 +4,9 @@
 
 Implements a complete notification system with real-time messaging, missed notification recovery, and approval workflows for cross-module operations.
 
+### ✅ CRITICAL BUG FIX (Latest Update)
+Fixed timestamp bug that prevented missed notifications from loading. The issue was that `registerDevice()` was updating the `lastSeen` timestamp to NOW, then when querying for missed notifications, it would use this NEW timestamp instead of the OLD one, finding zero results. Now properly captures and uses the previous lastSeen timestamp.
+
 ### Features Implemented
 
 #### 1. **Real-time Notification System**
@@ -90,14 +93,39 @@ Projects adds element → Notification saved to DB → Published to Redis
 3. **Logout and login again**
 4. **Should NOT see the same notification again**
 
+### Bug Fix Details
+
+**Problem:**
+When users logged in, they saw zero notifications even when notifications were created while they were offline.
+
+**Root Cause:**
+```
+1. User logs in → registerDevice() called
+2. registerDevice() updates lastSeen = NOW and saves to DB
+3. loadMissedNotifications() calls getLastSeenTime()
+4. getLastSeenTime() returns the NEW timestamp (just saved)
+5. Query: SELECT * FROM notifications WHERE timestamp > NOW
+6. Result: 0 notifications (because they were created BEFORE now)
+```
+
+**Solution:**
+```
+1. Capture OLD lastSeen timestamp BEFORE updating device
+2. Store it in previousLastSeen instance variable
+3. Added getPreviousLastSeen() method
+4. NotificationManager now uses getPreviousLastSeen() for queries
+5. Query: SELECT * FROM notifications WHERE timestamp > OLD_TIMESTAMP
+6. Result: All notifications since last logout ✅
+```
+
 ### Files Changed
 
 **Core Notification System:**
-- `NotificationManager.java` - UI integration and missed notification loading
+- `NotificationManager.java` - UI integration and missed notification loading (✅ Fixed timestamp query)
 - `NotificationService.java` - Notification publishing and storage
 - `NotificationListenerService.java` - Redis subscription handling
 - `NotificationPopup.java` - Popup UI with approval buttons
-- `DeviceRegistrationService.java` - Device tracking
+- `DeviceRegistrationService.java` - Device tracking (✅ Captures previous lastSeen)
 
 **Approval Workflow:**
 - `ProjectElementService.java` - Sends approval notification on element creation
