@@ -52,13 +52,18 @@ public class MainApp extends Application {
         System.out.println("JavaFX start() method called!");
 
         try {
-            SceneManager sceneManager = springContext.getBean(SceneManager.class);
-            sceneManager.setPrimaryStage(primaryStage);
+            // Configure stage BEFORE showing it to prevent white flash
             primaryStage.setTitle("MagicTech Management System");
             primaryStage.setMinWidth(1024);
             primaryStage.setMinHeight(768);
+
+            // Initialize SceneManager and load login scene
+            SceneManager sceneManager = springContext.getBean(SceneManager.class);
+            sceneManager.setPrimaryStage(primaryStage);
+            sceneManager.showLogin(); // Load scene first
+
+            // NOW show the stage after scene is loaded (prevents white flash)
             primaryStage.setMaximized(true); // ✅ Start in fullscreen mode
-            sceneManager.showLogin();
             primaryStage.show();
             System.out.println("JavaFX UI initialized and displayed successfully!");
 

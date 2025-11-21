@@ -39,13 +39,18 @@ public class NotificationPopup {
     private Stage stage;
     private Timeline autoCloseTimeline;
     private boolean isApprovalNotification = false;
+    private NotificationMessage currentMessage; // Store current message for marking as resolved
+    private String currentUsername; // Store username for marking as resolved
 
     /**
      * Show a notification popup.
      *
      * @param message The notification message to display
+     * @param username The username of the current user (for marking approvals as resolved)
      */
-    public void show(NotificationMessage message) {
+    public void show(NotificationMessage message, String username) {
+        this.currentMessage = message; // Store the message
+        this.currentUsername = username; // Store the username
         Platform.runLater(() -> {
             try {
                 createAndShowPopup(message);
@@ -187,16 +192,26 @@ public class NotificationPopup {
     private void handleApproval(Long elementId, boolean approved) {
         new Thread(() -> {
             try {
-                // Get Spring context and service bean
+                // Get Spring context and service beans
                 ApplicationContext context = MainApp.getSpringContext();
                 ProjectElementService elementService = context.getBean(ProjectElementService.class);
+                com.magictech.core.messaging.service.NotificationService notificationService =
+                    context.getBean(com.magictech.core.messaging.service.NotificationService.class);
 
+                // Approve or reject the project element
                 if (approved) {
-                    elementService.approveElement(elementId, "Sales");
-                    System.out.println("Project element " + elementId + " approved");
+                    elementService.approveElement(elementId, currentUsername);
+                    System.out.println("Project element " + elementId + " approved by " + currentUsername);
                 } else {
-                    elementService.rejectElement(elementId, "Sales", "Rejected from notification");
-                    System.out.println("Project element " + elementId + " rejected");
+                    elementService.rejectElement(elementId, currentUsername, "Rejected from notification");
+                    System.out.println("Project element " + elementId + " rejected by " + currentUsername);
+                }
+
+                // IMPORTANT: Mark the notification as resolved so it doesn't appear again
+                if (currentMessage != null && currentMessage.getNotificationId() != null) {
+                    notificationService.markAsResolved(currentMessage.getNotificationId(), currentUsername);
+                    System.out.println("Notification " + currentMessage.getNotificationId() +
+                        " marked as resolved by " + currentUsername);
                 }
 
             } catch (Exception ex) {

@@ -264,4 +264,36 @@ public class NotificationService {
             return notificationRepository.findRecentNotificationsByModule(module, fromDate);
         }
     }
+
+    /**
+     * Mark a notification as resolved (for approval notifications).
+     * This is called when someone approves/rejects an approval request.
+     *
+     * @param notificationId The notification ID
+     * @param resolvedBy Username of the person resolving the notification
+     */
+    public void markAsResolved(Long notificationId, String resolvedBy) {
+        try {
+            notificationRepository.findById(notificationId).ifPresent(notification -> {
+                notification.setResolved(true);
+                notification.setResolvedBy(resolvedBy);
+                notification.setResolvedAt(LocalDateTime.now());
+                notificationRepository.save(notification);
+                logger.info("Notification {} marked as resolved by {}", notificationId, resolvedBy);
+            });
+        } catch (Exception e) {
+            logger.error("Error marking notification as resolved: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Get unresolved approval notifications.
+     * Used to show approval notifications to all authorized users until someone resolves them.
+     *
+     * @param action The action type (e.g., "APPROVAL_REQUESTED")
+     * @return List of unresolved approval notifications
+     */
+    public java.util.List<Notification> getUnresolvedApprovalNotifications(String action) {
+        return notificationRepository.findByActionAndResolvedFalseAndActiveTrue(action);
+    }
 }
