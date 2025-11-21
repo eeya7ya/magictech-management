@@ -169,8 +169,6 @@ public class SceneManager {
             try {
                 if (activeModuleController instanceof StorageController) {
                     ((StorageController) activeModuleController).immediateCleanup();
-                } else if (activeModuleController instanceof com.magictech.modules.sales.SalesModuleController) {
-                    ((com.magictech.modules.sales.SalesModuleController) activeModuleController).immediateCleanup();
                 } else if (activeModuleController instanceof SalesStorageController) {
                     ((SalesStorageController) activeModuleController).immediateCleanup();
                 } else if (activeModuleController instanceof MaintenanceStorageController) {
@@ -314,7 +312,7 @@ public class SceneManager {
     }
 
     /**
-     * ✅ FIXED: Show Unified Sales Module (with internal tabs for Sales Orders & Customers)
+     * ✅ FIXED: Show Sales Module
      */
     public void showSalesModule() {
         if (isTransitioning) return;
@@ -330,8 +328,7 @@ public class SceneManager {
                 try {
                     immediateCleanup();
 
-                    com.magictech.modules.sales.SalesModuleController salesController =
-                        new com.magictech.modules.sales.SalesModuleController();
+                    SalesStorageController salesController = new SalesStorageController();
                     context.getAutowireCapableBeanFactory().autowireBean(salesController);
 
                     ModuleConfig config = ModuleConfig.createSalesConfig();
@@ -351,7 +348,7 @@ public class SceneManager {
 
                     createLoadingOverlay();
                     hideLoading();
-                    System.out.println("✓ Unified Sales module loaded");
+                    System.out.println("✓ Sales module loaded");
 
                 } catch (Exception e) {
                     System.err.println("Error loading Sales Module: " + e.getMessage());
@@ -567,8 +564,7 @@ public class SceneManager {
                 showSalesModule();
                 break;
             case "customers":
-                // Customers are now part of the unified Sales Module
-                showSalesModule();
+                showCustomersModule();
                 break;
             case "maintenance":
                 showMaintenanceModule();
