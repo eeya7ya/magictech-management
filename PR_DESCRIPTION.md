@@ -6,32 +6,50 @@ Implements a complete notification system with real-time messaging, missed notif
 
 ### ✅ LATEST UPDATES
 
-#### 1. **Security: Role-Based Approval Notifications** 🔒 (NEW)
+#### 1. **Approval Workflow Actually Works Now!** ✅ (NEW - CRITICAL FIX)
+- Fixed bug where Accept/Reject buttons didn't update the database
+- Approval actions now properly mark notifications as resolved
+- Element status correctly changes to APPROVED/REJECTED
+- Database properly tracks who resolved and when
+
+#### 2. **Persistent Approvals for ALL Authorized Users** 🔄 (NEW - CRITICAL FIX)
+- Approval notifications now persist until **someone** resolves them
+- **ALL authorized users** (SALES, STORAGE, MASTER) see unresolved approvals
+- If yahya forgets to approve, mosa will still see it on login
+- Only disappears once someone takes action (approve/reject)
+- Not limited to last logout - truly persistent across all sessions
+
+#### 3. **Fixed White Flash on Startup** 💫 (NEW)
+- No more annoying white screen flash when launching the app
+- Scene loads completely before window appears
+- Smooth startup experience
+
+#### 4. **Security: Role-Based Approval Notifications** 🔒
 - Approval notifications now **only visible to authorized users**
 - **Authorized roles:** SALES, STORAGE, MASTER
 - **Blocked roles:** PROJECTS, MAINTENANCE, PRICING, CLIENT
 - Prevents unauthorized users from seeing/approving project elements
 - Enhanced security logging for authorization checks
 
-#### 2. **Security: Force Dismiss on Logout** 🚪 (NEW)
+#### 5. **Security: Force Dismiss on Logout** 🚪
 - All popups **immediately dismissed** when user logs out
 - Prevents approval notifications from persisting across user sessions
 - No information leakage between users
 - Added `dismissImmediately()` method for instant popup closure
 
-#### 3. **Persistent Approval Notifications** 🔔
+#### 6. **Persistent Approval Notifications** 🔔
 - Approval notifications now **stay visible until Accept/Reject is clicked**
 - No auto-dismiss for approval requests (user must take action)
 - Orange border indicator shows it's a persistent notification
 - Regular notifications still auto-dismiss after 5 seconds
 
-#### 4. **Notification Sound** 🔊
+#### 7. **Notification Sound** 🔊
 - Pleasant two-tone beep plays on all notifications
 - Smooth fade in/out envelope for non-intrusive audio
 - 50% volume for comfortable listening
 - Fallback to system beep if sound file missing
 
-#### 5. **Critical Timestamp Bug Fix** 🐛
+#### 8. **Critical Timestamp Bug Fix** 🐛
 Fixed timestamp bug that prevented missed notifications from loading. The issue was that `registerDevice()` was updating the `lastSeen` timestamp to NOW, then when querying for missed notifications, it would use this NEW timestamp instead of the OLD one, finding zero results. Now properly captures and uses the previous lastSeen timestamp.
 
 ### Features Implemented
@@ -147,7 +165,7 @@ Projects adds element → Notification saved to DB → Published to Redis
 6. **Expected:** NO approval notification shown (blocked by role)
 7. Check logs: "User yahya (role: PROJECTS) is not authorized to see approval notifications"
 
-#### Test 8: Security - Force Dismiss on Logout 🚪 (NEW)
+#### Test 8: Security - Force Dismiss on Logout 🚪
 1. Login as **mosa** (SALES role)
 2. Approval notification appears with orange border
 3. **DO NOT click Accept/Reject**
@@ -156,6 +174,32 @@ Projects adds element → Notification saved to DB → Published to Redis
 6. Login as different user (any role)
 7. **Expected:** Old notification NOT visible
 8. Check logs: "Dismissing X active popup(s)" and "Dismissed popup immediately"
+
+#### Test 9: Approval Workflow Works ✅ (NEW - CRITICAL)
+1. Login as **yahya** (MASTER)
+2. Open **Projects** module
+3. Add storage element to project
+4. **Logout**
+5. Login as **mosa** (SALES)
+6. **Click Accept** on approval notification
+7. **Expected:** Notification disappears
+8. Go to Projects module → Check element status = "APPROVED"
+9. Check database: notification.resolved = true
+10. Check database: notification.resolved_by = "mosa"
+
+#### Test 10: Persistent Approvals for All Users 🔄 (NEW - CRITICAL)
+1. Login as **yahya** (MASTER)
+2. Open **Projects** module
+3. Add storage element (creates approval notification)
+4. **Logout WITHOUT accepting**
+5. Login as **yahya** again
+6. **Expected:** Still see approval notification (persistent!)
+7. **Logout WITHOUT accepting**
+8. Login as **mosa** (SALES - different user)
+9. **Expected:** mosa ALSO sees the approval notification
+10. **mosa clicks Accept**
+11. **Logout and login as different SALES user**
+12. **Expected:** Notification gone (resolved)
 
 ### Bug Fix Details
 
@@ -212,7 +256,11 @@ When users logged in, they saw zero notifications even when notifications were c
 - ✅ Real-time delivery via Redis pub/sub
 - ✅ Missed notifications loaded on login
 - ✅ No duplicate notifications
-- ✅ Approval workflow with Accept/Reject
+- ✅ **Approval workflow actually works!** (Accept/Reject updates database)
+- ✅ **Database tracking** of resolved notifications (who, when)
+- ✅ **Persistent approvals for ALL authorized users** (not just last logout)
+- ✅ **Approval persists until someone resolves it** (yahya forgets → mosa sees it)
+- ✅ **Fixed white flash on startup** (smooth launch experience)
 - ✅ Role-based notification filtering
 - ✅ **Persistent approval popups** (stay until user action)
 - ✅ **Auto-dismiss regular notifications** (5 seconds)
