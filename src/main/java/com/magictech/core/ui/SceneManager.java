@@ -1,6 +1,7 @@
 package com.magictech.core.ui;
 
 import com.magictech.core.auth.User;
+import com.magictech.core.messaging.ui.NotificationManager;
 import com.magictech.core.module.ModuleConfig;
 import com.magictech.core.ui.controllers.MainDashboardController;
 import com.magictech.modules.storage.StorageController;
@@ -45,6 +46,9 @@ public class SceneManager {
 
     @Autowired
     private ApplicationContext context;
+
+    @Autowired
+    private NotificationManager notificationManager;
 
     // Track active controllers for cleanup
     private MainDashboardController activeDashboard;
@@ -154,6 +158,16 @@ public class SceneManager {
      * ✅ IMMEDIATE cleanup - no delays
      */
     private void immediateCleanup() {
+        // Clean up notification system
+        try {
+            if (notificationManager != null && notificationManager.isInitialized()) {
+                notificationManager.cleanup();
+                System.out.println("✓ Notification system cleaned up");
+            }
+        } catch (Exception e) {
+            System.err.println("Notification cleanup warning: " + e.getMessage());
+        }
+
         // Clean up dashboard
         if (activeDashboard != null) {
             try {
@@ -250,6 +264,15 @@ public class SceneManager {
                 // Recreate loading overlay for new scene
                 createLoadingOverlay();
                 isTransitioning = false;
+
+                // Initialize notification system
+                // Use "storage" as default module type since it subscribes to all channels
+                try {
+                    notificationManager.initialize(currentUser, "storage");
+                    System.out.println("✓ Notification system initialized");
+                } catch (Exception e) {
+                    System.err.println("Warning: Failed to initialize notification system: " + e.getMessage());
+                }
 
                 System.out.println("✓ Dashboard loaded - NO WHITE FLASH");
 
