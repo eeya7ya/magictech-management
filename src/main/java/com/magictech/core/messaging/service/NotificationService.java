@@ -140,6 +140,30 @@ public class NotificationService {
     }
 
     /**
+     * Send a storage element approval request from Projects to Sales module.
+     */
+    public void notifyElementApprovalRequest(Long elementId, Long projectId, String projectName,
+                                             String itemName, Integer quantity, String requestedBy) {
+        NotificationMessage message = new NotificationMessage.Builder()
+            .type(NotificationConstants.TYPE_WARNING)
+            .module(NotificationConstants.MODULE_PROJECTS)
+            .action("APPROVAL_REQUESTED")
+            .entityType("PROJECT_ELEMENT")
+            .entityId(elementId)
+            .title("Storage Element Approval Required")
+            .message(String.format("Project '%s' requests %d x %s - Approval needed",
+                projectName, quantity, itemName))
+            .targetModule(NotificationConstants.MODULE_SALES)
+            .priority(NotificationConstants.PRIORITY_HIGH)
+            .createdBy(requestedBy)
+            .metadata(String.format("{\"projectId\":%d,\"elementId\":%d,\"quantity\":%d}",
+                projectId, elementId, quantity))
+            .build();
+
+        publishNotification(message);
+    }
+
+    /**
      * Send a confirmation request notification from Projects to Sales module.
      */
     public void notifyConfirmationRequested(Long projectId, String projectName, String requestedBy) {
@@ -208,8 +232,13 @@ public class NotificationService {
 
     /**
      * Get missed notifications for a device since last connection.
+     * If deviceId is null, returns ALL missed notifications (for storage/admin).
      */
     public java.util.List<Notification> getMissedNotifications(String deviceId, LocalDateTime lastSeen) {
+        if (deviceId == null) {
+            // Get all notifications after timestamp
+            return notificationRepository.findByTimestampAfterAndActiveTrue(lastSeen);
+        }
         return notificationRepository.findMissedNotifications(deviceId, lastSeen);
     }
 

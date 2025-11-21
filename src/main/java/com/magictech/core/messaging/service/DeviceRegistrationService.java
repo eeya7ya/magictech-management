@@ -181,6 +181,24 @@ public class DeviceRegistrationService {
     }
 
     /**
+     * Get the last seen time of the current device.
+     * Returns null if this is a first-time login.
+     */
+    public LocalDateTime getLastSeenTime() {
+        if (currentDeviceId == null) {
+            return null;
+        }
+
+        try {
+            Optional<DeviceRegistration> device = deviceRepository.findByDeviceIdAndActiveTrue(currentDeviceId);
+            return device.map(DeviceRegistration::getLastSeen).orElse(null);
+        } catch (Exception e) {
+            logger.error("Error getting last seen time: {}", e.getMessage(), e);
+            return null;
+        }
+    }
+
+    /**
      * Scheduled task to check for stale devices (missed heartbeats).
      * Runs every minute.
      */

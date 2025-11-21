@@ -16,6 +16,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 public class MainApp extends Application {
 
     private ConfigurableApplicationContext springContext;
+    private static ConfigurableApplicationContext staticSpringContext;
     private static String[] savedArgs;
 
     public static void main(String[] args) {
@@ -23,10 +24,18 @@ public class MainApp extends Application {
         Application.launch(MainApp.class, args);
     }
 
+    /**
+     * Get the Spring application context (for accessing beans outside of Spring).
+     */
+    public static ConfigurableApplicationContext getSpringContext() {
+        return staticSpringContext;
+    }
+
     @Override
     public void init() throws Exception {
         System.out.println("Initializing Spring Boot context...");
         springContext = SpringApplication.run(MainApp.class, savedArgs);
+        staticSpringContext = springContext; // Store static reference
         System.out.println("Spring Boot context initialized successfully!");
 
         String port = springContext.getEnvironment().getProperty("server.port", "8080");
