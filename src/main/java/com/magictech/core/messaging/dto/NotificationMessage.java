@@ -10,6 +10,7 @@ public class NotificationMessage implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
+    private Long notificationId; // ID of the notification in the database
     private String type; // INFO, WARNING, SUCCESS, ERROR
     private String module; // sales, projects, storage, maintenance, pricing
     private String action; // created, updated, deleted, confirmed, completed
@@ -45,6 +46,11 @@ public class NotificationMessage implements Serializable {
 
         public Builder() {
             this.message = new NotificationMessage();
+        }
+
+        public Builder notificationId(Long notificationId) {
+            message.notificationId = notificationId;
+            return this;
         }
 
         public Builder type(String type) {
@@ -123,6 +129,14 @@ public class NotificationMessage implements Serializable {
     }
 
     // Getters and Setters
+    public Long getNotificationId() {
+        return notificationId;
+    }
+
+    public void setNotificationId(Long notificationId) {
+        this.notificationId = notificationId;
+    }
+
     public String getType() {
         return type;
     }

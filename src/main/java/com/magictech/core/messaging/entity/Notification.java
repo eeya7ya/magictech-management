@@ -45,6 +45,15 @@ public class Notification {
     @Column(name = "read_status", nullable = false)
     private Boolean readStatus = false;
 
+    @Column(name = "resolved", nullable = false)
+    private Boolean resolved = false; // For approval notifications - true when approved/rejected
+
+    @Column(name = "resolved_by", length = 100)
+    private String resolvedBy; // Username of person who resolved the approval
+
+    @Column(name = "resolved_at")
+    private LocalDateTime resolvedAt; // When the approval was resolved
+
     @Column(name = "timestamp", nullable = false)
     private LocalDateTime timestamp;
 
@@ -72,6 +81,9 @@ public class Notification {
         }
         if (this.readStatus == null) {
             this.readStatus = false;
+        }
+        if (this.resolved == null) {
+            this.resolved = false;
         }
         if (this.priority == null) {
             this.priority = "MEDIUM";
@@ -224,5 +236,29 @@ public class Notification {
 
     public void setActive(Boolean active) {
         this.active = active;
+    }
+
+    public Boolean getResolved() {
+        return resolved;
+    }
+
+    public void setResolved(Boolean resolved) {
+        this.resolved = resolved;
+    }
+
+    public String getResolvedBy() {
+        return resolvedBy;
+    }
+
+    public void setResolvedBy(String resolvedBy) {
+        this.resolvedBy = resolvedBy;
+    }
+
+    public LocalDateTime getResolvedAt() {
+        return resolvedAt;
+    }
+
+    public void setResolvedAt(LocalDateTime resolvedAt) {
+        this.resolvedAt = resolvedAt;
     }
 }

@@ -85,4 +85,10 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
            "(n.targetModule IS NULL OR n.targetModule = 'ALL') " +
            "ORDER BY n.timestamp DESC")
     List<Notification> findBroadcastNotifications();
+
+    /**
+     * Find unresolved approval notifications by action type.
+     * Used to show approval notifications to all authorized users until resolved.
+     */
+    List<Notification> findByActionAndResolvedFalseAndActiveTrue(String action);
 }

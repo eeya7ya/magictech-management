@@ -107,17 +107,33 @@ public class NotificationManager {
 
     /**
      * Load and display missed notifications from database.
-     * Only shows notifications created SINCE the user's last logout (not on every login).
+     * - Regular notifications: Only show since last logout
+     * - Approval notifications: Show ALL unresolved approvals (for authorized users)
      */
     private void loadMissedNotifications(String moduleType) {
         try {
-            // Get the PREVIOUS last seen time (before this login)
-            // This is critical - using getLastSeenTime() would return the CURRENT timestamp
+            // FIRST: Load unresolved approval notifications if user is authorized
+            // These persist across logins until someone resolves them
+            if (isAuthorizedForApprovals()) {
+                List<Notification> unresolvedApprovals =
+                    notificationService.getUnresolvedApprovalNotifications("APPROVAL_REQUESTED");
+
+                logger.info("Found {} unresolved approval notifications for user {}",
+                    unresolvedApprovals.size(), currentUser.getUsername());
+
+                for (Notification notification : unresolvedApprovals) {
+                    NotificationMessage message = convertToMessage(notification);
+                    handleNotification(message);
+                    Thread.sleep(300);
+                }
+            }
+
+            // SECOND: Load regular missed notifications since last logout
             java.time.LocalDateTime lastSeen = deviceService.getPreviousLastSeen();
 
             if (lastSeen == null) {
-                // First time login - don't show any historical notifications
-                logger.info("First login detected, skipping historical notifications");
+                // First time login - skip regular notifications (but approvals were already shown)
+                logger.info("First login detected, skipping regular historical notifications");
                 return;
             }
 
@@ -132,16 +148,18 @@ public class NotificationManager {
                 missedNotifications = notificationService.getMissedNotificationsByModule(moduleType.toLowerCase(), lastSeen);
             }
 
-            logger.info("Found {} missed notifications since {} for module {}",
+            logger.info("Found {} regular missed notifications since {} for module {}",
                 missedNotifications.size(), lastSeen, moduleType);
 
-            // Display each notification
+            // Display each notification (excluding approval requests - already shown above)
             for (Notification notification : missedNotifications) {
-                // Convert to NotificationMessage and display
+                // Skip approval requests - already handled above
+                if ("APPROVAL_REQUESTED".equals(notification.getAction())) {
+                    continue;
+                }
+
                 NotificationMessage message = convertToMessage(notification);
                 handleNotification(message);
-
-                // Small delay between popups to avoid overlap
                 Thread.sleep(300);
             }
 
@@ -155,6 +173,7 @@ public class NotificationManager {
      */
     private NotificationMessage convertToMessage(Notification notification) {
         return new NotificationMessage.Builder()
+            .notificationId(notification.getId()) // IMPORTANT: Include notification ID for marking as resolved
             .type(notification.getType())
             .module(notification.getModule())
             .action(notification.getAction())
@@ -191,7 +210,7 @@ public class NotificationManager {
 
             // Create and show popup
             NotificationPopup popup = new NotificationPopup();
-            popup.show(message);
+            popup.show(message, currentUser.getUsername()); // Pass username for marking as resolved
             activePopups.add(popup);
 
             // Remove from active popups after it auto-dismisses
