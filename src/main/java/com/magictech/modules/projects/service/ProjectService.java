@@ -58,6 +58,20 @@ public class ProjectService {
         project.setActive(true);
         Project savedProject = repository.save(project);
 
+        // Publish notification about new project creation
+        try {
+            notificationService.publishProjectNotification(
+                "created",
+                savedProject.getId(),
+                savedProject.getProjectName(),
+                savedProject.getCreatedBy() != null ? savedProject.getCreatedBy() : "Unknown"
+            );
+            System.out.println("✅ Published notification for new project: " + savedProject.getProjectName());
+        } catch (Exception e) {
+            System.err.println("❌ Failed to publish project creation notification: " + e.getMessage());
+            e.printStackTrace();
+        }
+
         return savedProject;
     }
 
@@ -80,6 +94,20 @@ public class ProjectService {
             project.setLastUpdated(LocalDateTime.now());
 
             Project saved = repository.save(project);
+
+            // Publish notification about project update
+            try {
+                notificationService.publishProjectNotification(
+                    "updated",
+                    saved.getId(),
+                    saved.getProjectName(),
+                    saved.getCreatedBy() != null ? saved.getCreatedBy() : "Unknown"
+                );
+                System.out.println("✅ Published notification for updated project: " + saved.getProjectName());
+            } catch (Exception e) {
+                System.err.println("❌ Failed to publish project update notification: " + e.getMessage());
+                e.printStackTrace();
+            }
 
             return saved;
         }
