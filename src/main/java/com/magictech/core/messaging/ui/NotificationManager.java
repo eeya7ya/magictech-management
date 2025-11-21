@@ -121,7 +121,19 @@ public class NotificationManager {
                 logger.info("Found {} unresolved approval notifications for user {}",
                     unresolvedApprovals.size(), currentUser.getUsername());
 
+                // Get current device ID to filter out sender's own notifications
+                String currentDeviceId = deviceService.getCurrentDeviceId();
+
                 for (Notification notification : unresolvedApprovals) {
+                    // Filter out notifications created by this user's device
+                    String sourceDeviceId = notification.getSourceDeviceId();
+                    if (currentDeviceId != null && sourceDeviceId != null &&
+                        currentDeviceId.equals(sourceDeviceId)) {
+                        logger.debug("Skipping approval notification '{}' - created by current device",
+                            notification.getTitle());
+                        continue; // Don't show user their own approval requests
+                    }
+
                     NotificationMessage message = convertToMessage(notification);
                     handleNotification(message);
                     Thread.sleep(300);
@@ -152,11 +164,26 @@ public class NotificationManager {
             logger.info("Found {} regular missed notifications since {} for module {}",
                 missedNotifications.size(), lastSeen, moduleType);
 
+            // Get current device ID to filter out sender's own notifications
+            String currentDeviceId = deviceService.getCurrentDeviceId();
+            logger.debug("Current device ID: {}", currentDeviceId);
+
             // Display each notification (excluding approval requests - already shown above)
             for (Notification notification : missedNotifications) {
                 // Skip approval requests - already handled above
                 if ("APPROVAL_REQUESTED".equals(notification.getAction())) {
                     continue;
+                }
+
+                // IMPORTANT: Filter out notifications created by this user's device
+                // This implements the excludeSender behavior for missed notifications
+                // (the real-time listener already does this for live notifications)
+                String sourceDeviceId = notification.getSourceDeviceId();
+                if (currentDeviceId != null && sourceDeviceId != null &&
+                    currentDeviceId.equals(sourceDeviceId)) {
+                    logger.debug("Skipping notification '{}' - created by current device (excludeSender)",
+                        notification.getTitle());
+                    continue; // Don't show user their own notifications
                 }
 
                 NotificationMessage message = convertToMessage(notification);
