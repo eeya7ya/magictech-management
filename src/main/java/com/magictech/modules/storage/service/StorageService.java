@@ -182,6 +182,46 @@ public class StorageService {
     }
 
     /**
+     * Deduct quantity from storage item (used when approving project elements)
+     */
+    @Transactional
+    public StorageItem deductQuantity(Long id, Integer quantityToDeduct) {
+        StorageItem item = repository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Storage item not found with id: " + id));
+
+        int currentQuantity = item.getQuantity() != null ? item.getQuantity() : 0;
+        int newQuantity = Math.max(0, currentQuantity - quantityToDeduct);
+
+        item.setQuantity(newQuantity);
+        item.setLastUpdated(LocalDateTime.now());
+
+        logger.info("Deducted {} units from storage item {} (was: {}, now: {})",
+                quantityToDeduct, id, currentQuantity, newQuantity);
+
+        return repository.save(item);
+    }
+
+    /**
+     * Add quantity back to storage item (used when rejecting project elements)
+     */
+    @Transactional
+    public StorageItem addQuantity(Long id, Integer quantityToAdd) {
+        StorageItem item = repository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Storage item not found with id: " + id));
+
+        int currentQuantity = item.getQuantity() != null ? item.getQuantity() : 0;
+        int newQuantity = currentQuantity + quantityToAdd;
+
+        item.setQuantity(newQuantity);
+        item.setLastUpdated(LocalDateTime.now());
+
+        logger.info("Added {} units to storage item {} (was: {}, now: {})",
+                quantityToAdd, id, currentQuantity, newQuantity);
+
+        return repository.save(item);
+    }
+
+    /**
      * Get total count of active items
      */
     public long getTotalItemCount() {

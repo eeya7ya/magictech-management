@@ -3,6 +3,7 @@ package com.magictech.modules.projects.service;
 import com.magictech.core.messaging.service.NotificationService;
 import com.magictech.modules.projects.entity.ProjectElement;
 import com.magictech.modules.projects.repository.ProjectElementRepository;
+import com.magictech.modules.storage.service.StorageService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,6 +23,9 @@ public class ProjectElementService {
 
     @Autowired
     private NotificationService notificationService;
+
+    @Autowired
+    private StorageService storageService;
 
     @Transactional
     public ProjectElement createElement(ProjectElement element) {
@@ -102,6 +106,10 @@ public class ProjectElementService {
 
     /**
      * Approve a pending project element (called by Sales module).
+     * This will:
+     * 1. Set element status to "APPROVED"
+     * 2. Keep element in project (active = true)
+     * 3. Deduct quantity from storage database
      */
     @Transactional
     public ProjectElement approveElement(Long id, String approvedBy) {
@@ -112,8 +120,22 @@ public class ProjectElementService {
             throw new IllegalStateException("Element is not pending approval");
         }
 
+        // Update element status
         element.setStatus("APPROVED");
         element.setAllocatedDate(LocalDateTime.now());
+        element.setQuantityAllocated(element.getQuantityNeeded()); // Allocate the full quantity
+
+        // Deduct quantity from storage
+        if (element.getStorageItem() != null && element.getQuantityNeeded() != null && element.getQuantityNeeded() > 0) {
+            try {
+                storageService.deductQuantity(element.getStorageItem().getId(), element.getQuantityNeeded());
+                logger.info("Deducted {} units of item {} from storage for project element {}",
+                        element.getQuantityNeeded(), element.getStorageItem().getId(), id);
+            } catch (Exception e) {
+                logger.error("Failed to deduct quantity from storage: {}", e.getMessage(), e);
+                throw new RuntimeException("Failed to update storage quantity: " + e.getMessage());
+            }
+        }
 
         logger.info("Project element {} approved by {}", id, approvedBy);
 
@@ -122,6 +144,10 @@ public class ProjectElementService {
 
     /**
      * Reject a pending project element (called by Sales module).
+     * This will:
+     * 1. Remove element from project (soft delete: active = false)
+     * 2. Return quantity back to storage database
+     * 3. Set status to "REJECTED" for logging
      */
     @Transactional
     public ProjectElement rejectElement(Long id, String rejectedBy, String reason) {
@@ -132,13 +158,29 @@ public class ProjectElementService {
             throw new IllegalStateException("Element is not pending approval");
         }
 
+        // Update element status
         element.setStatus("REJECTED");
         if (reason != null && !reason.isEmpty()) {
             element.setNotes(element.getNotes() != null ?
                 element.getNotes() + "\n\nRejection reason: " + reason : "Rejection reason: " + reason);
         }
 
-        logger.info("Project element {} rejected by {}: {}", id, rejectedBy, reason);
+        // Return quantity back to storage
+        if (element.getStorageItem() != null && element.getQuantityNeeded() != null && element.getQuantityNeeded() > 0) {
+            try {
+                storageService.addQuantity(element.getStorageItem().getId(), element.getQuantityNeeded());
+                logger.info("Returned {} units of item {} to storage from rejected project element {}",
+                        element.getQuantityNeeded(), element.getStorageItem().getId(), id);
+            } catch (Exception e) {
+                logger.error("Failed to return quantity to storage: {}", e.getMessage(), e);
+                throw new RuntimeException("Failed to update storage quantity: " + e.getMessage());
+            }
+        }
+
+        // Remove element from project (soft delete)
+        element.setActive(false);
+
+        logger.info("Project element {} rejected by {}: {} and removed from project", id, rejectedBy, reason);
 
         return elementRepository.save(element);
     }
