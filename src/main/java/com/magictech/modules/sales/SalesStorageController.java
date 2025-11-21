@@ -220,13 +220,33 @@ public class SalesStorageController extends BaseModuleController {
         titleLabel.setStyle("-fx-text-fill: white; -fx-font-size: 22px; -fx-font-weight: bold;");
         HBox.setHgrow(titleLabel, Priority.ALWAYS);
 
+        Button editCustomerBtn = createStyledButton("✏️ Edit", "#f59e0b", "#d97706");
+        editCustomerBtn.setOnAction(e -> {
+            Customer selected = customersListView.getSelectionModel().getSelectedItem();
+            if (selected != null) {
+                handleEditCustomer(selected);
+            } else {
+                showWarning("Please select a customer first");
+            }
+        });
+
+        Button deleteCustomerBtn = createStyledButton("🗑️ Delete", "#ef4444", "#dc2626");
+        deleteCustomerBtn.setOnAction(e -> {
+            Customer selected = customersListView.getSelectionModel().getSelectedItem();
+            if (selected != null) {
+                handleDeleteCustomer(selected);
+            } else {
+                showWarning("Please select a customer first");
+            }
+        });
+
         Button exportCustomersBtn = createStyledButton("📥 Export", "#8b5cf6", "#7c3aed");
         exportCustomersBtn.setOnAction(e -> handleExportCustomers());
 
         Button addCustomerBtn = createStyledButton("+ New Customer", "#22c55e", "#16a34a");
         addCustomerBtn.setOnAction(e -> handleAddCustomer());
 
-        header.getChildren().addAll(titleLabel, exportCustomersBtn, addCustomerBtn);
+        header.getChildren().addAll(titleLabel, editCustomerBtn, deleteCustomerBtn, exportCustomersBtn, addCustomerBtn);
 
         customersListView = new ListView<>();
         customersListView.setPrefHeight(500);
@@ -1261,19 +1281,26 @@ public class SalesStorageController extends BaseModuleController {
         previewArea.getChildren().add(placeholderLabel);
     }
 
-    // Replace the openCustomerDetails method - Customers don't need elements, only orders
-
+    // Customer details view - navigates within the same container (no new window)
     private void openCustomerDetails(Customer customer) {
-        Stage detailStage = new Stage();
-        detailStage.setTitle("Customer: " + customer.getName());
-        detailStage.initModality(Modality.APPLICATION_MODAL);
-
         VBox mainLayout = new VBox(20);
         mainLayout.setPadding(new Insets(30));
-        mainLayout.setStyle("-fx-background-color: linear-gradient(to bottom right, #1e293b, #0f172a);");
+        mainLayout.setStyle("-fx-background-color: transparent;");
+        VBox.setVgrow(mainLayout, Priority.ALWAYS);
+
+        // Header with back button
+        HBox headerBox = new HBox(20);
+        headerBox.setAlignment(Pos.CENTER_LEFT);
+        headerBox.setPadding(new Insets(0, 0, 10, 0));
+
+        Button backBtn = createStyledButton("← Back to Sales Dashboard", "#6b7280", "#4b5563");
+        backBtn.setOnAction(e -> returnToSalesDashboard());
 
         Label headerLabel = new Label("👤 " + customer.getName());
         headerLabel.setStyle("-fx-text-fill: white; -fx-font-size: 28px; -fx-font-weight: bold;");
+        HBox.setHgrow(headerLabel, Priority.ALWAYS);
+
+        headerBox.getChildren().addAll(backBtn, headerLabel);
 
         TabPane tabPane = new TabPane();
         tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
@@ -1291,21 +1318,18 @@ public class SalesStorageController extends BaseModuleController {
 
         tabPane.getTabs().addAll(contractsTab, costBreakdownTab);
 
-        Button closeBtn = createStyledButton("Close", "#6b7280", "#4b5563");
-        closeBtn.setPrefHeight(50);
-        closeBtn.setMaxWidth(Double.MAX_VALUE);
-        closeBtn.setOnAction(e -> detailStage.close());
+        mainLayout.getChildren().addAll(headerBox, tabPane);
 
-        mainLayout.getChildren().addAll(headerLabel, tabPane, closeBtn);
+        // Replace the current view with customer details
+        mainContainer.getChildren().clear();
+        mainContainer.getChildren().add(mainLayout);
+    }
 
-        javafx.stage.Screen screen = javafx.stage.Screen.getPrimary();
-        javafx.geometry.Rectangle2D bounds = screen.getVisualBounds();
-
-        Scene scene = new Scene(mainLayout, bounds.getWidth(), bounds.getHeight());
-        detailStage.setScene(scene);
-        detailStage.setMaximized(true);
-        detailStage.setResizable(true);
-        detailStage.showAndWait();
+    // Return to sales dashboard view
+    private void returnToSalesDashboard() {
+        mainContainer.getChildren().clear();
+        mainContainer.getChildren().add(dashboardScreen);
+        loadDashboardData(); // Refresh the data
     }
 
 
@@ -2260,6 +2284,111 @@ public class SalesStorageController extends BaseModuleController {
 
             new Thread(saveTask).start();
         });
+    }
+
+    private void handleEditCustomer(Customer customer) {
+        Dialog<Customer> dialog = new Dialog<>();
+        dialog.setTitle("✏️ Edit Customer");
+        dialog.setHeaderText("Edit Customer Details");
+
+        ButtonType saveButtonType = new ButtonType("Save", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(saveButtonType, ButtonType.CANCEL);
+
+        GridPane grid = new GridPane();
+        grid.setHgap(15);
+        grid.setVgap(15);
+        grid.setPadding(new Insets(20));
+
+        TextField nameField = new TextField(customer.getName());
+        nameField.setPromptText("Customer name");
+
+        TextField emailField = new TextField(customer.getEmail() != null ? customer.getEmail() : "");
+        emailField.setPromptText("Email (optional)");
+
+        TextField phoneField = new TextField(customer.getPhone() != null ? customer.getPhone() : "");
+        phoneField.setPromptText("Phone");
+
+        TextField addressField = new TextField(customer.getAddress() != null ? customer.getAddress() : "");
+        addressField.setPromptText("Address (optional)");
+
+        TextField companyField = new TextField(customer.getCompany() != null ? customer.getCompany() : "");
+        companyField.setPromptText("Company (optional)");
+
+        grid.add(new Label("Name:*"), 0, 0);
+        grid.add(nameField, 1, 0);
+        grid.add(new Label("Email:"), 0, 1);
+        grid.add(emailField, 1, 1);
+        grid.add(new Label("Phone:"), 0, 2);
+        grid.add(phoneField, 1, 2);
+        grid.add(new Label("Address:"), 0, 3);
+        grid.add(addressField, 1, 3);
+        grid.add(new Label("Company:"), 0, 4);
+        grid.add(companyField, 1, 4);
+
+        dialog.getDialogPane().setContent(grid);
+
+        dialog.setResultConverter(dialogButton -> {
+            if (dialogButton == saveButtonType) {
+                if (nameField.getText().trim().isEmpty()) {
+                    showError("Customer name is required");
+                    return null;
+                }
+
+                customer.setName(nameField.getText().trim());
+                customer.setEmail(emailField.getText().trim().isEmpty() ? null : emailField.getText().trim());
+                customer.setPhone(phoneField.getText().trim().isEmpty() ? null : phoneField.getText().trim());
+                customer.setAddress(addressField.getText().trim().isEmpty() ? null : addressField.getText().trim());
+                customer.setCompany(companyField.getText().trim().isEmpty() ? null : companyField.getText().trim());
+                customer.setUpdatedBy(currentUser != null ? currentUser.getUsername() : "system");
+                return customer;
+            }
+            return null;
+        });
+
+        dialog.showAndWait().ifPresent(updatedCustomer -> {
+            Task<Customer> updateTask = new Task<>() {
+                @Override
+                protected Customer call() {
+                    return customerService.updateCustomer(updatedCustomer.getId(), updatedCustomer);
+                }
+            };
+
+            updateTask.setOnSucceeded(e -> {
+                showSuccess("✓ Customer updated successfully!");
+                loadCustomers(customersListView);
+            });
+
+            updateTask.setOnFailed(e -> {
+                showError("Failed to update customer: " + updateTask.getException().getMessage());
+            });
+
+            new Thread(updateTask).start();
+        });
+    }
+
+    private void handleDeleteCustomer(Customer customer) {
+        if (showConfirmation("Delete Customer",
+                "Are you sure you want to delete customer: " + customer.getName() + "?\n\n" +
+                "This will soft-delete the customer (can be restored from database).")) {
+            Task<Void> deleteTask = new Task<>() {
+                @Override
+                protected Void call() {
+                    customerService.deleteCustomer(customer.getId());
+                    return null;
+                }
+            };
+
+            deleteTask.setOnSucceeded(e -> {
+                showSuccess("✓ Customer deleted successfully!");
+                loadCustomers(customersListView);
+            });
+
+            deleteTask.setOnFailed(e -> {
+                showError("Failed to delete customer: " + deleteTask.getException().getMessage());
+            });
+
+            new Thread(deleteTask).start();
+        }
     }
 
     // ==================== EXCEL EXPORT ====================
