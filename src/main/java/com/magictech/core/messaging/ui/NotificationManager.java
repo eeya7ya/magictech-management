@@ -104,24 +104,35 @@ public class NotificationManager {
 
     /**
      * Load and display missed notifications from database.
+     * Only shows notifications created SINCE the user's last logout (not on every login).
      */
     private void loadMissedNotifications(String moduleType) {
         try {
-            // Get recent notifications (last 7 days)
-            List<Notification> recentNotifications;
+            // Get the last time this device was online
+            java.time.LocalDateTime lastSeen = deviceService.getLastSeenTime();
 
-            if (NotificationConstants.MODULE_STORAGE.equalsIgnoreCase(moduleType)) {
-                // Storage gets ALL notifications
-                recentNotifications = notificationService.getRecentNotifications(null, 7);
-            } else {
-                // Other modules get only their module's notifications
-                recentNotifications = notificationService.getRecentNotifications(moduleType.toLowerCase(), 7);
+            if (lastSeen == null) {
+                // First time login - don't show any historical notifications
+                logger.info("First login detected, skipping historical notifications");
+                return;
             }
 
-            logger.info("Found {} recent notifications for module {}", recentNotifications.size(), moduleType);
+            // Get missed notifications since last logout
+            List<Notification> missedNotifications;
+
+            if (NotificationConstants.MODULE_STORAGE.equalsIgnoreCase(moduleType)) {
+                // Storage gets ALL missed notifications
+                missedNotifications = notificationService.getMissedNotifications(null, lastSeen);
+            } else {
+                // Other modules get only their module's missed notifications
+                missedNotifications = notificationService.getMissedNotificationsByModule(moduleType.toLowerCase(), lastSeen);
+            }
+
+            logger.info("Found {} missed notifications since {} for module {}",
+                missedNotifications.size(), lastSeen, moduleType);
 
             // Display each notification
-            for (Notification notification : recentNotifications) {
+            for (Notification notification : missedNotifications) {
                 // Convert to NotificationMessage and display
                 NotificationMessage message = convertToMessage(notification);
                 handleNotification(message);

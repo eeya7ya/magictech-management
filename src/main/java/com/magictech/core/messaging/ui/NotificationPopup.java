@@ -1,12 +1,14 @@
 package com.magictech.core.messaging.ui;
 
 import com.magictech.core.messaging.dto.NotificationMessage;
+import com.magictech.modules.projects.service.ProjectElementService;
 import javafx.animation.*;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.geometry.Rectangle2D;
 import javafx.scene.Scene;
+import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
@@ -16,6 +18,9 @@ import javafx.stage.StageStyle;
 import javafx.util.Duration;
 import org.kordamp.ikonli.fontawesome5.FontAwesomeSolid;
 import org.kordamp.ikonli.javafx.FontIcon;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
+import com.magictech.MainApp;
 
 /**
  * JavaFX notification popup that displays notifications in the bottom-right corner.
@@ -113,12 +118,77 @@ public class NotificationPopup {
         contentBox.setAlignment(Pos.CENTER_LEFT);
         contentBox.getChildren().addAll(icon, textBox);
 
-        VBox root = new VBox();
+        VBox root = new VBox(10);
         root.setPadding(new Insets(15));
         root.getChildren().add(contentBox);
+
+        // Add approval buttons if this is an approval request
+        if ("APPROVAL_REQUESTED".equals(message.getAction())) {
+            HBox buttonBox = createApprovalButtons(message);
+            root.getChildren().add(buttonBox);
+            // Increase popup height for buttons
+            stage.setHeight(130);
+        }
+
         root.setStyle("-fx-background-radius: 10; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 10, 0, 0, 2);");
 
         return root;
+    }
+
+    /**
+     * Create approval action buttons (Accept/Reject).
+     */
+    private HBox createApprovalButtons(NotificationMessage message) {
+        Button acceptBtn = new Button("Accept");
+        acceptBtn.setStyle("-fx-background-color: #27ae60; -fx-text-fill: white; -fx-padding: 5 15; " +
+                          "-fx-background-radius: 5; -fx-cursor: hand; -fx-font-size: 11px;");
+
+        Button rejectBtn = new Button("Reject");
+        rejectBtn.setStyle("-fx-background-color: #e74c3c; -fx-text-fill: white; -fx-padding: 5 15; " +
+                          "-fx-background-radius: 5; -fx-cursor: hand; -fx-font-size: 11px;");
+
+        // Handle accept
+        acceptBtn.setOnAction(e -> {
+            handleApproval(message.getEntityId(), true);
+            dismiss();
+        });
+
+        // Handle reject
+        rejectBtn.setOnAction(e -> {
+            handleApproval(message.getEntityId(), false);
+            dismiss();
+        });
+
+        HBox buttonBox = new HBox(10);
+        buttonBox.setAlignment(Pos.CENTER);
+        buttonBox.getChildren().addAll(acceptBtn, rejectBtn);
+
+        return buttonBox;
+    }
+
+    /**
+     * Handle approval/rejection of project element.
+     */
+    private void handleApproval(Long elementId, boolean approved) {
+        new Thread(() -> {
+            try {
+                // Get Spring context and service bean
+                ApplicationContext context = MainApp.getSpringContext();
+                ProjectElementService elementService = context.getBean(ProjectElementService.class);
+
+                if (approved) {
+                    elementService.approveElement(elementId, "Sales");
+                    System.out.println("Project element " + elementId + " approved");
+                } else {
+                    elementService.rejectElement(elementId, "Sales", "Rejected from notification");
+                    System.out.println("Project element " + elementId + " rejected");
+                }
+
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                System.err.println("Error handling approval: " + ex.getMessage());
+            }
+        }).start();
     }
 
     /**
