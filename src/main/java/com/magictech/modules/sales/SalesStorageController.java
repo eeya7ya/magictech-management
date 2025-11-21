@@ -2554,12 +2554,10 @@ public class SalesStorageController extends BaseModuleController {
     }
 
     private void navigateToDashboard() {
-        Platform.runLater(() -> {
-            mainContainer.getChildren().clear();
-            mainContainer.getChildren().add(dashboardScreen);
-            loadProjects(projectsListView);
-            loadCustomers(customersListView);
-        });
+        if (backgroundPane != null) {
+            backgroundPane.stopAnimation();
+        }
+        com.magictech.core.ui.SceneManager.getInstance().showMainDashboard();
     }
 
     public void setCurrentUser(User user) {
@@ -2567,6 +2565,10 @@ public class SalesStorageController extends BaseModuleController {
     }
 
     public void immediateCleanup() {
+        if (backgroundPane != null) {
+            backgroundPane.stopAnimation();
+            backgroundPane = null;
+        }
         System.out.println("✓ SalesStorageController cleanup completed");
     }
 
