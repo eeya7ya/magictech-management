@@ -3,13 +3,16 @@ package com.magictech.core.messaging.ui;
 import com.magictech.core.auth.User;
 import com.magictech.core.messaging.constants.NotificationConstants;
 import com.magictech.core.messaging.dto.NotificationMessage;
+import com.magictech.core.messaging.entity.Notification;
 import com.magictech.core.messaging.service.DeviceRegistrationService;
 import com.magictech.core.messaging.service.NotificationListenerService;
+import com.magictech.core.messaging.service.NotificationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executors;
@@ -30,6 +33,9 @@ public class NotificationManager {
 
     @Autowired
     private DeviceRegistrationService deviceService;
+
+    @Autowired
+    private NotificationService notificationService;
 
     private ScheduledExecutorService heartbeatScheduler;
     private Queue<NotificationPopup> activePopups = new ConcurrentLinkedQueue<>();
@@ -59,6 +65,9 @@ public class NotificationManager {
 
             // Register notification listener to show popups
             listenerService.addListener(this::handleNotification);
+
+            // Load and display missed notifications (last 7 days)
+            loadMissedNotifications(moduleType);
 
             // Start heartbeat scheduler
             startHeartbeat();
@@ -91,6 +100,59 @@ public class NotificationManager {
         } catch (Exception e) {
             logger.error("Error subscribing to channels: {}", e.getMessage(), e);
         }
+    }
+
+    /**
+     * Load and display missed notifications from database.
+     */
+    private void loadMissedNotifications(String moduleType) {
+        try {
+            // Get recent notifications (last 7 days)
+            List<Notification> recentNotifications;
+
+            if (NotificationConstants.MODULE_STORAGE.equalsIgnoreCase(moduleType)) {
+                // Storage gets ALL notifications
+                recentNotifications = notificationService.getRecentNotifications(null, 7);
+            } else {
+                // Other modules get only their module's notifications
+                recentNotifications = notificationService.getRecentNotifications(moduleType.toLowerCase(), 7);
+            }
+
+            logger.info("Found {} recent notifications for module {}", recentNotifications.size(), moduleType);
+
+            // Display each notification
+            for (Notification notification : recentNotifications) {
+                // Convert to NotificationMessage and display
+                NotificationMessage message = convertToMessage(notification);
+                handleNotification(message);
+
+                // Small delay between popups to avoid overlap
+                Thread.sleep(300);
+            }
+
+        } catch (Exception e) {
+            logger.error("Error loading missed notifications: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Convert database Notification entity to NotificationMessage DTO.
+     */
+    private NotificationMessage convertToMessage(Notification notification) {
+        return new NotificationMessage.Builder()
+            .type(notification.getType())
+            .module(notification.getModule())
+            .action(notification.getAction())
+            .entityType(notification.getEntityType())
+            .entityId(notification.getEntityId())
+            .title(notification.getTitle())
+            .message(notification.getMessage())
+            .targetModule(notification.getTargetModule())
+            .priority(notification.getPriority())
+            .createdBy(notification.getCreatedBy())
+            .sourceDeviceId(notification.getSourceDeviceId())
+            .metadata(notification.getMetadata())
+            .build();
     }
 
     /**
