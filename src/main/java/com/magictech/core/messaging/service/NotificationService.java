@@ -296,33 +296,4 @@ public class NotificationService {
     public java.util.List<Notification> getUnresolvedApprovalNotifications(String action) {
         return notificationRepository.findByActionAndResolvedFalseAndActiveTrue(action);
     }
-
-    /**
-     * Send a refresh notification to Projects module to update UI after approval/rejection.
-     * This notification is NOT stored in database - it's just a real-time UI refresh trigger.
-     */
-    public void sendProjectsRefreshNotification(Long projectId, String message) {
-        try {
-            NotificationMessage refreshMessage = new NotificationMessage.Builder()
-                .type("REFRESH")
-                .module(NotificationConstants.MODULE_SALES)
-                .action("REFRESH_PROJECTS")
-                .entityType(NotificationConstants.ENTITY_PROJECT)
-                .entityId(projectId)
-                .title("Projects Updated")
-                .message(message)
-                .targetModule(NotificationConstants.MODULE_PROJECTS)
-                .priority(NotificationConstants.PRIORITY_LOW)
-                .build();
-
-            // Publish directly to Redis without storing in database (this is just a UI refresh trigger)
-            String channel = NotificationConstants.getChannelForModule(NotificationConstants.MODULE_PROJECTS);
-            String messageJson = objectMapper.writeValueAsString(refreshMessage);
-            redisTemplate.convertAndSend(channel, messageJson);
-
-            logger.info("Sent refresh notification to Projects module for project {}", projectId);
-        } catch (JsonProcessingException e) {
-            logger.error("Failed to send refresh notification: {}", e.getMessage(), e);
-        }
-    }
 }

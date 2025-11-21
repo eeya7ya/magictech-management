@@ -219,12 +219,6 @@ public class NotificationPopup {
                         " marked as resolved by " + currentUsername);
                 }
 
-                // Send refresh notification to Projects module to update UI
-                notificationService.sendProjectsRefreshNotification(
-                    currentMessage.getProjectId(),
-                    approved ? "Element approved" : "Element rejected"
-                );
-
                 // IMPORTANT: Dismiss popup AFTER approval completes (on JavaFX thread)
                 Platform.runLater(() -> dismiss());
 
