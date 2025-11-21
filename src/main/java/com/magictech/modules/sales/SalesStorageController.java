@@ -287,16 +287,28 @@ public class SalesStorageController extends BaseModuleController {
 
     // ==================== PROJECT DETAILS ====================
     private void openProjectDetails(Project project) {
-        Stage detailStage = new Stage();
-        detailStage.setTitle("Project: " + project.getProjectName());
-        detailStage.initModality(Modality.APPLICATION_MODAL);
-
         VBox mainLayout = new VBox(20);
         mainLayout.setPadding(new Insets(30));
-        mainLayout.setStyle("-fx-background-color: linear-gradient(to bottom right, #1e293b, #0f172a);");
+        mainLayout.setStyle("-fx-background-color: transparent;");
+        VBox.setVgrow(mainLayout, Priority.ALWAYS);
+
+        // Header with back button
+        HBox headerBox = new HBox(20);
+        headerBox.setAlignment(Pos.CENTER_LEFT);
+        headerBox.setPadding(new Insets(0, 0, 10, 0));
+
+        Button backBtn = createStyledButton("← Back to Projects", "#6b7280", "#4b5563");
+        backBtn.setOnAction(e -> navigateToDashboard());
 
         Label headerLabel = new Label("📋 " + project.getProjectName());
         headerLabel.setStyle("-fx-text-fill: white; -fx-font-size: 28px; -fx-font-weight: bold;");
+        HBox.setHgrow(headerLabel, Priority.ALWAYS);
+
+        // Delete Project Button
+        Button deleteProjectBtn = createStyledButton("🗑️ Delete Project", "#ef4444", "#dc2626");
+        deleteProjectBtn.setOnAction(e -> handleDeleteProject(project));
+
+        headerBox.getChildren().addAll(backBtn, headerLabel, deleteProjectBtn);
 
         TabPane tabPane = new TabPane();
         tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
@@ -314,21 +326,13 @@ public class SalesStorageController extends BaseModuleController {
 
         tabPane.getTabs().addAll(contractsTab, elementsTab);
 
-        Button closeBtn = createStyledButton("Close", "#6b7280", "#4b5563");
-        closeBtn.setPrefHeight(50);
-        closeBtn.setMaxWidth(Double.MAX_VALUE);
-        closeBtn.setOnAction(e -> detailStage.close());
+        mainLayout.getChildren().addAll(headerBox, tabPane);
 
-        mainLayout.getChildren().addAll(headerLabel, tabPane, closeBtn);
-
-        javafx.stage.Screen screen = javafx.stage.Screen.getPrimary();
-        javafx.geometry.Rectangle2D bounds = screen.getVisualBounds();
-
-        Scene scene = new Scene(mainLayout, bounds.getWidth(), bounds.getHeight());
-        detailStage.setScene(scene);
-        detailStage.setMaximized(true);
-        detailStage.setResizable(true);
-        detailStage.showAndWait();
+        // Show in mainContainer (inline navigation)
+        Platform.runLater(() -> {
+            mainContainer.getChildren().clear();
+            mainContainer.getChildren().add(mainLayout);
+        });
     }
 
     private VBox createProjectElementsTab(Project project) {
@@ -1598,9 +1602,14 @@ public class SalesStorageController extends BaseModuleController {
         );
 
         // Storage table columns
+        TableColumn<StorageItem, String> manufactureCol = new TableColumn<>("Manufacture");
+        manufactureCol.setCellValueFactory(new PropertyValueFactory<>("manufacture"));
+        manufactureCol.setPrefWidth(200);
+        styleTableColumn(manufactureCol);
+
         TableColumn<StorageItem, String> nameCol = new TableColumn<>("Product Name");
         nameCol.setCellValueFactory(new PropertyValueFactory<>("productName"));
-        nameCol.setPrefWidth(350);
+        nameCol.setPrefWidth(300);
         styleTableColumn(nameCol);
 
         // Availability column (NO QUANTITIES SHOWN - Sales should not see actual stock numbers)
@@ -1610,7 +1619,7 @@ public class SalesStorageController extends BaseModuleController {
             boolean available = item.getQuantity() != null && item.getQuantity() > 0;
             return new javafx.beans.property.SimpleStringProperty(available ? "✅ AVAILABLE" : "❌ OUT OF STOCK");
         });
-        availabilityCol.setPrefWidth(200);
+        availabilityCol.setPrefWidth(150);
         styleTableColumn(availabilityCol);
 
         TableColumn<StorageItem, BigDecimal> priceCol = new TableColumn<>("Unit Price");
@@ -1618,7 +1627,7 @@ public class SalesStorageController extends BaseModuleController {
         priceCol.setPrefWidth(150);
         styleTableColumn(priceCol);
 
-        storageTable.getColumns().addAll(nameCol, availabilityCol, priceCol);
+        storageTable.getColumns().addAll(manufactureCol, nameCol, availabilityCol, priceCol);
 
         // Load storage items
         Task<List<StorageItem>> loadTask = new Task<>() {
@@ -2162,6 +2171,37 @@ public class SalesStorageController extends BaseModuleController {
         });
     }
 
+    private void handleDeleteProject(Project project) {
+        // Confirmation dialog
+        javafx.scene.control.Alert confirmDialog = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.CONFIRMATION);
+        confirmDialog.setTitle("Delete Project");
+        confirmDialog.setHeaderText("Delete Project: " + project.getProjectName());
+        confirmDialog.setContentText("Are you sure you want to delete this project? This action cannot be undone.\n\nAll project elements and associated data will be removed.");
+
+        confirmDialog.showAndWait().ifPresent(response -> {
+            if (response == ButtonType.OK) {
+                Task<Void> deleteTask = new Task<>() {
+                    @Override
+                    protected Void call() {
+                        projectService.deleteProject(project.getId());
+                        return null;
+                    }
+                };
+
+                deleteTask.setOnSucceeded(e -> {
+                    showSuccess("✓ Project deleted successfully!");
+                    navigateToDashboard();
+                });
+
+                deleteTask.setOnFailed(e -> {
+                    showError("Failed to delete project: " + deleteTask.getException().getMessage());
+                });
+
+                new Thread(deleteTask).start();
+            }
+        });
+    }
+
     private void handleAddCustomer() {
         Dialog<Customer> dialog = new Dialog<>();
         dialog.setTitle("👤 Create New Customer");
@@ -2385,11 +2425,12 @@ public class SalesStorageController extends BaseModuleController {
     }
 
     private void navigateToDashboard() {
-        try {
-            com.magictech.core.ui.SceneManager.getInstance().showMainDashboard();
-        } catch (Exception e) {
-            showError("Navigation error: " + e.getMessage());
-        }
+        Platform.runLater(() -> {
+            mainContainer.getChildren().clear();
+            mainContainer.getChildren().add(dashboardScreen);
+            loadProjects(projectsListView);
+            loadCustomers(customersListView);
+        });
     }
 
     public void setCurrentUser(User user) {
