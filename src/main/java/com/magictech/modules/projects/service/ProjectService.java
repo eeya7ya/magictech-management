@@ -61,7 +61,7 @@ public class ProjectService {
         Project savedProject = repository.save(project);
 
         // Publish notification about new project creation
-        // Target ALL modules so everyone can see new projects (Sales, Projects team, Storage, etc.)
+        // Broadcast to ALL users (null targetModule = broadcast to everyone via all_notifications channel)
         try {
             NotificationMessage message = new NotificationMessage.Builder()
                 .type(NotificationConstants.TYPE_SUCCESS)
@@ -71,14 +71,14 @@ public class ProjectService {
                 .entityId(savedProject.getId())
                 .title("New Project Created")
                 .message(String.format("Project '%s' has been created successfully", savedProject.getProjectName()))
-                .targetModule("ALL")  // Broadcast to all modules so everyone sees it
+                .targetModule(null)  // null = broadcast to all_notifications channel (everyone sees it)
                 .priority(NotificationConstants.PRIORITY_HIGH)
                 .createdBy(savedProject.getCreatedBy() != null ? savedProject.getCreatedBy() : "Unknown")
                 .excludeSender(true)  // Don't send back to creator - they already have instant feedback
                 .build();
 
             notificationService.publishNotification(message);
-            System.out.println("✅ Published notification for new project (broadcast to all modules): " + savedProject.getProjectName());
+            System.out.println("✅ Published notification for new project (broadcast to all users): " + savedProject.getProjectName());
         } catch (Exception e) {
             System.err.println("❌ Failed to publish project creation notification: " + e.getMessage());
             e.printStackTrace();
@@ -108,7 +108,7 @@ public class ProjectService {
             Project saved = repository.save(project);
 
             // Publish notification about project update
-            // Target ALL modules so everyone can see project updates
+            // Broadcast to ALL users (null targetModule = broadcast to everyone)
             try {
                 NotificationMessage message = new NotificationMessage.Builder()
                     .type(NotificationConstants.TYPE_INFO)
@@ -118,14 +118,14 @@ public class ProjectService {
                     .entityId(saved.getId())
                     .title("Project Updated")
                     .message(String.format("Project '%s' has been updated", saved.getProjectName()))
-                    .targetModule("ALL")  // Broadcast to all modules so everyone sees it
+                    .targetModule(null)  // null = broadcast to all_notifications channel (everyone sees it)
                     .priority(NotificationConstants.PRIORITY_MEDIUM)
                     .createdBy(saved.getCreatedBy() != null ? saved.getCreatedBy() : "Unknown")
                     .excludeSender(true)  // Don't send back to updater - they already have instant feedback
                     .build();
 
                 notificationService.publishNotification(message);
-                System.out.println("✅ Published notification for updated project (broadcast to all modules): " + saved.getProjectName());
+                System.out.println("✅ Published notification for updated project (broadcast to all users): " + saved.getProjectName());
             } catch (Exception e) {
                 System.err.println("❌ Failed to publish project update notification: " + e.getMessage());
                 e.printStackTrace();
