@@ -150,8 +150,22 @@ public class ProjectElementService {
         ProjectElement element = elementRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Element not found: " + id));
 
-        if (!"PENDING_APPROVAL".equals(element.getStatus())) {
-            throw new IllegalStateException("Element is not pending approval");
+        // Log current status for debugging
+        logger.warn("Attempting to approve element {} with current status: '{}'", id, element.getStatus());
+
+        // Accept both PENDING_APPROVAL and legacy statuses (Allocated, ALLOCATED, Pending, etc.)
+        String currentStatus = element.getStatus();
+        boolean isPending = currentStatus != null && (
+            currentStatus.equals("PENDING_APPROVAL") ||
+            currentStatus.equalsIgnoreCase("ALLOCATED") ||
+            currentStatus.equalsIgnoreCase("Pending")
+        );
+
+        if (!isPending) {
+            String errorMsg = String.format("Cannot approve element %d - current status is '%s' (expected PENDING_APPROVAL or similar)",
+                id, currentStatus);
+            logger.error(errorMsg);
+            throw new IllegalStateException(errorMsg);
         }
 
         // Update element status
@@ -188,8 +202,22 @@ public class ProjectElementService {
         ProjectElement element = elementRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Element not found: " + id));
 
-        if (!"PENDING_APPROVAL".equals(element.getStatus())) {
-            throw new IllegalStateException("Element is not pending approval");
+        // Log current status for debugging
+        logger.warn("Attempting to reject element {} with current status: '{}'", id, element.getStatus());
+
+        // Accept both PENDING_APPROVAL and legacy statuses
+        String currentStatus = element.getStatus();
+        boolean isPending = currentStatus != null && (
+            currentStatus.equals("PENDING_APPROVAL") ||
+            currentStatus.equalsIgnoreCase("ALLOCATED") ||
+            currentStatus.equalsIgnoreCase("Pending")
+        );
+
+        if (!isPending) {
+            String errorMsg = String.format("Cannot reject element %d - current status is '%s' (expected PENDING_APPROVAL or similar)",
+                id, currentStatus);
+            logger.error(errorMsg);
+            throw new IllegalStateException(errorMsg);
         }
 
         // Update element status
