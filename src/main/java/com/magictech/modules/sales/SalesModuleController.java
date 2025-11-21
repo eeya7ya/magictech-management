@@ -789,4 +789,24 @@ public class SalesModuleController extends BaseModuleController {
             backgroundPane.stopAnimation();
         }
     }
+
+    private void navigateToDashboard() {
+        if (backgroundPane != null) {
+            backgroundPane.stopAnimation();
+        }
+        com.magictech.core.ui.SceneManager.getInstance().showMainDashboard();
+    }
+
+    public void immediateCleanup() {
+        if (backgroundPane != null) {
+            backgroundPane.stopAnimation();
+            backgroundPane = null;
+        }
+        projectsListView = null;
+        customersListView = null;
+        salesOrdersContent = null;
+        customersContent = null;
+        mainTabPane = null;
+        System.out.println("✓ Sales module controller cleaned up");
+    }
 }
