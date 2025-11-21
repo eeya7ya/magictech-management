@@ -12,6 +12,7 @@ import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
+import javafx.scene.media.AudioClip;
 import javafx.stage.Screen;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
@@ -24,7 +25,9 @@ import com.magictech.MainApp;
 
 /**
  * JavaFX notification popup that displays notifications in the bottom-right corner.
- * Auto-dismisses after 5 seconds with fade-in/fade-out animations.
+ * - Regular notifications: Auto-dismiss after 5 seconds
+ * - Approval notifications: Persistent until Accept/Reject is clicked
+ * - Plays notification sound on display
  */
 public class NotificationPopup {
 
@@ -35,6 +38,7 @@ public class NotificationPopup {
 
     private Stage stage;
     private Timeline autoCloseTimeline;
+    private boolean isApprovalNotification = false;
 
     /**
      * Show a notification popup.
@@ -60,6 +64,9 @@ public class NotificationPopup {
         stage.initStyle(StageStyle.TRANSPARENT);
         stage.setAlwaysOnTop(true);
 
+        // Check if this is an approval notification
+        isApprovalNotification = "APPROVAL_REQUESTED".equals(message.getAction());
+
         // Create UI
         VBox root = createNotificationUI(message);
         Scene scene = new Scene(root, POPUP_WIDTH, POPUP_HEIGHT);
@@ -80,11 +87,19 @@ public class NotificationPopup {
         // Animate fade-in
         fadeIn();
 
-        // Setup auto-dismiss
-        setupAutoDismiss();
+        // Play notification sound
+        playNotificationSound();
 
-        // Click to dismiss
-        root.setOnMouseClicked(event -> dismiss());
+        // Setup auto-dismiss ONLY for regular notifications
+        // Approval notifications must be manually dismissed via Accept/Reject
+        if (!isApprovalNotification) {
+            setupAutoDismiss();
+            // Click to dismiss for regular notifications only
+            root.setOnMouseClicked(event -> dismiss());
+        } else {
+            // For approval notifications, add visual indicator that it's persistent
+            root.setStyle(root.getStyle() + "-fx-border-color: #f39c12; -fx-border-width: 2;");
+        }
     }
 
     /**
@@ -275,6 +290,30 @@ public class NotificationPopup {
             new KeyFrame(Duration.seconds(AUTO_DISMISS_SECONDS), event -> dismiss())
         );
         autoCloseTimeline.play();
+    }
+
+    /**
+     * Play notification sound.
+     */
+    private void playNotificationSound() {
+        try {
+            // Try to load notification sound from resources
+            String soundPath = getClass().getResource("/sounds/notification.wav") != null
+                ? getClass().getResource("/sounds/notification.wav").toExternalForm()
+                : null;
+
+            if (soundPath != null) {
+                AudioClip notificationSound = new AudioClip(soundPath);
+                notificationSound.setVolume(0.5); // 50% volume
+                notificationSound.play();
+            } else {
+                // Fallback to system beep if sound file not found
+                java.awt.Toolkit.getDefaultToolkit().beep();
+            }
+        } catch (Exception e) {
+            // Silently fail - sound is not critical
+            System.err.println("Could not play notification sound: " + e.getMessage());
+        }
     }
 
     /**
