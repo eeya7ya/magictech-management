@@ -60,7 +60,7 @@ public class ProjectService {
         project.setActive(true);
         Project savedProject = repository.save(project);
 
-        // Publish notification about new project creation
+        // Publish notification about new project creation (exclude sender to avoid echo)
         try {
             NotificationMessage message = new NotificationMessage.Builder()
                 .type(NotificationConstants.TYPE_SUCCESS)
@@ -72,10 +72,11 @@ public class ProjectService {
                 .message(String.format("Project '%s' has been created successfully", savedProject.getProjectName()))
                 .priority(NotificationConstants.PRIORITY_HIGH)
                 .createdBy(savedProject.getCreatedBy() != null ? savedProject.getCreatedBy() : "Unknown")
+                .excludeSender(true)  // Don't send back to creator - they already have instant feedback
                 .build();
 
             notificationService.publishNotification(message);
-            System.out.println("✅ Published notification for new project: " + savedProject.getProjectName());
+            System.out.println("✅ Published notification for new project (excluded sender): " + savedProject.getProjectName());
         } catch (Exception e) {
             System.err.println("❌ Failed to publish project creation notification: " + e.getMessage());
             e.printStackTrace();
@@ -104,7 +105,7 @@ public class ProjectService {
 
             Project saved = repository.save(project);
 
-            // Publish notification about project update
+            // Publish notification about project update (exclude sender to avoid echo)
             try {
                 NotificationMessage message = new NotificationMessage.Builder()
                     .type(NotificationConstants.TYPE_INFO)
@@ -116,10 +117,11 @@ public class ProjectService {
                     .message(String.format("Project '%s' has been updated", saved.getProjectName()))
                     .priority(NotificationConstants.PRIORITY_MEDIUM)
                     .createdBy(saved.getCreatedBy() != null ? saved.getCreatedBy() : "Unknown")
+                    .excludeSender(true)  // Don't send back to updater - they already have instant feedback
                     .build();
 
                 notificationService.publishNotification(message);
-                System.out.println("✅ Published notification for updated project: " + saved.getProjectName());
+                System.out.println("✅ Published notification for updated project (excluded sender): " + saved.getProjectName());
             } catch (Exception e) {
                 System.err.println("❌ Failed to publish project update notification: " + e.getMessage());
                 e.printStackTrace();

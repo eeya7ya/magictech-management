@@ -42,6 +42,9 @@ public class NotificationListenerService implements MessageListener {
     @Autowired
     private ApplicationContext applicationContext;
 
+    @Autowired
+    private DeviceRegistrationService deviceRegistrationService;
+
     private final List<Consumer<NotificationMessage>> listeners = new CopyOnWriteArrayList<>();
     private final List<ChannelTopic> subscribedChannels = new ArrayList<>();
 
@@ -159,6 +162,18 @@ public class NotificationListenerService implements MessageListener {
 
             // Deserialize message
             NotificationMessage notification = objectMapper.readValue(body, NotificationMessage.class);
+
+            // FILTER: Check if we should exclude sender from receiving this notification
+            if (notification.isExcludeSender()) {
+                String currentDeviceId = deviceRegistrationService.getCurrentDeviceId();
+                String sourceDeviceId = notification.getSourceDeviceId();
+
+                if (currentDeviceId != null && currentDeviceId.equals(sourceDeviceId)) {
+                    logger.debug("Filtering out notification for sender device: {} - {}",
+                        currentDeviceId, notification.getTitle());
+                    return; // Don't deliver to sender
+                }
+            }
 
             // Dispatch to all registered listeners
             for (Consumer<NotificationMessage> listener : listeners) {

@@ -1,6 +1,7 @@
 package com.magictech.core.module;
 
 import com.magictech.core.auth.User;
+import com.magictech.core.ui.components.ToastNotification;
 import javafx.scene.layout.BorderPane;
 
 /**
@@ -78,6 +79,42 @@ public abstract class BaseModuleController {
      */
     protected void showWarning(String message) {
         showAlert("Warning", message, javafx.scene.control.Alert.AlertType.WARNING);
+    }
+
+    /**
+     * Show instant success toast (non-blocking, auto-dismiss)
+     * Use this for immediate feedback after user actions
+     */
+    protected void showToastSuccess(String message) {
+        ToastNotification.showSuccess(message);
+    }
+
+    /**
+     * Show instant info toast (non-blocking, auto-dismiss)
+     */
+    protected void showToastInfo(String message) {
+        ToastNotification.showInfo(message);
+    }
+
+    /**
+     * Show instant warning toast (non-blocking, auto-dismiss)
+     */
+    protected void showToastWarning(String message) {
+        ToastNotification.showWarning(message);
+    }
+
+    /**
+     * Show instant error toast (non-blocking, auto-dismiss)
+     */
+    protected void showToastError(String message) {
+        ToastNotification.showError(message);
+    }
+
+    /**
+     * Show distributing notification toast (for background operations)
+     */
+    protected void showToastDistributing(String action) {
+        ToastNotification.showDistributing(action);
     }
 
     /**

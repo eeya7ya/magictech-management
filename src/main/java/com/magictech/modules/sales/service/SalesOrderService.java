@@ -201,12 +201,14 @@ public class SalesOrderService {
         SalesOrder savedOrder = salesOrderRepository.save(order);
 
         // Send notification to Projects module that a new project has been created
+        // (excludeSender is handled in notifyProjectCreated method)
         try {
             notificationService.notifyProjectCreated(
                 order.getProjectId(),
                 "Project from Sales Order #" + orderId,
                 pushedBy
             );
+            System.out.println("✅ Published notification to Projects module (excluded sender)");
         } catch (Exception e) {
             System.err.println("Failed to send project creation notification: " + e.getMessage());
         }
