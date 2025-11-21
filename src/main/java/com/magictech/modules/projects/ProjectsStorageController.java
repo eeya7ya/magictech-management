@@ -902,6 +902,22 @@ public class ProjectsStorageController extends BaseModuleController {
     }
 
     /**
+     * Map database status to UI-friendly display status.
+     */
+    private String mapStatusToDisplay(String dbStatus) {
+        if (dbStatus == null) return "Pending";
+        return switch (dbStatus) {
+            case "PENDING_APPROVAL" -> "Pending";
+            case "APPROVED" -> "Allocated";
+            case "REJECTED" -> "Rejected";
+            case "Allocated" -> "Allocated";  // Legacy status
+            case "In Use" -> "In Use";
+            case "Returned" -> "Returned";
+            default -> dbStatus;  // Return as-is if unknown
+        };
+    }
+
+    /**
      * ✅ NEW: Create element card for displaying project items
      */
     private VBox createElementCard(ProjectElementViewModel element) {
@@ -949,13 +965,15 @@ public class ProjectsStorageController extends BaseModuleController {
 
         quantityBox.getChildren().addAll(neededBox, allocatedBox);
 
-        // Status badge
-        Label statusLabel = new Label(element.getStatus());
-        String statusColor = switch (element.getStatus()) {
+        // Status badge (map database status to UI-friendly status)
+        String displayStatus = mapStatusToDisplay(element.getStatus());
+        Label statusLabel = new Label(displayStatus);
+        String statusColor = switch (displayStatus) {
             case "Pending" -> "#f59e0b";
             case "Allocated" -> "#22c55e";
             case "In Use" -> "#3b82f6";
             case "Returned" -> "#8b5cf6";
+            case "Rejected" -> "#ef4444";
             default -> "#9ca3af";
         };
         statusLabel.setStyle(
