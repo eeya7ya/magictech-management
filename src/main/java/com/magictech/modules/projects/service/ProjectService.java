@@ -1,5 +1,7 @@
 package com.magictech.modules.projects.service;
 
+import com.magictech.core.messaging.constants.NotificationConstants;
+import com.magictech.core.messaging.dto.NotificationMessage;
 import com.magictech.core.messaging.service.NotificationService;
 import com.magictech.modules.projects.entity.Project;
 import com.magictech.modules.projects.repository.ProjectRepository;
@@ -60,12 +62,19 @@ public class ProjectService {
 
         // Publish notification about new project creation
         try {
-            notificationService.publishProjectNotification(
-                "created",
-                savedProject.getId(),
-                savedProject.getProjectName(),
-                savedProject.getCreatedBy() != null ? savedProject.getCreatedBy() : "Unknown"
-            );
+            NotificationMessage message = new NotificationMessage.Builder()
+                .type(NotificationConstants.TYPE_SUCCESS)
+                .module(NotificationConstants.MODULE_PROJECTS)
+                .action(NotificationConstants.ACTION_CREATED)
+                .entityType(NotificationConstants.ENTITY_PROJECT)
+                .entityId(savedProject.getId())
+                .title("New Project Created")
+                .message(String.format("Project '%s' has been created successfully", savedProject.getProjectName()))
+                .priority(NotificationConstants.PRIORITY_HIGH)
+                .createdBy(savedProject.getCreatedBy() != null ? savedProject.getCreatedBy() : "Unknown")
+                .build();
+
+            notificationService.publishNotification(message);
             System.out.println("✅ Published notification for new project: " + savedProject.getProjectName());
         } catch (Exception e) {
             System.err.println("❌ Failed to publish project creation notification: " + e.getMessage());
@@ -97,12 +106,19 @@ public class ProjectService {
 
             // Publish notification about project update
             try {
-                notificationService.publishProjectNotification(
-                    "updated",
-                    saved.getId(),
-                    saved.getProjectName(),
-                    saved.getCreatedBy() != null ? saved.getCreatedBy() : "Unknown"
-                );
+                NotificationMessage message = new NotificationMessage.Builder()
+                    .type(NotificationConstants.TYPE_INFO)
+                    .module(NotificationConstants.MODULE_PROJECTS)
+                    .action(NotificationConstants.ACTION_UPDATED)
+                    .entityType(NotificationConstants.ENTITY_PROJECT)
+                    .entityId(saved.getId())
+                    .title("Project Updated")
+                    .message(String.format("Project '%s' has been updated", saved.getProjectName()))
+                    .priority(NotificationConstants.PRIORITY_MEDIUM)
+                    .createdBy(saved.getCreatedBy() != null ? saved.getCreatedBy() : "Unknown")
+                    .build();
+
+                notificationService.publishNotification(message);
                 System.out.println("✅ Published notification for updated project: " + saved.getProjectName());
             } catch (Exception e) {
                 System.err.println("❌ Failed to publish project update notification: " + e.getMessage());
