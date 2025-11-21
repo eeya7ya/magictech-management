@@ -367,7 +367,8 @@ public class SalesStorageController extends BaseModuleController {
         breakdownPanel.setOnSave(breakdown -> {
             try {
                 breakdown.setProjectId(project.getId());
-                costBreakdownService.saveBreakdown(breakdown, currentUser.getUsername());
+                String username = (currentUser != null) ? currentUser.getUsername() : "unknown";
+                costBreakdownService.saveBreakdown(breakdown, username);
                 showSuccess("Cost breakdown saved successfully!");
             } catch (Exception ex) {
                 showError("Failed to save breakdown: " + ex.getMessage());
@@ -1377,10 +1378,11 @@ public class SalesStorageController extends BaseModuleController {
         breakdownPanel.setOnSave(breakdown -> {
             try {
                 breakdown.setCustomerId(customer.getId());
+                String username = (currentUser != null) ? currentUser.getUsername() : "unknown";
                 if (breakdown.getId() == null) {
-                    customerCostBreakdownService.createBreakdown(breakdown, currentUser.getUsername());
+                    customerCostBreakdownService.createBreakdown(breakdown, username);
                 } else {
-                    customerCostBreakdownService.updateBreakdown(breakdown.getId(), breakdown, currentUser.getUsername());
+                    customerCostBreakdownService.updateBreakdown(breakdown.getId(), breakdown, username);
                 }
                 showSuccess("Cost breakdown saved successfully!");
             } catch (Exception ex) {
@@ -1946,10 +1948,12 @@ public class SalesStorageController extends BaseModuleController {
                 super.updateItem(item, empty);
                 if (empty || item == null) {
                     setText(null);
-                    setStyle("");
+                    // Set dark background for empty cells to avoid white-on-white
+                    setStyle("-fx-background-color: rgba(30, 41, 59, 0.3); -fx-text-fill: transparent;");
                 } else {
                     setText(item.toString());
-                    setStyle("-fx-text-fill: white; -fx-alignment: CENTER;");
+                    // Dark background with white text for filled cells
+                    setStyle("-fx-background-color: rgba(30, 41, 59, 0.6); -fx-text-fill: white; -fx-alignment: CENTER;");
                 }
             }
         });
