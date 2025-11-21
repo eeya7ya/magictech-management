@@ -169,14 +169,18 @@ public class NotificationPopup {
 
         // Handle accept
         acceptBtn.setOnAction(e -> {
+            // Disable buttons to prevent double-click
+            acceptBtn.setDisable(true);
+            rejectBtn.setDisable(true);
             handleApproval(message.getEntityId(), true);
-            dismiss();
         });
 
         // Handle reject
         rejectBtn.setOnAction(e -> {
+            // Disable buttons to prevent double-click
+            acceptBtn.setDisable(true);
+            rejectBtn.setDisable(true);
             handleApproval(message.getEntityId(), false);
-            dismiss();
         });
 
         HBox buttonBox = new HBox(10);
@@ -188,6 +192,7 @@ public class NotificationPopup {
 
     /**
      * Handle approval/rejection of project element.
+     * This runs in a background thread and dismisses the popup when done.
      */
     private void handleApproval(Long elementId, boolean approved) {
         new Thread(() -> {
@@ -201,22 +206,34 @@ public class NotificationPopup {
                 // Approve or reject the project element
                 if (approved) {
                     elementService.approveElement(elementId, currentUsername);
-                    System.out.println("Project element " + elementId + " approved by " + currentUsername);
+                    System.out.println("✅ Project element " + elementId + " approved by " + currentUsername);
                 } else {
                     elementService.rejectElement(elementId, currentUsername, "Rejected from notification");
-                    System.out.println("Project element " + elementId + " rejected by " + currentUsername);
+                    System.out.println("❌ Project element " + elementId + " rejected by " + currentUsername);
                 }
 
                 // IMPORTANT: Mark the notification as resolved so it doesn't appear again
                 if (currentMessage != null && currentMessage.getNotificationId() != null) {
                     notificationService.markAsResolved(currentMessage.getNotificationId(), currentUsername);
-                    System.out.println("Notification " + currentMessage.getNotificationId() +
+                    System.out.println("📝 Notification " + currentMessage.getNotificationId() +
                         " marked as resolved by " + currentUsername);
                 }
 
+                // Send refresh notification to Projects module to update UI
+                notificationService.sendProjectsRefreshNotification(
+                    currentMessage.getProjectId(),
+                    approved ? "Element approved" : "Element rejected"
+                );
+
+                // IMPORTANT: Dismiss popup AFTER approval completes (on JavaFX thread)
+                Platform.runLater(() -> dismiss());
+
             } catch (Exception ex) {
                 ex.printStackTrace();
-                System.err.println("Error handling approval: " + ex.getMessage());
+                System.err.println("❌ Error handling approval: " + ex.getMessage());
+
+                // Still dismiss popup even if there was an error
+                Platform.runLater(() -> dismiss());
             }
         }).start();
     }

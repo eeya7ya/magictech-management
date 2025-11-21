@@ -27,6 +27,9 @@ public class ProjectElementService {
     @Autowired
     private StorageService storageService;
 
+    /**
+     * Create element from Projects module - REQUIRES APPROVAL from Sales
+     */
     @Transactional
     public ProjectElement createElement(ProjectElement element) {
         // Set status to pending approval
@@ -57,6 +60,37 @@ public class ProjectElementService {
             logger.error("Failed to send approval notification: {}", e.getMessage(), e);
             // Don't fail the entire operation if notification fails
         }
+
+        return savedElement;
+    }
+
+    /**
+     * Create element from Sales module - INSTANT APPROVAL (no notification needed)
+     * Sales module has permission to add elements directly without approval workflow.
+     */
+    @Transactional
+    public ProjectElement createElementDirectly(ProjectElement element) {
+        // Set status to APPROVED immediately (Sales has permission)
+        element.setStatus("APPROVED");
+        element.setAllocatedDate(LocalDateTime.now());
+        element.setQuantityAllocated(element.getQuantityNeeded());
+
+        // Save the element
+        ProjectElement savedElement = elementRepository.save(element);
+
+        // Deduct quantity from storage immediately
+        if (element.getStorageItem() != null && element.getQuantityNeeded() != null && element.getQuantityNeeded() > 0) {
+            try {
+                storageService.deductQuantity(element.getStorageItem().getId(), element.getQuantityNeeded());
+                logger.info("Sales directly added element {} - deducted {} units from storage",
+                        savedElement.getId(), element.getQuantityNeeded());
+            } catch (Exception e) {
+                logger.error("Failed to deduct quantity from storage: {}", e.getMessage(), e);
+                throw new RuntimeException("Failed to update storage quantity: " + e.getMessage());
+            }
+        }
+
+        logger.info("Project element {} created directly by Sales (no approval needed)", savedElement.getId());
 
         return savedElement;
     }
