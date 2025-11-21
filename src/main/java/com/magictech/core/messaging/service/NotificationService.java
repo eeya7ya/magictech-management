@@ -222,9 +222,17 @@ public class NotificationService {
 
     /**
      * Get recent notifications for a module.
+     * If module is null, returns ALL recent notifications (for storage/admin).
      */
     public java.util.List<Notification> getRecentNotifications(String module, int days) {
         LocalDateTime fromDate = LocalDateTime.now().minusDays(days);
-        return notificationRepository.findRecentNotificationsByModule(module, fromDate);
+
+        if (module == null || module.isEmpty()) {
+            // Get all recent notifications
+            return notificationRepository.findByTimestampAfterAndActiveTrue(fromDate);
+        } else {
+            // Get module-specific notifications
+            return notificationRepository.findRecentNotificationsByModule(module, fromDate);
+        }
     }
 }
