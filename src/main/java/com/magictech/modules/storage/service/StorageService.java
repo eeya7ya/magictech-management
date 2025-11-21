@@ -2,6 +2,8 @@ package com.magictech.modules.storage.service;
 
 import com.magictech.modules.storage.entity.StorageItem;
 import com.magictech.modules.storage.repository.StorageItemRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,6 +19,8 @@ import java.util.Optional;
 @Service
 @Transactional
 public class StorageService {
+
+    private static final Logger logger = LoggerFactory.getLogger(StorageService.class);
 
     @Autowired
     private StorageItemRepository repository;
