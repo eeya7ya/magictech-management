@@ -518,9 +518,15 @@ public class CustomerManagementController extends BaseModuleController {
                 "Are you sure you want to delete customer: " + customer.getName() + "?\n\n" +
                 "This will soft-delete the customer (can be restored from database).")) {
             try {
-                customerService.deleteCustomer(customer.getId());
+                Long deletedCustomerId = customer.getId();
+                customerService.deleteCustomer(deletedCustomerId);
                 showSuccess("Customer deleted successfully!");
                 loadCustomersList(listView);
+
+                // If the deleted customer was currently open in the workspace, return to selection screen
+                if (selectedCustomer != null && selectedCustomer.getId().equals(deletedCustomerId)) {
+                    returnToCustomerSelection();
+                }
             } catch (Exception ex) {
                 showError("Failed to delete customer: " + ex.getMessage());
             }
@@ -675,6 +681,9 @@ public class CustomerManagementController extends BaseModuleController {
         setupElementsTab();
         setupDocumentsTab();
 
+        // Reset to first tab (Schedule)
+        tabPane.getSelectionModel().selectFirst();
+
         // Load data
         loadScheduleData();
         loadTasksData();
@@ -708,6 +717,9 @@ public class CustomerManagementController extends BaseModuleController {
                             switchToCustomer(selected);
                         }
                     });
+
+                    // Reset to first tab (Schedule)
+                    tabPane.getSelectionModel().selectFirst();
 
                     // Reload all data for the new customer
                     loadScheduleData();
