@@ -84,6 +84,7 @@ public class CustomerManagementController extends BaseModuleController {
     // Selected Customer
     private Customer selectedCustomer;
     private Label customerTitleLabel;
+    private ComboBox<Customer> customerSelector;
 
     // Tab Content Containers
     private TabPane tabPane;
@@ -289,6 +290,44 @@ public class CustomerManagementController extends BaseModuleController {
         );
         newButton.setOnAction(e -> handleNewCustomer(customerListView));
 
+        Button editButton = new Button("✏️ Edit Customer");
+        editButton.setStyle(
+                "-fx-background-color: rgba(251, 146, 60, 0.8);" +
+                        "-fx-text-fill: white;" +
+                        "-fx-font-size: 14px;" +
+                        "-fx-font-weight: bold;" +
+                        "-fx-padding: 12 30;" +
+                        "-fx-background-radius: 8;" +
+                        "-fx-cursor: hand;"
+        );
+        editButton.setOnAction(e -> {
+            Customer selected = customerListView.getSelectionModel().getSelectedItem();
+            if (selected != null) {
+                handleEditCustomer(selected, customerListView);
+            } else {
+                showWarning("Please select a customer first");
+            }
+        });
+
+        Button deleteButton = new Button("🗑️ Delete Customer");
+        deleteButton.setStyle(
+                "-fx-background-color: rgba(239, 68, 68, 0.8);" +
+                        "-fx-text-fill: white;" +
+                        "-fx-font-size: 14px;" +
+                        "-fx-font-weight: bold;" +
+                        "-fx-padding: 12 30;" +
+                        "-fx-background-radius: 8;" +
+                        "-fx-cursor: hand;"
+        );
+        deleteButton.setOnAction(e -> {
+            Customer selected = customerListView.getSelectionModel().getSelectedItem();
+            if (selected != null) {
+                handleDeleteCustomer(selected, customerListView);
+            } else {
+                showWarning("Please select a customer first");
+            }
+        });
+
         Button exportButton = new Button("📊 Export All");
         exportButton.setStyle(
                 "-fx-background-color: rgba(59, 130, 246, 0.8);" +
@@ -301,7 +340,7 @@ public class CustomerManagementController extends BaseModuleController {
         );
         exportButton.setOnAction(e -> handleExportAllCustomers());
 
-        buttonBox.getChildren().addAll(openButton, newButton, exportButton);
+        buttonBox.getChildren().addAll(openButton, newButton, editButton, deleteButton, exportButton);
 
         customersCard.getChildren().addAll(selectLabel, customerListView, buttonBox);
         screen.getChildren().addAll(header, customersCard);
@@ -402,6 +441,92 @@ public class CustomerManagementController extends BaseModuleController {
         });
     }
 
+    private void handleEditCustomer(Customer customer, ListView<Customer> listView) {
+        Dialog<Customer> dialog = new Dialog<>();
+        dialog.setTitle("Edit Customer");
+        dialog.setHeaderText("Edit Customer Information");
+
+        // Apply dark theme
+        DialogPane dialogPane = dialog.getDialogPane();
+        dialogPane.setStyle("-fx-background-color: #1e293b; -fx-text-fill: white;");
+
+        // Form fields
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+        grid.setPadding(new Insets(20));
+
+        TextField nameField = new TextField(customer.getName());
+        nameField.setPromptText("Customer Name");
+        TextField emailField = new TextField(customer.getEmail() != null ? customer.getEmail() : "");
+        emailField.setPromptText("Email");
+        TextField phoneField = new TextField(customer.getPhone() != null ? customer.getPhone() : "");
+        phoneField.setPromptText("Phone");
+        TextField addressField = new TextField(customer.getAddress() != null ? customer.getAddress() : "");
+        addressField.setPromptText("Address");
+        TextField companyField = new TextField(customer.getCompany() != null ? customer.getCompany() : "");
+        companyField.setPromptText("Company");
+
+        grid.add(new Label("Name:*"), 0, 0);
+        grid.add(nameField, 1, 0);
+        grid.add(new Label("Email:"), 0, 1);
+        grid.add(emailField, 1, 1);
+        grid.add(new Label("Phone:"), 0, 2);
+        grid.add(phoneField, 1, 2);
+        grid.add(new Label("Address:"), 0, 3);
+        grid.add(addressField, 1, 3);
+        grid.add(new Label("Company:"), 0, 4);
+        grid.add(companyField, 1, 4);
+
+        dialogPane.setContent(grid);
+
+        ButtonType saveButtonType = new ButtonType("Save", ButtonBar.ButtonData.OK_DONE);
+        dialogPane.getButtonTypes().addAll(saveButtonType, ButtonType.CANCEL);
+
+        dialog.setResultConverter(dialogButton -> {
+            if (dialogButton == saveButtonType) {
+                if (nameField.getText().trim().isEmpty()) {
+                    showError("Customer name is required");
+                    return null;
+                }
+
+                customer.setName(nameField.getText().trim());
+                customer.setEmail(emailField.getText().trim());
+                customer.setPhone(phoneField.getText().trim());
+                customer.setAddress(addressField.getText().trim());
+                customer.setCompany(companyField.getText().trim());
+                customer.setUpdatedBy(currentUser != null ? currentUser.getUsername() : "system");
+
+                return customer;
+            }
+            return null;
+        });
+
+        dialog.showAndWait().ifPresent(updatedCustomer -> {
+            try {
+                customerService.updateCustomer(updatedCustomer.getId(), updatedCustomer);
+                showSuccess("Customer updated successfully!");
+                loadCustomersList(listView);
+            } catch (Exception ex) {
+                showError("Failed to update customer: " + ex.getMessage());
+            }
+        });
+    }
+
+    private void handleDeleteCustomer(Customer customer, ListView<Customer> listView) {
+        if (showConfirmation("Delete Customer",
+                "Are you sure you want to delete customer: " + customer.getName() + "?\n\n" +
+                "This will soft-delete the customer (can be restored from database).")) {
+            try {
+                customerService.deleteCustomer(customer.getId());
+                showSuccess("Customer deleted successfully!");
+                loadCustomersList(listView);
+            } catch (Exception ex) {
+                showError("Failed to delete customer: " + ex.getMessage());
+            }
+        }
+    }
+
     // ==================== CUSTOMER WORKSPACE SCREEN ====================
 
     private BorderPane createCustomerWorkspaceScreen() {
@@ -434,6 +559,49 @@ public class CustomerManagementController extends BaseModuleController {
         customerTitleLabel = new Label();
         customerTitleLabel.setStyle("-fx-text-fill: white; -fx-font-size: 24px; -fx-font-weight: bold;");
 
+        // Customer selector dropdown for quick switching
+        Label selectorLabel = new Label("Switch Customer:");
+        selectorLabel.setStyle("-fx-text-fill: rgba(255, 255, 255, 0.8); -fx-font-size: 14px;");
+
+        customerSelector = new ComboBox<>();
+        customerSelector.setPrefWidth(250);
+        customerSelector.setStyle("-fx-font-size: 14px;");
+        customerSelector.setPromptText("Select a customer...");
+
+        // Custom cell factory to display customer names nicely
+        customerSelector.setCellFactory(lv -> new ListCell<Customer>() {
+            @Override
+            protected void updateItem(Customer customer, boolean empty) {
+                super.updateItem(customer, empty);
+                if (empty || customer == null) {
+                    setText(null);
+                } else {
+                    setText("👤 " + customer.getName());
+                }
+            }
+        });
+
+        // Button cell (what shows when ComboBox is closed)
+        customerSelector.setButtonCell(new ListCell<Customer>() {
+            @Override
+            protected void updateItem(Customer customer, boolean empty) {
+                super.updateItem(customer, empty);
+                if (empty || customer == null) {
+                    setText("Select a customer...");
+                } else {
+                    setText("👤 " + customer.getName());
+                }
+            }
+        });
+
+        // Handle customer selection change
+        customerSelector.setOnAction(e -> {
+            Customer selected = customerSelector.getSelectionModel().getSelectedItem();
+            if (selected != null && (selectedCustomer == null || !selected.getId().equals(selectedCustomer.getId()))) {
+                switchToCustomer(selected);
+            }
+        });
+
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
@@ -448,7 +616,8 @@ public class CustomerManagementController extends BaseModuleController {
         );
         exportCustomerButton.setOnAction(e -> handleExportCustomer());
 
-        topBar.getChildren().addAll(backButton, customerTitleLabel, spacer, exportCustomerButton);
+        topBar.getChildren().addAll(backButton, customerTitleLabel, spacer,
+                selectorLabel, customerSelector, exportCustomerButton);
 
         // Center: Tabs
         tabPane = new TabPane();
@@ -484,8 +653,21 @@ public class CustomerManagementController extends BaseModuleController {
         this.selectedCustomer = customer;
         this.currentUser = super.currentUser;
 
+        // Load all customers into the selector
+        loadCustomerSelector();
+
         // Update title
         customerTitleLabel.setText("👤 " + customer.getName());
+
+        // Set selected customer in ComboBox without triggering the event
+        customerSelector.setOnAction(null); // Temporarily remove the handler
+        customerSelector.getSelectionModel().select(customer);
+        customerSelector.setOnAction(e -> { // Restore the handler
+            Customer selected = customerSelector.getSelectionModel().getSelectedItem();
+            if (selected != null && (selectedCustomer == null || !selected.getId().equals(selectedCustomer.getId()))) {
+                switchToCustomer(selected);
+            }
+        });
 
         // Setup tabs
         setupScheduleTab();
@@ -502,6 +684,64 @@ public class CustomerManagementController extends BaseModuleController {
         // Switch screens
         customerSelectionScreen.setVisible(false);
         customerWorkspaceScreen.setVisible(true);
+    }
+
+    private void switchToCustomer(Customer customer) {
+        // Show loading indicator
+        loadingIndicator.setVisible(true);
+
+        Task<Void> switchTask = new Task<>() {
+            @Override
+            protected Void call() {
+                Platform.runLater(() -> {
+                    selectedCustomer = customer;
+
+                    // Update title
+                    customerTitleLabel.setText("👤 " + customer.getName());
+
+                    // Update selector without triggering event
+                    customerSelector.setOnAction(null);
+                    customerSelector.getSelectionModel().select(customer);
+                    customerSelector.setOnAction(e -> {
+                        Customer selected = customerSelector.getSelectionModel().getSelectedItem();
+                        if (selected != null && !selected.getId().equals(selectedCustomer.getId())) {
+                            switchToCustomer(selected);
+                        }
+                    });
+
+                    // Reload all data for the new customer
+                    loadScheduleData();
+                    loadTasksData();
+                    loadElementsData();
+                    loadDocumentsData();
+
+                    loadingIndicator.setVisible(false);
+                });
+                return null;
+            }
+        };
+
+        new Thread(switchTask).start();
+    }
+
+    private void loadCustomerSelector() {
+        Task<List<Customer>> loadTask = new Task<>() {
+            @Override
+            protected List<Customer> call() {
+                return customerService.getAllCustomers();
+            }
+        };
+
+        loadTask.setOnSucceeded(e -> {
+            List<Customer> customers = loadTask.getValue();
+            customerSelector.getItems().setAll(customers);
+        });
+
+        loadTask.setOnFailed(e -> {
+            showError("Failed to load customers: " + loadTask.getException().getMessage());
+        });
+
+        new Thread(loadTask).start();
     }
 
     private void returnToCustomerSelection() {
