@@ -6,19 +6,32 @@ Implements a complete notification system with real-time messaging, missed notif
 
 ### ✅ LATEST UPDATES
 
-#### 1. **Persistent Approval Notifications** (NEW)
+#### 1. **Security: Role-Based Approval Notifications** 🔒 (NEW)
+- Approval notifications now **only visible to authorized users**
+- **Authorized roles:** SALES, STORAGE, MASTER
+- **Blocked roles:** PROJECTS, MAINTENANCE, PRICING, CLIENT
+- Prevents unauthorized users from seeing/approving project elements
+- Enhanced security logging for authorization checks
+
+#### 2. **Security: Force Dismiss on Logout** 🚪 (NEW)
+- All popups **immediately dismissed** when user logs out
+- Prevents approval notifications from persisting across user sessions
+- No information leakage between users
+- Added `dismissImmediately()` method for instant popup closure
+
+#### 3. **Persistent Approval Notifications** 🔔
 - Approval notifications now **stay visible until Accept/Reject is clicked**
 - No auto-dismiss for approval requests (user must take action)
 - Orange border indicator shows it's a persistent notification
 - Regular notifications still auto-dismiss after 5 seconds
 
-#### 2. **Notification Sound** (NEW) 🔊
+#### 4. **Notification Sound** 🔊
 - Pleasant two-tone beep plays on all notifications
 - Smooth fade in/out envelope for non-intrusive audio
 - 50% volume for comfortable listening
 - Fallback to system beep if sound file missing
 
-#### 3. **Critical Timestamp Bug Fix**
+#### 5. **Critical Timestamp Bug Fix** 🐛
 Fixed timestamp bug that prevented missed notifications from loading. The issue was that `registerDevice()` was updating the `lastSeen` timestamp to NOW, then when querying for missed notifications, it would use this NEW timestamp instead of the OLD one, finding zero results. Now properly captures and uses the previous lastSeen timestamp.
 
 ### Features Implemented
@@ -118,12 +131,31 @@ Projects adds element → Notification saved to DB → Published to Redis
 8. Click **Accept** or **Reject** - notification should dismiss
 9. **Expected:** Approval notifications persist until action is taken
 
-#### Test 6: Notification Sound (NEW) 🔊
+#### Test 6: Notification Sound 🔊
 1. Login as any user
 2. Have another user create a notification (or wait for missed notification on login)
 3. **Expected:** Hear a pleasant two-tone beep sound
 4. Sound should be moderate volume (50%) and not jarring
 5. If sound file is missing, system beep should play as fallback
+
+#### Test 7: Security - Role-Based Filtering 🔒 (NEW)
+1. Login as **yahya** (PROJECTS role)
+2. Open **Projects** module
+3. Add a storage element to any project
+4. **Logout**
+5. Login as **yahya** again (or another PROJECTS user)
+6. **Expected:** NO approval notification shown (blocked by role)
+7. Check logs: "User yahya (role: PROJECTS) is not authorized to see approval notifications"
+
+#### Test 8: Security - Force Dismiss on Logout 🚪 (NEW)
+1. Login as **mosa** (SALES role)
+2. Approval notification appears with orange border
+3. **DO NOT click Accept/Reject**
+4. Click **Logout** button
+5. **Expected:** Popup disappears immediately
+6. Login as different user (any role)
+7. **Expected:** Old notification NOT visible
+8. Check logs: "Dismissing X active popup(s)" and "Dismissed popup immediately"
 
 ### Bug Fix Details
 
@@ -186,6 +218,9 @@ When users logged in, they saw zero notifications even when notifications were c
 - ✅ **Auto-dismiss regular notifications** (5 seconds)
 - ✅ **Notification sound** with pleasant two-tone beep
 - ✅ **Visual indicators** (orange border for persistent notifications)
+- ✅ **Security: Role-based approval filtering** (SALES, STORAGE, MASTER only)
+- ✅ **Security: Force dismiss on logout** (no persistence across sessions)
+- ✅ **Security: Enhanced logging** for authorization and cleanup
 
 ### Future Enhancements
 
