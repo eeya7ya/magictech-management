@@ -34,6 +34,7 @@ public class NotificationPopup {
     private static final double POPUP_WIDTH = 350;
     private static final double POPUP_HEIGHT = 100;
     private static final double MARGIN = 20;
+    private static final double STACK_GAP = 10; // Gap between stacked popups
     private static final int AUTO_DISMISS_SECONDS = 5;
 
     private Stage stage;
@@ -41,6 +42,7 @@ public class NotificationPopup {
     private boolean isApprovalNotification = false;
     private NotificationMessage currentMessage; // Store current message for marking as resolved
     private String currentUsername; // Store username for marking as resolved
+    private int stackIndex = 0; // Position in stack (0 = bottom, 1 = one above, etc.)
 
     /**
      * Show a notification popup.
@@ -49,8 +51,20 @@ public class NotificationPopup {
      * @param username The username of the current user (for marking approvals as resolved)
      */
     public void show(NotificationMessage message, String username) {
+        show(message, username, 0); // Default to bottom position
+    }
+
+    /**
+     * Show a notification popup at a specific stack position.
+     *
+     * @param message The notification message to display
+     * @param username The username of the current user (for marking approvals as resolved)
+     * @param stackIndex Position in stack (0 = bottom, 1 = one above, etc.)
+     */
+    public void show(NotificationMessage message, String username, int stackIndex) {
         this.currentMessage = message; // Store the message
         this.currentUsername = username; // Store the username
+        this.stackIndex = stackIndex; // Store stack position
         Platform.runLater(() -> {
             try {
                 createAndShowPopup(message);
@@ -262,12 +276,20 @@ public class NotificationPopup {
 
     /**
      * Position popup at bottom-right of screen.
+     * Multiple popups stack vertically based on stackIndex.
      */
     private void positionPopup() {
         Rectangle2D screenBounds = Screen.getPrimary().getVisualBounds();
 
         double x = screenBounds.getMaxX() - POPUP_WIDTH - MARGIN;
-        double y = screenBounds.getMaxY() - POPUP_HEIGHT - MARGIN;
+
+        // Calculate Y position based on stack index
+        // stackIndex 0 = bottom (default)
+        // stackIndex 1 = one popup height above bottom
+        // stackIndex 2 = two popup heights above bottom, etc.
+        double baseY = screenBounds.getMaxY() - POPUP_HEIGHT - MARGIN;
+        double yOffset = stackIndex * (POPUP_HEIGHT + STACK_GAP);
+        double y = baseY - yOffset;
 
         stage.setX(x);
         stage.setY(y);

@@ -193,6 +193,7 @@ public class NotificationManager {
     /**
      * Handle incoming notification by showing a popup.
      * Filters approval notifications based on user role (SALES, STORAGE, MASTER only).
+     * Popups stack vertically to avoid overlapping.
      */
     private void handleNotification(NotificationMessage message) {
         try {
@@ -209,9 +210,14 @@ public class NotificationManager {
                     currentUser.getUsername(), currentUser.getRole());
             }
 
-            // Create and show popup
+            // Calculate stack index based on currently active popups
+            // This ensures new popups appear above existing ones instead of overlapping
+            int stackIndex = activePopups.size();
+            logger.debug("Creating popup at stack index {} (currently {} active popups)", stackIndex, activePopups.size());
+
+            // Create and show popup at calculated stack position
             NotificationPopup popup = new NotificationPopup();
-            popup.show(message, currentUser.getUsername()); // Pass username for marking as resolved
+            popup.show(message, currentUser.getUsername(), stackIndex); // Pass stack index for proper positioning
             activePopups.add(popup);
 
             // Remove from active popups after it auto-dismisses
