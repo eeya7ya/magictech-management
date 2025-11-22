@@ -36,6 +36,9 @@ public class NotificationService {
     @Autowired
     private DeviceRegistrationService deviceRegistrationService;
 
+    @Autowired
+    private com.magictech.core.messaging.repository.NotificationUserStatusRepository notificationUserStatusRepository;
+
     /**
      * Publish a notification message to Redis and store in database.
      *
@@ -232,14 +235,14 @@ public class NotificationService {
     }
 
     /**
-     * Get unread missed notifications since last connection.
-     * If deviceId is null, returns ALL unread missed notifications (for MASTER/STORAGE roles).
-     * Excludes already-read notifications to prevent duplicates.
+     * Get missed notifications since last connection.
+     * If deviceId is null, returns ALL missed notifications (for MASTER/STORAGE roles).
+     * Note: Per-user filtering (to prevent duplicates) is done by NotificationManager via NotificationUserStatus.
      */
     public java.util.List<Notification> getMissedNotifications(String deviceId, LocalDateTime lastSeen) {
         if (deviceId == null) {
-            // Get all UNREAD notifications after timestamp (for MASTER/STORAGE)
-            return notificationRepository.findByTimestampAfterAndActiveTrueAndReadStatusFalse(lastSeen);
+            // Get all notifications after timestamp (for MASTER/STORAGE)
+            return notificationRepository.findByTimestampAfterAndActiveTrue(lastSeen);
         }
         return notificationRepository.findMissedNotifications(deviceId, lastSeen);
     }
@@ -297,5 +300,38 @@ public class NotificationService {
      */
     public java.util.List<Notification> getUnresolvedApprovalNotifications(String action) {
         return notificationRepository.findByActionAndResolvedFalseAndActiveTrue(action);
+    }
+
+    /**
+     * Mark a notification as seen by a specific user.
+     * This allows multiple users to see the same notification (e.g., MASTER + PROJECTS see project creation).
+     * Each user sees it once - marking as seen for one user doesn't hide it from others.
+     *
+     * @param notificationId The notification ID
+     * @param username The username of the user who has seen the notification
+     */
+    public void markAsSeenByUser(Long notificationId, String username) {
+        try {
+            // Check if already marked as seen by this user
+            if (!notificationUserStatusRepository.existsByNotificationIdAndUsernameAndActiveTrue(notificationId, username)) {
+                com.magictech.core.messaging.entity.NotificationUserStatus status =
+                    new com.magictech.core.messaging.entity.NotificationUserStatus(notificationId, username);
+                notificationUserStatusRepository.save(status);
+                logger.debug("Marked notification {} as seen by user {}", notificationId, username);
+            }
+        } catch (Exception e) {
+            logger.error("Error marking notification as seen by user: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Check if a specific user has seen a specific notification.
+     *
+     * @param notificationId The notification ID
+     * @param username The username to check
+     * @return true if the user has seen this notification, false otherwise
+     */
+    public boolean hasUserSeenNotification(Long notificationId, String username) {
+        return notificationUserStatusRepository.existsByNotificationIdAndUsernameAndActiveTrue(notificationId, username);
     }
 }
