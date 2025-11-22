@@ -149,7 +149,11 @@ public class NotificationManager {
                 // First time login - load notifications from the last 7 days
                 // This ensures new users see recent important notifications
                 lastSeen = java.time.LocalDateTime.now().minusDays(7);
-                logger.info("First login detected, loading notifications from the last 7 days (since {})", lastSeen);
+                logger.info("First login detected for user {}, loading notifications from the last 7 days (since {})",
+                    currentUser.getUsername(), lastSeen);
+            } else {
+                logger.info("User {} last logout was at: {} - loading notifications created after this time",
+                    currentUser.getUsername(), lastSeen);
             }
 
             // Get missed notifications since last logout (or last 7 days for first login)
@@ -174,12 +178,24 @@ public class NotificationManager {
 
             // Get current device ID to filter out sender's own notifications
             String currentDeviceId = deviceService.getCurrentDeviceId();
-            logger.debug("Current device ID: {}", currentDeviceId);
+            logger.info("Current device ID for filtering: {}", currentDeviceId);
+            logger.info("User {} (role: {}) loading {} missed notifications",
+                currentUser.getUsername(), currentUser.getRole(), missedNotifications.size());
 
             // Display each notification (excluding approval requests - already shown above)
+            int shownCount = 0;
+            int skippedApprovalCount = 0;
+            int skippedSenderCount = 0;
+
             for (Notification notification : missedNotifications) {
+                logger.debug("Processing notification: {} (action: {}, targetModule: {}, sourceDeviceId: {})",
+                    notification.getTitle(), notification.getAction(), notification.getTargetModule(),
+                    notification.getSourceDeviceId());
+
                 // Skip approval requests - already handled above
                 if ("APPROVAL_REQUESTED".equals(notification.getAction())) {
+                    skippedApprovalCount++;
+                    logger.debug("Skipping - approval notification (already handled)");
                     continue;
                 }
 
@@ -189,15 +205,23 @@ public class NotificationManager {
                 String sourceDeviceId = notification.getSourceDeviceId();
                 if (currentDeviceId != null && sourceDeviceId != null &&
                     currentDeviceId.equals(sourceDeviceId)) {
-                    logger.debug("Skipping notification '{}' - created by current device (excludeSender)",
+                    skippedSenderCount++;
+                    logger.info("Skipping notification '{}' - created by current device (excludeSender)",
                         notification.getTitle());
                     continue; // Don't show user their own notifications
                 }
+
+                shownCount++;
+                logger.info("Showing notification {}: {} (created by: {})",
+                    shownCount, notification.getTitle(), notification.getCreatedBy());
 
                 NotificationMessage message = convertToMessage(notification);
                 handleNotification(message);
                 Thread.sleep(300);
             }
+
+            logger.info("Notification summary: {} shown, {} skipped (approval), {} skipped (sender)",
+                shownCount, skippedApprovalCount, skippedSenderCount);
 
         } catch (Exception e) {
             logger.error("Error loading missed notifications: {}", e.getMessage(), e);
