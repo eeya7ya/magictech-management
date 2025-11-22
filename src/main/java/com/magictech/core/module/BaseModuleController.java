@@ -18,8 +18,20 @@ public abstract class BaseModuleController {
      * Initialize the module with user and configuration
      */
     public void initialize(User user, ModuleConfig config) {
+        // Debug logging to track initialization
+        System.out.println("BaseModuleController.initialize() called for: " +
+            (config != null ? config.getDisplayName() : "NULL config"));
+        System.out.println("  - user parameter: " + (user != null ? user.getUsername() : "NULL"));
+        System.out.println("  - this.currentUser BEFORE assignment: " +
+            (this.currentUser != null ? this.currentUser.getUsername() : "NULL"));
+
         this.currentUser = user;
         this.config = config;
+
+        System.out.println("  - this.currentUser AFTER assignment: " +
+            (this.currentUser != null ? this.currentUser.getUsername() : "NULL"));
+        System.out.println("  - About to call setupUI()...");
+
         setupUI();
         loadData();
     }
