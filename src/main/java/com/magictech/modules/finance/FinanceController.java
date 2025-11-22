@@ -12,16 +12,14 @@ import org.springframework.stereotype.Component;
 @Component
 public class FinanceController extends BaseStorageModuleController {
 
-    /**
-     * Constructor - initializes with FINANCE configuration
-     */
-    public FinanceController() {
-        super(ModuleStorageConfig.FINANCE);
+    @Override
+    protected ModuleStorageConfig getModuleConfig() {
+        return ModuleStorageConfig.FINANCE;
     }
 
     @Override
-    protected String getModuleName() {
-        return "Finance Module";
+    protected String getHeaderColor() {
+        return "#eab308"; // Yellow color
     }
 
     @Override
@@ -30,13 +28,18 @@ public class FinanceController extends BaseStorageModuleController {
     }
 
     @Override
-    protected String getModuleColor() {
-        return "#eab308"; // Yellow color
+    protected void handleAddItem() {
+        showInfo("Finance: Add item functionality will be implemented here");
     }
 
     @Override
-    protected String getModuleDescription() {
-        return "Manage invoicing • Track payments • Financial reporting";
+    protected void handleEditItem() {
+        showInfo("Finance: Edit item functionality will be implemented here");
+    }
+
+    @Override
+    protected void handleBulkDelete() {
+        showInfo("Finance: Bulk delete functionality will be implemented here");
     }
 
     /**

@@ -191,8 +191,8 @@ public class SceneManager {
                     ((MaintenanceStorageController) activeModuleController).immediateCleanup();
                 } else if (activeModuleController instanceof ProjectsStorageController) {
                     ((ProjectsStorageController) activeModuleController).immediateCleanup();
-                } else if (activeModuleController instanceof PricingController) {
-                    ((PricingController) activeModuleController).immediateCleanup();
+                } else if (activeModuleController instanceof QualityAssuranceController) {
+                    ((QualityAssuranceController) activeModuleController).immediateCleanup();
                 }
             } catch (Exception e) {
                 System.err.println("Module cleanup warning: " + e.getMessage());

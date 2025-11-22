@@ -41,7 +41,7 @@ public class AuthenticationService {
         createUserIfNotExists("john", "sales123", UserRole.SALES);
         createUserIfNotExists("mike", "main123", UserRole.MAINTENANCE);
         createUserIfNotExists("sara", "proj123", UserRole.PROJECTS);
-        createUserIfNotExists("emma", "price123", UserRole.PRICING);
+        createUserIfNotExists("emma", "qa123", UserRole.QUALITY_ASSURANCE);
         createUserIfNotExists("david", "store123", UserRole.STORAGE);
 
         System.out.println("Default users initialized successfully!");

@@ -12,16 +12,14 @@ import org.springframework.stereotype.Component;
 @Component
 public class PresalesController extends BaseStorageModuleController {
 
-    /**
-     * Constructor - initializes with PRESALES configuration
-     */
-    public PresalesController() {
-        super(ModuleStorageConfig.PRESALES);
+    @Override
+    protected ModuleStorageConfig getModuleConfig() {
+        return ModuleStorageConfig.PRESALES;
     }
 
     @Override
-    protected String getModuleName() {
-        return "Presales Module";
+    protected String getHeaderColor() {
+        return "#06b6d4"; // Cyan color
     }
 
     @Override
@@ -30,13 +28,18 @@ public class PresalesController extends BaseStorageModuleController {
     }
 
     @Override
-    protected String getModuleColor() {
-        return "#06b6d4"; // Cyan color
+    protected void handleAddItem() {
+        showInfo("Presales: Add item functionality will be implemented here");
     }
 
     @Override
-    protected String getModuleDescription() {
-        return "Manage quotations • Initial customer contact • Pre-sales activities";
+    protected void handleEditItem() {
+        showInfo("Presales: Edit item functionality will be implemented here");
+    }
+
+    @Override
+    protected void handleBulkDelete() {
+        showInfo("Presales: Bulk delete functionality will be implemented here");
     }
 
     /**
