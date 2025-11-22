@@ -70,6 +70,16 @@ public class SceneManager {
     }
 
     public void setCurrentUser(User user) {
+        System.out.println("SceneManager.setCurrentUser() called - OLD: " +
+            (this.currentUser != null ? this.currentUser.getUsername() : "NULL") +
+            " -> NEW: " + (user != null ? user.getUsername() : "NULL"));
+
+        // Print stack trace to see who's calling this
+        if (user == null && this.currentUser != null) {
+            System.err.println("WARNING: currentUser being set to NULL! Stack trace:");
+            Thread.dumpStack();
+        }
+
         this.currentUser = user;
     }
 
@@ -352,6 +362,10 @@ public class SceneManager {
             Platform.runLater(() -> {
                 try {
                     immediateCleanup();
+
+                    // Debug: Check currentUser before creating controller
+                    System.out.println("SceneManager.showSalesModule() - currentUser before initialize: " +
+                        (currentUser != null ? currentUser.getUsername() : "NULL"));
 
                     SalesStorageController salesController = new SalesStorageController();
                     context.getAutowireCapableBeanFactory().autowireBean(salesController);
