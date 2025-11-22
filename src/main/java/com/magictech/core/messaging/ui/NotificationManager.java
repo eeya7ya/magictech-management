@@ -121,30 +121,25 @@ public class NotificationManager {
         try {
             // FIRST: Load unresolved approval notifications if user is authorized
             // These persist across logins until someone resolves them
+            // NOTE: We DO NOT filter by sender for approvals - all authorized users must see them
             if (isAuthorizedForApprovals()) {
                 List<Notification> unresolvedApprovals =
                     notificationService.getUnresolvedApprovalNotifications("APPROVAL_REQUESTED");
 
-                logger.info("Found {} unresolved approval notifications for user {}",
-                    unresolvedApprovals.size(), currentUser.getUsername());
-
-                // Get current device ID to filter out sender's own notifications
-                String currentDeviceId = deviceService.getCurrentDeviceId();
+                logger.info("Found {} unresolved approval notifications for user {} (role: {})",
+                    unresolvedApprovals.size(), currentUser.getUsername(), currentUser.getRole());
 
                 for (Notification notification : unresolvedApprovals) {
-                    // Filter out notifications created by this user's device
-                    String sourceDeviceId = notification.getSourceDeviceId();
-                    if (currentDeviceId != null && sourceDeviceId != null &&
-                        currentDeviceId.equals(sourceDeviceId)) {
-                        logger.debug("Skipping approval notification '{}' - created by current device",
-                            notification.getTitle());
-                        continue; // Don't show user their own approval requests
-                    }
+                    logger.info("Showing approval notification: {} (entityId: {}, createdBy: {})",
+                        notification.getTitle(), notification.getEntityId(), notification.getCreatedBy());
 
                     NotificationMessage message = convertToMessage(notification);
                     handleNotification(message);
                     Thread.sleep(300);
                 }
+            } else {
+                logger.info("User {} (role: {}) is NOT authorized to see approval notifications",
+                    currentUser.getUsername(), currentUser.getRole());
             }
 
             // SECOND: Load regular missed notifications since last logout
