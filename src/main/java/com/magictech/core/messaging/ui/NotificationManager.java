@@ -159,18 +159,20 @@ public class NotificationManager {
             // Get missed notifications since last logout (or last 7 days for first login)
             List<Notification> missedNotifications;
 
-            // MASTER users get ALL missed notifications from all 5 modules
-            if (currentUser.getRole() == com.magictech.core.auth.UserRole.MASTER) {
+            // Determine which notifications to load based on USER ROLE (not current module)
+            // This ensures users only see notifications relevant to their role
+            String targetModule = getUserTargetModule();
+
+            if (targetModule == null) {
+                // MASTER or STORAGE role - see ALL notifications
                 missedNotifications = notificationService.getMissedNotifications(null, lastSeen);
-                logger.info("Loading ALL missed notifications for MASTER user");
-            }
-            // Storage module gets ALL missed notifications
-            else if (NotificationConstants.MODULE_STORAGE.equalsIgnoreCase(moduleType)) {
-                missedNotifications = notificationService.getMissedNotifications(null, lastSeen);
-            }
-            // Other modules get only their module's missed notifications
-            else {
-                missedNotifications = notificationService.getMissedNotificationsByModule(moduleType.toLowerCase(), lastSeen);
+                logger.info("Loading ALL missed notifications for user {} (role: {})",
+                    currentUser.getUsername(), currentUser.getRole());
+            } else {
+                // Other roles - only see notifications for their specific module
+                missedNotifications = notificationService.getMissedNotificationsByModule(targetModule, lastSeen);
+                logger.info("Loading missed notifications for module: {} (user role: {})",
+                    targetModule, currentUser.getRole());
             }
 
             logger.info("Found {} regular missed notifications since {} for module {}",
@@ -216,6 +218,11 @@ public class NotificationManager {
 
                 NotificationMessage message = convertToMessage(notification);
                 handleNotification(message);
+
+                // Mark notification as read to prevent showing it again on next login
+                notificationService.markAsRead(notification.getId());
+                logger.debug("Marked notification {} as read", notification.getId());
+
                 Thread.sleep(300);
             }
 
@@ -309,6 +316,34 @@ public class NotificationManager {
             case SALES -> true;    // Sales can approve project elements
             case STORAGE -> true;  // Storage management can approve
             default -> false;      // All other roles cannot see approvals
+        };
+    }
+
+    /**
+     * Get target module for notifications based on user ROLE (not current module).
+     * Returns null for MASTER and STORAGE roles (they see all notifications).
+     * Returns specific module name for other roles (SALES, PROJECTS, MAINTENANCE, PRICING).
+     *
+     * This ensures:
+     * - MASTER role: Sees notifications from all 5 modules
+     * - STORAGE role: Sees notifications from all modules
+     * - PROJECTS role: Only sees "projects" notifications (even when viewing other modules)
+     * - SALES role: Only sees "sales" notifications
+     * - etc.
+     */
+    private String getUserTargetModule() {
+        if (currentUser == null || currentUser.getRole() == null) {
+            return null;
+        }
+
+        return switch (currentUser.getRole()) {
+            case MASTER -> null;      // See ALL notifications
+            case STORAGE -> null;     // Storage also sees ALL notifications
+            case SALES -> NotificationConstants.MODULE_SALES;
+            case PROJECTS -> NotificationConstants.MODULE_PROJECTS;
+            case MAINTENANCE -> NotificationConstants.MODULE_MAINTENANCE;
+            case PRICING -> NotificationConstants.MODULE_PRICING;
+            default -> null;
         };
     }
 
