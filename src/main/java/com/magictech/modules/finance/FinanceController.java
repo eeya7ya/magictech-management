@@ -29,17 +29,17 @@ public class FinanceController extends BaseStorageModuleController {
 
     @Override
     protected void handleAddItem() {
-        showInfo("Finance: Add item functionality will be implemented here");
+        showToastInfo("Finance: Add item functionality will be implemented here");
     }
 
     @Override
     protected void handleEditItem() {
-        showInfo("Finance: Edit item functionality will be implemented here");
+        showToastInfo("Finance: Edit item functionality will be implemented here");
     }
 
     @Override
     protected void handleBulkDelete() {
-        showInfo("Finance: Bulk delete functionality will be implemented here");
+        showToastInfo("Finance: Bulk delete functionality will be implemented here");
     }
 
     /**

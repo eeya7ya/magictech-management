@@ -29,17 +29,17 @@ public class PresalesController extends BaseStorageModuleController {
 
     @Override
     protected void handleAddItem() {
-        showInfo("Presales: Add item functionality will be implemented here");
+        showToastInfo("Presales: Add item functionality will be implemented here");
     }
 
     @Override
     protected void handleEditItem() {
-        showInfo("Presales: Edit item functionality will be implemented here");
+        showToastInfo("Presales: Edit item functionality will be implemented here");
     }
 
     @Override
     protected void handleBulkDelete() {
-        showInfo("Presales: Bulk delete functionality will be implemented here");
+        showToastInfo("Presales: Bulk delete functionality will be implemented here");
     }
 
     /**
