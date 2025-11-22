@@ -149,7 +149,11 @@ public class NotificationManager {
                 // First time login - load notifications from the last 7 days
                 // This ensures new users see recent important notifications
                 lastSeen = java.time.LocalDateTime.now().minusDays(7);
-                logger.info("First login detected, loading notifications from the last 7 days (since {})", lastSeen);
+                logger.info("First login detected for user {}, loading notifications from the last 7 days (since {})",
+                    currentUser.getUsername(), lastSeen);
+            } else {
+                logger.info("User {} last logout was at: {} - loading notifications created after this time",
+                    currentUser.getUsername(), lastSeen);
             }
 
             // Get missed notifications since last logout (or last 7 days for first login)

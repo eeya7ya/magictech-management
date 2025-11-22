@@ -72,4 +72,13 @@ public interface DeviceRegistrationRepository extends JpaRepository<DeviceRegist
      * Check if a device exists and is active.
      */
     boolean existsByDeviceIdAndActiveTrue(String deviceId);
+
+    /**
+     * Find the most recent device registration for a specific username.
+     * Used to get the user's last logout time regardless of which device they used.
+     */
+    @Query("SELECT d FROM DeviceRegistration d WHERE d.active = true AND " +
+           "d.username = :username AND d.lastSeen IS NOT NULL " +
+           "ORDER BY d.lastSeen DESC")
+    List<DeviceRegistration> findByUsernameOrderByLastSeenDesc(@Param("username") String username);
 }

@@ -41,6 +41,7 @@ public class DeviceRegistrationService {
     /**
      * Register or update a device.
      * Captures the previous lastSeen timestamp before updating (accessible via getPreviousLastSeen()).
+     * IMPORTANT: Tracks lastSeen per-USER, not per-device, to handle multi-user devices correctly.
      */
     public DeviceRegistration registerDevice(User user, String moduleType) {
         try {
@@ -50,8 +51,16 @@ public class DeviceRegistrationService {
             // Check if device already exists
             Optional<DeviceRegistration> existing = deviceRepository.findByDeviceIdAndActiveTrue(deviceId);
 
-            // Capture OLD lastSeen timestamp BEFORE updating
-            previousLastSeen = existing.map(DeviceRegistration::getLastSeen).orElse(null);
+            // CRITICAL FIX: Capture the CURRENT USER's previous lastSeen (not the device's lastSeen)
+            // This allows multiple users to share the same device without inheriting each other's timestamps
+            List<DeviceRegistration> userPreviousSessions = deviceRepository.findByUsernameOrderByLastSeenDesc(user.getUsername());
+            if (!userPreviousSessions.isEmpty()) {
+                previousLastSeen = userPreviousSessions.get(0).getLastSeen();
+                logger.debug("Found previous session for user {}: lastSeen = {}", user.getUsername(), previousLastSeen);
+            } else {
+                previousLastSeen = null;
+                logger.debug("No previous session found for user {}", user.getUsername());
+            }
 
             DeviceRegistration device;
             if (existing.isPresent()) {
@@ -82,7 +91,7 @@ public class DeviceRegistrationService {
             device = deviceRepository.save(device);
             currentDeviceId = deviceId;
 
-            logger.info("Registered device {} for user {} in module {} (previous lastSeen: {})",
+            logger.info("Registered device {} for user {} in module {} (user's previous lastSeen: {})",
                 deviceId, user.getUsername(), moduleType, previousLastSeen);
 
             return device;
@@ -206,9 +215,12 @@ public class DeviceRegistrationService {
     }
 
     /**
-     * Get the previous last seen time (before registerDevice() was called).
+     * Get the previous last seen time for the CURRENT USER (before registerDevice() was called).
      * This is the timestamp that should be used to query for missed notifications.
-     * Returns null if this is a first-time login.
+     * Returns null if this is the user's first-time login.
+     *
+     * IMPORTANT: This returns the USER's previous lastSeen, not the device's.
+     * This allows multiple users to share the same device without inheriting each other's timestamps.
      */
     public LocalDateTime getPreviousLastSeen() {
         return previousLastSeen;
