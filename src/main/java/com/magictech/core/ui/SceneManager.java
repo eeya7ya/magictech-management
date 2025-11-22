@@ -367,6 +367,24 @@ public class SceneManager {
                     System.out.println("SceneManager.showSalesModule() - currentUser before initialize: " +
                         (currentUser != null ? currentUser.getUsername() : "NULL"));
 
+                    // CRITICAL: Validate currentUser is set
+                    if (currentUser == null) {
+                        System.err.println("CRITICAL ERROR: currentUser is NULL in showSalesModule()!");
+                        System.err.println("This should never happen - user must be logged in to access modules.");
+                        Thread.dumpStack();
+                        hideLoading();
+                        Platform.runLater(() -> {
+                            javafx.scene.control.Alert alert = new javafx.scene.control.Alert(
+                                javafx.scene.control.Alert.AlertType.ERROR);
+                            alert.setTitle("Authentication Error");
+                            alert.setHeaderText("Session Lost");
+                            alert.setContentText("Your session has been lost. Please log in again.");
+                            alert.showAndWait();
+                            showLoginScreen();
+                        });
+                        return;
+                    }
+
                     SalesStorageController salesController = new SalesStorageController();
                     context.getAutowireCapableBeanFactory().autowireBean(salesController);
 
