@@ -92,6 +92,30 @@ public class SceneManager {
     }
 
     /**
+     * Validate that currentUser is set before showing a module
+     * Returns true if valid, false if validation failed (and shows error)
+     */
+    private boolean validateCurrentUser(String moduleName) {
+        if (currentUser == null) {
+            System.err.println("CRITICAL ERROR: currentUser is NULL in show" + moduleName + "Module()!");
+            System.err.println("This should never happen - user must be logged in to access modules.");
+            Thread.dumpStack();
+            hideLoading();
+            Platform.runLater(() -> {
+                javafx.scene.control.Alert alert = new javafx.scene.control.Alert(
+                    javafx.scene.control.Alert.AlertType.ERROR);
+                alert.setTitle("Authentication Error");
+                alert.setHeaderText("Session Lost");
+                alert.setContentText("Your session has been lost. Please log in again.");
+                alert.showAndWait();
+                showLoginScreen();
+            });
+            return false;
+        }
+        return true;
+    }
+
+    /**
      * ✅ Create elegant loading overlay
      */
     private void createLoadingOverlay() {
@@ -313,6 +337,11 @@ public class SceneManager {
                 try {
                     immediateCleanup();
 
+                    // Validate currentUser is set
+                    if (!validateCurrentUser("Storage")) {
+                        return;
+                    }
+
                     // ✅ CREATE FRESH INSTANCE - not cached!
                     StorageController storageController = new StorageController();
                     // Manually inject dependencies
@@ -368,20 +397,7 @@ public class SceneManager {
                         (currentUser != null ? currentUser.getUsername() : "NULL"));
 
                     // CRITICAL: Validate currentUser is set
-                    if (currentUser == null) {
-                        System.err.println("CRITICAL ERROR: currentUser is NULL in showSalesModule()!");
-                        System.err.println("This should never happen - user must be logged in to access modules.");
-                        Thread.dumpStack();
-                        hideLoading();
-                        Platform.runLater(() -> {
-                            javafx.scene.control.Alert alert = new javafx.scene.control.Alert(
-                                javafx.scene.control.Alert.AlertType.ERROR);
-                            alert.setTitle("Authentication Error");
-                            alert.setHeaderText("Session Lost");
-                            alert.setContentText("Your session has been lost. Please log in again.");
-                            alert.showAndWait();
-                            showLoginScreen();
-                        });
+                    if (!validateCurrentUser("Sales")) {
                         return;
                     }
 
@@ -433,6 +449,11 @@ public class SceneManager {
                 try {
                     immediateCleanup();
 
+                    // Validate currentUser is set
+                    if (!validateCurrentUser("Maintenance")) {
+                        return;
+                    }
+
                     MaintenanceStorageController maintenanceController = new MaintenanceStorageController();
                     context.getAutowireCapableBeanFactory().autowireBean(maintenanceController);
 
@@ -480,6 +501,11 @@ public class SceneManager {
             Platform.runLater(() -> {
                 try {
                     immediateCleanup();
+
+                    // Validate currentUser is set
+                    if (!validateCurrentUser("Projects")) {
+                        return;
+                    }
 
                     ProjectsStorageController projectsController = new ProjectsStorageController();
                     context.getAutowireCapableBeanFactory().autowireBean(projectsController);
@@ -529,6 +555,11 @@ public class SceneManager {
                 try {
                     immediateCleanup();
 
+                    // Validate currentUser is set
+                    if (!validateCurrentUser("Presales")) {
+                        return;
+                    }
+
                     PresalesController presalesController = new PresalesController();
                     context.getAutowireCapableBeanFactory().autowireBean(presalesController);
 
@@ -576,6 +607,11 @@ public class SceneManager {
             Platform.runLater(() -> {
                 try {
                     immediateCleanup();
+
+                    // Validate currentUser is set
+                    if (!validateCurrentUser("QualityAssurance")) {
+                        return;
+                    }
 
                     QualityAssuranceController qaController = new QualityAssuranceController();
                     context.getAutowireCapableBeanFactory().autowireBean(qaController);
@@ -625,6 +661,11 @@ public class SceneManager {
                 try {
                     immediateCleanup();
 
+                    // Validate currentUser is set
+                    if (!validateCurrentUser("Finance")) {
+                        return;
+                    }
+
                     FinanceController financeController = new FinanceController();
                     context.getAutowireCapableBeanFactory().autowireBean(financeController);
 
@@ -672,6 +713,11 @@ public class SceneManager {
             Platform.runLater(() -> {
                 try {
                     immediateCleanup();
+
+                    // Validate currentUser is set
+                    if (!validateCurrentUser("Customers")) {
+                        return;
+                    }
 
                     com.magictech.modules.sales.CustomerManagementController customersController =
                         new com.magictech.modules.sales.CustomerManagementController();
