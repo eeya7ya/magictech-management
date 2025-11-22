@@ -12,11 +12,13 @@ public class NotificationConstants {
     public static final String TYPE_ERROR = "ERROR";
 
     // Module Names
+    public static final String MODULE_PRESALES = "presales";
     public static final String MODULE_SALES = "sales";
+    public static final String MODULE_QA = "qualityassurance";
+    public static final String MODULE_FINANCE = "finance";
     public static final String MODULE_PROJECTS = "projects";
     public static final String MODULE_STORAGE = "storage";
     public static final String MODULE_MAINTENANCE = "maintenance";
-    public static final String MODULE_PRICING = "pricing";
     public static final String MODULE_ALL = "ALL";
 
     // Action Types
@@ -30,10 +32,12 @@ public class NotificationConstants {
 
     // Entity Types
     public static final String ENTITY_PROJECT = "project";
+    public static final String ENTITY_PRESALES_ITEM = "presales_item";
     public static final String ENTITY_SALES_ORDER = "sales_order";
+    public static final String ENTITY_QA_ITEM = "qa_item";
+    public static final String ENTITY_FINANCE_ITEM = "finance_item";
     public static final String ENTITY_STORAGE_ITEM = "storage_item";
     public static final String ENTITY_MAINTENANCE_ITEM = "maintenance_item";
-    public static final String ENTITY_PRICING_ITEM = "pricing_item";
 
     // Priority Levels
     public static final String PRIORITY_LOW = "LOW";
@@ -47,11 +51,13 @@ public class NotificationConstants {
     public static final String DEVICE_STATUS_IDLE = "IDLE";
 
     // Redis Channels
+    public static final String CHANNEL_PRESALES_NOTIFICATIONS = "presales_notifications";
     public static final String CHANNEL_SALES_NOTIFICATIONS = "sales_notifications";
+    public static final String CHANNEL_QA_NOTIFICATIONS = "qa_notifications";
+    public static final String CHANNEL_FINANCE_NOTIFICATIONS = "finance_notifications";
     public static final String CHANNEL_PROJECTS_NOTIFICATIONS = "projects_notifications";
     public static final String CHANNEL_STORAGE_NOTIFICATIONS = "storage_notifications";
     public static final String CHANNEL_MAINTENANCE_NOTIFICATIONS = "maintenance_notifications";
-    public static final String CHANNEL_PRICING_NOTIFICATIONS = "pricing_notifications";
     public static final String CHANNEL_ALL_NOTIFICATIONS = "all_notifications";
 
     // Channel Patterns
@@ -77,11 +83,13 @@ public class NotificationConstants {
      */
     public static String[] getAllModuleChannels() {
         return new String[] {
+            CHANNEL_PRESALES_NOTIFICATIONS,
             CHANNEL_SALES_NOTIFICATIONS,
+            CHANNEL_QA_NOTIFICATIONS,
+            CHANNEL_FINANCE_NOTIFICATIONS,
             CHANNEL_PROJECTS_NOTIFICATIONS,
             CHANNEL_STORAGE_NOTIFICATIONS,
             CHANNEL_MAINTENANCE_NOTIFICATIONS,
-            CHANNEL_PRICING_NOTIFICATIONS,
             CHANNEL_ALL_NOTIFICATIONS
         };
     }

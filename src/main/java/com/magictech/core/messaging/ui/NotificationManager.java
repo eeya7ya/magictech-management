@@ -326,10 +326,12 @@ public class NotificationManager {
         return switch (currentUser.getRole()) {
             case MASTER -> null;      // See ALL notifications
             case STORAGE -> null;     // Storage also sees ALL notifications
+            case PRESALES -> NotificationConstants.MODULE_PRESALES;
             case SALES -> NotificationConstants.MODULE_SALES;
+            case QUALITY_ASSURANCE -> NotificationConstants.MODULE_QA;
+            case FINANCE -> NotificationConstants.MODULE_FINANCE;
             case PROJECTS -> NotificationConstants.MODULE_PROJECTS;
             case MAINTENANCE -> NotificationConstants.MODULE_MAINTENANCE;
-            case PRICING -> NotificationConstants.MODULE_PRICING;
             default -> null;
         };
     }
