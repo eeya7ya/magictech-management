@@ -4,6 +4,7 @@ public enum UserRole {
     MASTER("Master", "Full system access"),
     PRESALES("Presales Team", "Presales module access - quotations and initial customer contact"),
     SALES("Sales Team", "Sales module access - confirmed orders and pricing"),
+    SALES_MANAGER("Sales Manager", "Sales management - approvals and oversight"),
     QUALITY_ASSURANCE("Quality Assurance Team", "Quality assurance module access - verification and approval"),
     FINANCE("Finance Team", "Finance module access - invoicing and payments"),
     MAINTENANCE("Maintenance Team", "Maintenance module access"),
