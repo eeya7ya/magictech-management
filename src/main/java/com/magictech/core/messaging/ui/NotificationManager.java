@@ -84,19 +84,26 @@ public class NotificationManager {
     }
 
     /**
-     * Subscribe to appropriate Redis channels based on module type.
+     * Subscribe to appropriate Redis channels based on module type and user role.
+     * MASTER users see everything from all 5 modules.
      */
     private void subscribeToChannels(String moduleType) {
         try {
             // Wait a bit for listener service to be fully ready
             Thread.sleep(1000);
 
-            if (NotificationConstants.MODULE_STORAGE.equalsIgnoreCase(moduleType)) {
-                // Storage module subscribes to ALL channels
+            // MASTER users subscribe to ALL channels (see everything from all modules)
+            if (currentUser.getRole() == com.magictech.core.auth.UserRole.MASTER) {
+                listenerService.subscribeToAll();
+                logger.info("Subscribed to all notification channels (MASTER user sees everything)");
+            }
+            // Storage module also subscribes to ALL channels
+            else if (NotificationConstants.MODULE_STORAGE.equalsIgnoreCase(moduleType)) {
                 listenerService.subscribeToAll();
                 logger.info("Subscribed to all notification channels (Storage module)");
-            } else {
-                // Other modules subscribe only to their specific channels
+            }
+            // Other modules subscribe only to their specific channels
+            else {
                 listenerService.subscribeToModule(moduleType.toLowerCase());
                 logger.info("Subscribed to {} module notifications", moduleType);
             }
@@ -153,11 +160,17 @@ public class NotificationManager {
             // Get missed notifications since last logout (or last 7 days for first login)
             List<Notification> missedNotifications;
 
-            if (NotificationConstants.MODULE_STORAGE.equalsIgnoreCase(moduleType)) {
-                // Storage gets ALL missed notifications
+            // MASTER users get ALL missed notifications from all 5 modules
+            if (currentUser.getRole() == com.magictech.core.auth.UserRole.MASTER) {
                 missedNotifications = notificationService.getMissedNotifications(null, lastSeen);
-            } else {
-                // Other modules get only their module's missed notifications
+                logger.info("Loading ALL missed notifications for MASTER user");
+            }
+            // Storage module gets ALL missed notifications
+            else if (NotificationConstants.MODULE_STORAGE.equalsIgnoreCase(moduleType)) {
+                missedNotifications = notificationService.getMissedNotifications(null, lastSeen);
+            }
+            // Other modules get only their module's missed notifications
+            else {
                 missedNotifications = notificationService.getMissedNotificationsByModule(moduleType.toLowerCase(), lastSeen);
             }
 
