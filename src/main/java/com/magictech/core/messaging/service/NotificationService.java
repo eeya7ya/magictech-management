@@ -232,13 +232,14 @@ public class NotificationService {
     }
 
     /**
-     * Get missed notifications for a device since last connection.
-     * If deviceId is null, returns ALL missed notifications (for storage/admin).
+     * Get unread missed notifications since last connection.
+     * If deviceId is null, returns ALL unread missed notifications (for MASTER/STORAGE roles).
+     * Excludes already-read notifications to prevent duplicates.
      */
     public java.util.List<Notification> getMissedNotifications(String deviceId, LocalDateTime lastSeen) {
         if (deviceId == null) {
-            // Get all notifications after timestamp
-            return notificationRepository.findByTimestampAfterAndActiveTrue(lastSeen);
+            // Get all UNREAD notifications after timestamp (for MASTER/STORAGE)
+            return notificationRepository.findByTimestampAfterAndActiveTrueAndReadStatusFalse(lastSeen);
         }
         return notificationRepository.findMissedNotifications(deviceId, lastSeen);
     }
