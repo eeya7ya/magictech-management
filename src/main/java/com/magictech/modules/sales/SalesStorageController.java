@@ -30,6 +30,8 @@ import com.magictech.modules.projects.entity.ProjectElement;
 import com.magictech.modules.projects.service.ProjectElementService;
 import javafx.scene.control.DialogPane;
 import javafx.scene.layout.FlowPane;
+import com.magictech.modules.sales.ui.WorkflowDialog;
+import com.magictech.modules.sales.ui.WorkflowStatusCard;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -49,6 +51,8 @@ public class SalesStorageController extends BaseModuleController {
     @Autowired private com.magictech.modules.sales.service.ProjectCostBreakdownService costBreakdownService;
     @Autowired private com.magictech.modules.sales.service.CustomerCostBreakdownService customerCostBreakdownService;
     @Autowired private com.magictech.modules.sales.service.SalesExcelExportService salesExcelExportService;
+    @Autowired private com.magictech.modules.sales.service.ProjectWorkflowService workflowService;
+    @Autowired private com.magictech.modules.sales.service.WorkflowStepService stepService;
 
     private com.magictech.core.ui.components.DashboardBackgroundPane backgroundPane;
     private StackPane mainContainer;
@@ -2177,9 +2181,34 @@ public class SalesStorageController extends BaseModuleController {
 
     // ==================== ADD PROJECT/CUSTOMER DIALOGS ====================
     private void handleAddProject() {
+        // First: Ask sell mode
+        Alert sellModeAlert = new Alert(Alert.AlertType.CONFIRMATION);
+        sellModeAlert.setTitle("Select Selling Mode");
+        sellModeAlert.setHeaderText("How do you want to sell?");
+        sellModeAlert.setContentText("Choose your selling mode:");
+
+        ButtonType sellToCustomerBtn = new ButtonType("Sell to Customer");
+        ButtonType sellAsProjectBtn = new ButtonType("Sell as New Project (Workflow)");
+        ButtonType cancelBtn = new ButtonType("Cancel", ButtonBar.ButtonData.CANCEL_CLOSE);
+
+        sellModeAlert.getButtonTypes().setAll(sellToCustomerBtn, sellAsProjectBtn, cancelBtn);
+
+        sellModeAlert.showAndWait().ifPresent(response -> {
+            if (response == sellToCustomerBtn) {
+                handleSellToCustomer();
+            } else if (response == sellAsProjectBtn) {
+                handleSellAsNewProject();
+            }
+        });
+    }
+
+    /**
+     * Sell to Customer - Simple mode (existing behavior)
+     */
+    private void handleSellToCustomer() {
         Dialog<Project> dialog = new Dialog<>();
-        dialog.setTitle("🏗️ Create New Project");
-        dialog.setHeaderText("Enter Project Details");
+        dialog.setTitle("🛒 Sell to Customer");
+        dialog.setHeaderText("Enter Customer Project Details");
 
         ButtonType createButtonType = new ButtonType("Create", ButtonBar.ButtonData.OK_DONE);
         dialog.getDialogPane().getButtonTypes().addAll(createButtonType, ButtonType.CANCEL);
@@ -2223,12 +2252,101 @@ public class SalesStorageController extends BaseModuleController {
 
             saveTask.setOnSucceeded(e -> {
                 Project savedProject = saveTask.getValue();
-                showSuccess("✓ Project created!");
+                showSuccess("✓ Project created (Sell to Customer mode)");
                 loadProjects(projectsListView);
             });
 
             new Thread(saveTask).start();
         });
+    }
+
+    /**
+     * Sell as New Project - Workflow mode (8-step process)
+     */
+    private void handleSellAsNewProject() {
+        Dialog<Project> dialog = new Dialog<>();
+        dialog.setTitle("🏗️ Create New Project (Workflow)");
+        dialog.setHeaderText("Enter Project Details - Then Start 8-Step Workflow");
+
+        ButtonType createButtonType = new ButtonType("Create & Start Workflow", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(createButtonType, ButtonType.CANCEL);
+
+        GridPane grid = new GridPane();
+        grid.setHgap(15);
+        grid.setVgap(15);
+        grid.setPadding(new Insets(20));
+
+        TextField nameField = new TextField();
+        nameField.setPromptText("Project name");
+
+        TextField locationField = new TextField();
+        locationField.setPromptText("Location");
+
+        Label infoLabel = new Label("⚠️ After creation, the 8-step workflow wizard will open automatically.");
+        infoLabel.setStyle("-fx-text-fill: #f39c12; -fx-font-style: italic;");
+
+        grid.add(new Label("Name:"), 0, 0);
+        grid.add(nameField, 1, 0);
+        grid.add(new Label("Location:"), 0, 1);
+        grid.add(locationField, 1, 1);
+        grid.add(infoLabel, 0, 2, 2, 1);
+
+        dialog.getDialogPane().setContent(grid);
+
+        dialog.setResultConverter(dialogButton -> {
+            if (dialogButton == createButtonType) {
+                Project project = new Project();
+                project.setProjectName(nameField.getText());
+                project.setProjectLocation(locationField.getText());
+                project.setCreatedBy(currentUser != null ? currentUser.getUsername() : "system");
+                return project;
+            }
+            return null;
+        });
+
+        dialog.showAndWait().ifPresent(project -> {
+            Task<Project> saveTask = new Task<>() {
+                @Override
+                protected Project call() {
+                    return projectService.createProject(project);
+                }
+            };
+
+            saveTask.setOnSucceeded(e -> {
+                Project savedProject = saveTask.getValue();
+                showSuccess("✓ Project created! Opening workflow wizard...");
+                loadProjects(projectsListView);
+
+                // Open workflow dialog
+                Platform.runLater(() -> openWorkflowDialog(savedProject));
+            });
+
+            saveTask.setOnFailed(e -> {
+                showError("Failed to create project: " + saveTask.getException().getMessage());
+            });
+
+            new Thread(saveTask).start();
+        });
+    }
+
+    /**
+     * Open the 8-step workflow dialog
+     */
+    private void openWorkflowDialog(Project project) {
+        try {
+            WorkflowDialog workflowDialog = new WorkflowDialog(
+                project,
+                currentUser,
+                workflowService,
+                stepService
+            );
+            workflowDialog.showAndWait();
+
+            // Refresh projects list after workflow dialog closes
+            loadProjects(projectsListView);
+        } catch (Exception ex) {
+            showError("Failed to open workflow: " + ex.getMessage());
+        }
     }
 
     private void handleDeleteProject(Project project) {
