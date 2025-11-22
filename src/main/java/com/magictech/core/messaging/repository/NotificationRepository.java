@@ -42,6 +42,12 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     List<Notification> findByTimestampAfterAndActiveTrueAndReadStatusFalse(LocalDateTime timestamp);
 
     /**
+     * Find ALL notifications created after a specific timestamp.
+     * Used for viewing recent notification history (includes already-read ones).
+     */
+    List<Notification> findByTimestampAfterAndActiveTrue(LocalDateTime timestamp);
+
+    /**
      * Find notifications for a specific device created after a timestamp.
      */
     @Query("SELECT n FROM Notification n WHERE n.active = true AND " +
