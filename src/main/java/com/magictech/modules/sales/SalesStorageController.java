@@ -68,6 +68,10 @@ public class SalesStorageController extends BaseModuleController {
 
     @Override
     protected void setupUI() {
+        // Debug logging
+        System.out.println("SalesStorageController.setupUI() - currentUser: " +
+            (currentUser != null ? currentUser.getUsername() : "NULL"));
+
         StackPane stackRoot = new StackPane();
         backgroundPane = new com.magictech.core.ui.components.DashboardBackgroundPane();
         mainContainer = new StackPane();
@@ -328,11 +332,15 @@ public class SalesStorageController extends BaseModuleController {
         headerLabel.setStyle("-fx-text-fill: white; -fx-font-size: 28px; -fx-font-weight: bold;");
         HBox.setHgrow(headerLabel, Priority.ALWAYS);
 
+        // Workflow Button - Open/Continue workflow for this project
+        Button workflowBtn = createStyledButton("🔄 View Workflow", "#8b5cf6", "#7c3aed");
+        workflowBtn.setOnAction(e -> openWorkflowDialog(project));
+
         // Delete Project Button
         Button deleteProjectBtn = createStyledButton("🗑️ Delete Project", "#ef4444", "#dc2626");
         deleteProjectBtn.setOnAction(e -> handleDeleteProject(project));
 
-        headerBox.getChildren().addAll(backBtn, headerLabel, deleteProjectBtn);
+        headerBox.getChildren().addAll(backBtn, headerLabel, workflowBtn, deleteProjectBtn);
 
         TabPane tabPane = new TabPane();
         tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
@@ -2180,93 +2188,15 @@ public class SalesStorageController extends BaseModuleController {
     }
 
     // ==================== ADD PROJECT/CUSTOMER DIALOGS ====================
+    /**
+     * Add new project - Always uses workflow mode (8-step process)
+     * No selling mode dialog needed - Projects submodule always uses workflow
+     */
     private void handleAddProject() {
-        // First: Ask sell mode
-        Alert sellModeAlert = new Alert(Alert.AlertType.CONFIRMATION);
-        sellModeAlert.setTitle("Select Selling Mode");
-        sellModeAlert.setHeaderText("How do you want to sell?");
-        sellModeAlert.setContentText("Choose your selling mode:");
-
-        ButtonType sellToCustomerBtn = new ButtonType("Sell to Customer");
-        ButtonType sellAsProjectBtn = new ButtonType("Sell as New Project (Workflow)");
-        ButtonType cancelBtn = new ButtonType("Cancel", ButtonBar.ButtonData.CANCEL_CLOSE);
-
-        sellModeAlert.getButtonTypes().setAll(sellToCustomerBtn, sellAsProjectBtn, cancelBtn);
-
-        sellModeAlert.showAndWait().ifPresent(response -> {
-            if (response == sellToCustomerBtn) {
-                handleSellToCustomer();
-            } else if (response == sellAsProjectBtn) {
-                handleSellAsNewProject();
-            }
-        });
-    }
-
-    /**
-     * Sell to Customer - Simple mode (existing behavior)
-     */
-    private void handleSellToCustomer() {
+        // Directly create project with workflow - no mode selection dialog
         Dialog<Project> dialog = new Dialog<>();
-        dialog.setTitle("🛒 Sell to Customer");
-        dialog.setHeaderText("Enter Customer Project Details");
-
-        ButtonType createButtonType = new ButtonType("Create", ButtonBar.ButtonData.OK_DONE);
-        dialog.getDialogPane().getButtonTypes().addAll(createButtonType, ButtonType.CANCEL);
-
-        GridPane grid = new GridPane();
-        grid.setHgap(15);
-        grid.setVgap(15);
-        grid.setPadding(new Insets(20));
-
-        TextField nameField = new TextField();
-        nameField.setPromptText("Project name");
-
-        TextField locationField = new TextField();
-        locationField.setPromptText("Location");
-
-        grid.add(new Label("Name:"), 0, 0);
-        grid.add(nameField, 1, 0);
-        grid.add(new Label("Location:"), 0, 1);
-        grid.add(locationField, 1, 1);
-
-        dialog.getDialogPane().setContent(grid);
-
-        dialog.setResultConverter(dialogButton -> {
-            if (dialogButton == createButtonType) {
-                Project project = new Project();
-                project.setProjectName(nameField.getText());
-                project.setProjectLocation(locationField.getText());
-                project.setCreatedBy(currentUser != null ? currentUser.getUsername() : "system");
-                return project;
-            }
-            return null;
-        });
-
-        dialog.showAndWait().ifPresent(project -> {
-            Task<Project> saveTask = new Task<>() {
-                @Override
-                protected Project call() {
-                    return projectService.createProject(project);
-                }
-            };
-
-            saveTask.setOnSucceeded(e -> {
-                Project savedProject = saveTask.getValue();
-                showSuccess("✓ Project created (Sell to Customer mode)");
-                loadProjects(projectsListView);
-            });
-
-            new Thread(saveTask).start();
-        });
-    }
-
-    /**
-     * Sell as New Project - Workflow mode (8-step process)
-     */
-    private void handleSellAsNewProject() {
-        Dialog<Project> dialog = new Dialog<>();
-        dialog.setTitle("🏗️ Create New Project (Workflow)");
-        dialog.setHeaderText("Enter Project Details - Then Start 8-Step Workflow");
+        dialog.setTitle("🏗️ Create New Project");
+        dialog.setHeaderText("Enter Project Details - 8-Step Workflow Will Start");
 
         ButtonType createButtonType = new ButtonType("Create & Start Workflow", ButtonBar.ButtonData.OK_DONE);
         dialog.getDialogPane().getButtonTypes().addAll(createButtonType, ButtonType.CANCEL);
@@ -2334,6 +2264,13 @@ public class SalesStorageController extends BaseModuleController {
      */
     private void openWorkflowDialog(Project project) {
         try {
+            // Validate currentUser before opening workflow
+            if (currentUser == null) {
+                showError("Error: Current user is not set. Please logout and login again.");
+                System.err.println("ERROR: currentUser is null in SalesStorageController.openWorkflowDialog");
+                return;
+            }
+
             WorkflowDialog workflowDialog = new WorkflowDialog(
                 project,
                 currentUser,
@@ -2345,6 +2282,7 @@ public class SalesStorageController extends BaseModuleController {
             // Refresh projects list after workflow dialog closes
             loadProjects(projectsListView);
         } catch (Exception ex) {
+            ex.printStackTrace();
             showError("Failed to open workflow: " + ex.getMessage());
         }
     }
