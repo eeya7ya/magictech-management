@@ -178,16 +178,13 @@ public class NotificationManager {
             logger.info("Found {} regular missed notifications since {} for module {}",
                 missedNotifications.size(), lastSeen, moduleType);
 
-            // Get current device ID to filter out sender's own notifications
-            String currentDeviceId = deviceService.getCurrentDeviceId();
-            logger.info("Current device ID for filtering: {}", currentDeviceId);
             logger.info("User {} (role: {}) loading {} missed notifications",
                 currentUser.getUsername(), currentUser.getRole(), missedNotifications.size());
 
             // Display each notification (excluding approval requests - already shown above)
             int shownCount = 0;
             int skippedApprovalCount = 0;
-            int skippedSenderCount = 0;
+            int skippedAlreadySeenCount = 0;
 
             for (Notification notification : missedNotifications) {
                 logger.debug("Processing notification: {} (action: {}, targetModule: {}, sourceDeviceId: {})",
@@ -201,20 +198,10 @@ public class NotificationManager {
                     continue;
                 }
 
-                // IMPORTANT: Filter out notifications created by THIS USER
-                // This implements the excludeSender behavior for missed notifications
-                // We compare USERNAME, not deviceId, to handle multi-user shared devices correctly
-                String createdBy = notification.getCreatedBy();
-                if (createdBy != null && createdBy.equals(currentUser.getUsername())) {
-                    skippedSenderCount++;
-                    logger.info("Skipping notification '{}' - created by current user {} (excludeSender)",
-                        notification.getTitle(), currentUser.getUsername());
-                    continue; // Don't show user their own notifications
-                }
-
                 // Check if THIS USER has already seen this notification
                 // This allows multiple users to see the same notification (MASTER + PROJECTS both see project creation)
                 if (notificationService.hasUserSeenNotification(notification.getId(), currentUser.getUsername())) {
+                    skippedAlreadySeenCount++;
                     logger.debug("Skipping notification '{}' - already seen by user {}",
                         notification.getTitle(), currentUser.getUsername());
                     continue; // Don't show user notifications they've already seen
@@ -235,8 +222,8 @@ public class NotificationManager {
                 Thread.sleep(300);
             }
 
-            logger.info("Notification summary: {} shown, {} skipped (approval), {} skipped (sender)",
-                shownCount, skippedApprovalCount, skippedSenderCount);
+            logger.info("Notification summary: {} shown, {} skipped (approval), {} skipped (already seen)",
+                shownCount, skippedApprovalCount, skippedAlreadySeenCount);
 
         } catch (Exception e) {
             logger.error("Error loading missed notifications: {}", e.getMessage(), e);
@@ -282,15 +269,6 @@ public class NotificationManager {
                 }
                 logger.info("User {} (role: {}) is authorized to see approval notifications",
                     currentUser.getUsername(), currentUser.getRole());
-            }
-
-            // Check excludeSender flag - don't show notifications the user created themselves
-            // IMPORTANT: Compare USERNAME, not deviceId, to handle multi-user shared devices
-            if (message.isExcludeSender() && message.getCreatedBy() != null &&
-                message.getCreatedBy().equals(currentUser.getUsername())) {
-                logger.info("Skipping real-time notification '{}' - created by current user {} (excludeSender)",
-                    message.getTitle(), currentUser.getUsername());
-                return; // Don't show user their own notifications
             }
 
             // Calculate stack index based on currently active popups
