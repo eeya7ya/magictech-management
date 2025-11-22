@@ -59,7 +59,7 @@ public class SalesStorageController extends BaseModuleController {
     private VBox dashboardScreen;
     private ListView<Project> projectsListView;
     private ListView<Customer> customersListView;
-    private User currentUser;
+    // Note: currentUser is inherited from BaseModuleController - do not redeclare!
 
     @Override
     public void refresh() {
@@ -332,31 +332,32 @@ public class SalesStorageController extends BaseModuleController {
         headerLabel.setStyle("-fx-text-fill: white; -fx-font-size: 28px; -fx-font-weight: bold;");
         HBox.setHgrow(headerLabel, Priority.ALWAYS);
 
-        // Workflow Button - Open/Continue workflow for this project
-        Button workflowBtn = createStyledButton("🔄 View Workflow", "#8b5cf6", "#7c3aed");
-        workflowBtn.setOnAction(e -> openWorkflowDialog(project));
-
         // Delete Project Button
         Button deleteProjectBtn = createStyledButton("🗑️ Delete Project", "#ef4444", "#dc2626");
         deleteProjectBtn.setOnAction(e -> handleDeleteProject(project));
 
-        headerBox.getChildren().addAll(backBtn, headerLabel, workflowBtn, deleteProjectBtn);
+        headerBox.getChildren().addAll(backBtn, headerLabel, deleteProjectBtn);
 
         TabPane tabPane = new TabPane();
         tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
         VBox.setVgrow(tabPane, Priority.ALWAYS);
 
-        // Contract PDF Tab
-        Tab contractsTab = new Tab("📄 Contract PDF");
-        contractsTab.setContent(createSimplePDFTab(project));
-        styleTab(contractsTab, "#7c3aed"); // Purple theme
+        // ✅ WORKFLOW WIZARD Tab (Primary Interface - replaces Contract PDF)
+        Tab workflowTab = new Tab("🔄 Workflow Wizard");
+        workflowTab.setContent(createWorkflowWizardTab(project));
+        styleTab(workflowTab, "#8b5cf6"); // Purple theme
 
         // ✅ Project Elements Tab (synchronized with Projects module) + Cost Breakdown
         Tab elementsTab = new Tab("📦 Project Elements");
         elementsTab.setContent(createProjectElementsTab(project));
         styleTab(elementsTab, "#a78bfa"); // Light purple theme
 
-        tabPane.getTabs().addAll(contractsTab, elementsTab);
+        // Contract PDF Tab (moved to last, optional)
+        Tab contractsTab = new Tab("📄 Contract PDF");
+        contractsTab.setContent(createSimplePDFTab(project));
+        styleTab(contractsTab, "#7c3aed"); // Purple theme
+
+        tabPane.getTabs().addAll(workflowTab, elementsTab, contractsTab);
 
         mainLayout.getChildren().addAll(headerBox, tabPane);
 
@@ -1033,6 +1034,120 @@ public class SalesStorageController extends BaseModuleController {
         return card;
     }
 
+
+    // ==================== WORKFLOW WIZARD TAB ====================
+    private VBox createWorkflowWizardTab(Project project) {
+        VBox content = new VBox(20);
+        content.setPadding(new Insets(30));
+        content.setStyle("-fx-background-color: rgba(15, 23, 42, 0.6);");
+        VBox.setVgrow(content, Priority.ALWAYS);
+
+        // Header
+        Label title = new Label("🔄 8-Step Workflow Wizard");
+        title.setStyle("-fx-text-fill: white; -fx-font-size: 24px; -fx-font-weight: bold;");
+
+        Label subtitle = new Label("Complete each step sequentially to move the project through the workflow");
+        subtitle.setStyle("-fx-text-fill: #94a3b8; -fx-font-size: 14px;");
+
+        VBox headerBox = new VBox(10, title, subtitle);
+        headerBox.setPadding(new Insets(0, 0, 20, 0));
+
+        // Workflow Status Cards Container
+        VBox workflowContent = new VBox(15);
+        workflowContent.setPadding(new Insets(20));
+        workflowContent.setStyle("-fx-background-color: rgba(30, 41, 59, 0.5); -fx-background-radius: 12px;");
+        VBox.setVgrow(workflowContent, Priority.ALWAYS);
+
+        // Load workflow for this project
+        try {
+            com.magictech.modules.sales.entity.ProjectWorkflow workflow =
+                workflowService.getOrCreateWorkflow(project.getId());
+
+            // Get all step completions
+            java.util.List<com.magictech.modules.sales.entity.WorkflowStepCompletion> completions =
+                stepService.getStepsByWorkflowId(workflow.getId());
+
+            // Create a status card for each of the 8 steps
+            String[] stepNames = {
+                "1. Site Survey",
+                "2. Selection & Design (Presales)",
+                "3. Bank Guarantee (Finance)",
+                "4. Missing Items Approval",
+                "5. Project Execution",
+                "6. Project Completion",
+                "7. QA After-Sales Check",
+                "8. Storage Analysis"
+            };
+
+            for (int i = 0; i < stepNames.length; i++) {
+                final int stepNumber = i + 1;
+                WorkflowStatusCard card = new WorkflowStatusCard();
+                card.setStepNumber(stepNumber);
+                card.setStepTitle(stepNames[i]);
+
+                // Find completion for this step
+                com.magictech.modules.sales.entity.WorkflowStepCompletion completion = null;
+                for (com.magictech.modules.sales.entity.WorkflowStepCompletion c : completions) {
+                    if (c.getStepNumber() == stepNumber) {
+                        completion = c;
+                        break;
+                    }
+                }
+
+                if (completion != null) {
+                    card.setCompleted(completion.isCompleted());
+                    card.setCompletedBy(completion.getCompletedBy());
+                    card.setCompletedAt(completion.getCompletedAt());
+                    card.setNotes(completion.getNotes());
+                    card.setExcelFilePath(completion.getExcelFilePath());
+                }
+
+                // Add action button based on step
+                card.setOnAction(() -> handleWorkflowStepAction(project, workflow, stepNumber));
+
+                workflowContent.getChildren().add(card);
+            }
+
+            // Refresh button at the bottom
+            Button refreshBtn = createStyledButton("🔄 Refresh Workflow Status", "#8b5cf6", "#7c3aed");
+            refreshBtn.setOnAction(e -> {
+                // Refresh the project details to reload workflow status
+                showProjectDetails(project);
+            });
+
+            HBox refreshBox = new HBox(refreshBtn);
+            refreshBox.setAlignment(Pos.CENTER);
+            refreshBox.setPadding(new Insets(20, 0, 0, 0));
+
+            content.getChildren().addAll(headerBox, workflowContent, refreshBox);
+
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            Label errorLabel = new Label("Error loading workflow: " + ex.getMessage());
+            errorLabel.setStyle("-fx-text-fill: #ef4444; -fx-font-size: 14px;");
+            content.getChildren().addAll(headerBox, errorLabel);
+        }
+
+        return content;
+    }
+
+    // Handle workflow step actions
+    private void handleWorkflowStepAction(Project project,
+                                         com.magictech.modules.sales.entity.ProjectWorkflow workflow,
+                                         int stepNumber) {
+        // For now, open the full workflow dialog for the specific step
+        // In the future, this could be inline forms
+        try {
+            WorkflowDialog dialog = new WorkflowDialog(project, currentUser, workflowService, stepService);
+            dialog.showAndWait();
+
+            // Refresh the workflow tab after dialog closes
+            showProjectDetails(project);
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            showError("Failed to open workflow dialog: " + ex.getMessage());
+        }
+    }
 
     // ==================== SIMPLIFIED PDF TAB ====================
     private VBox createSimplePDFTab(Project project) {
