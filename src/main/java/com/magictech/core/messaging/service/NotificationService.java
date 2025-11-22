@@ -156,6 +156,7 @@ public class NotificationService {
             .targetModule(NotificationConstants.MODULE_SALES)
             .priority(NotificationConstants.PRIORITY_HIGH)
             .createdBy(requestedBy)
+            .excludeSender(true)  // Don't send approval request back to the requester
             .metadata(String.format("{\"projectId\":%d,\"elementId\":%d,\"quantity\":%d}",
                 projectId, elementId, quantity))
             .build();
