@@ -1,5 +1,6 @@
 package com.magictech.modules.storage.model;
 
+import com.magictech.modules.storage.entity.WorkflowStatus;
 import javafx.beans.property.*;
 
 import java.math.BigDecimal;
@@ -18,6 +19,9 @@ public class StorageItemViewModel {
     private final IntegerProperty quantity = new SimpleIntegerProperty();
     private final ObjectProperty<BigDecimal> price = new SimpleObjectProperty<>();
     private final StringProperty dateAdded = new SimpleStringProperty();
+
+    // Workflow status
+    private final ObjectProperty<WorkflowStatus> workflowStatus = new SimpleObjectProperty<>();
 
     // NEW: Availability status for modules that don't show numbers
     private final StringProperty availabilityStatus = new SimpleStringProperty();
@@ -81,6 +85,11 @@ public class StorageItemViewModel {
     public void setDateAdded(String value) { dateAdded.set(value); }
     public StringProperty dateAddedProperty() { return dateAdded; }
 
+    // Workflow Status Property
+    public WorkflowStatus getWorkflowStatus() { return workflowStatus.get(); }
+    public void setWorkflowStatus(WorkflowStatus value) { workflowStatus.set(value); }
+    public ObjectProperty<WorkflowStatus> workflowStatusProperty() { return workflowStatus; }
+
     // NEW: Availability Status Property
     public String getAvailabilityStatus() { return availabilityStatus.get(); }
     public void setAvailabilityStatus(String value) { availabilityStatus.set(value); }
@@ -129,8 +138,9 @@ public class StorageItemViewModel {
                 ", code='" + getCode() + '\'' +
                 ", serialNumber='" + getSerialNumber() + '\'' +
                 ", quantity=" + getQuantity() +
-                ", availabilityStatus='" + getAvailabilityStatus() + '\'' +
                 ", price=" + getPrice() +
+                ", workflowStatus=" + getWorkflowStatus() +
+                ", availabilityStatus='" + getAvailabilityStatus() + '\'' +
                 '}';
     }
 }
