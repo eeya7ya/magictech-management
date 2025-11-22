@@ -36,14 +36,9 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     List<Notification> findByModuleAndActiveTrue(String module);
 
     /**
-     * Find unread notifications created after a specific timestamp.
-     * Used for catching up on missed notifications (excludes already-read ones).
-     */
-    List<Notification> findByTimestampAfterAndActiveTrueAndReadStatusFalse(LocalDateTime timestamp);
-
-    /**
-     * Find ALL notifications created after a specific timestamp.
-     * Used for viewing recent notification history (includes already-read ones).
+     * Find notifications created after a specific timestamp.
+     * Used for catching up on missed notifications and viewing notification history.
+     * Note: Does NOT filter by readStatus - per-user filtering is done via NotificationUserStatus.
      */
     List<Notification> findByTimestampAfterAndActiveTrue(LocalDateTime timestamp);
 
@@ -57,11 +52,10 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
                                                @Param("timestamp") LocalDateTime timestamp);
 
     /**
-     * Find unread notifications for a specific module created after a timestamp.
-     * Excludes notifications that have already been read to prevent duplicates.
+     * Find notifications for a specific module created after a timestamp.
+     * Note: Does NOT filter by readStatus - per-user filtering is done via NotificationUserStatus.
      */
     @Query("SELECT n FROM Notification n WHERE n.active = true AND " +
-           "n.readStatus = false AND " +
            "(n.targetModule = :module OR n.targetModule IS NULL OR n.targetModule = 'ALL') AND " +
            "n.timestamp > :timestamp ORDER BY n.timestamp DESC")
     List<Notification> findMissedNotificationsByModule(@Param("module") String module,

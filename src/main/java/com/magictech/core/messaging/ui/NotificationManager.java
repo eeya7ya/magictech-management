@@ -212,6 +212,14 @@ public class NotificationManager {
                     continue; // Don't show user their own notifications
                 }
 
+                // Check if THIS USER has already seen this notification
+                // This allows multiple users to see the same notification (MASTER + PROJECTS both see project creation)
+                if (notificationService.hasUserSeenNotification(notification.getId(), currentUser.getUsername())) {
+                    logger.debug("Skipping notification '{}' - already seen by user {}",
+                        notification.getTitle(), currentUser.getUsername());
+                    continue; // Don't show user notifications they've already seen
+                }
+
                 shownCount++;
                 logger.info("Showing notification {}: {} (created by: {})",
                     shownCount, notification.getTitle(), notification.getCreatedBy());
@@ -219,9 +227,10 @@ public class NotificationManager {
                 NotificationMessage message = convertToMessage(notification);
                 handleNotification(message);
 
-                // Mark notification as read to prevent showing it again on next login
-                notificationService.markAsRead(notification.getId());
-                logger.debug("Marked notification {} as read", notification.getId());
+                // Mark notification as seen by THIS USER (not globally)
+                // This allows other users (e.g., MASTER, PROJECTS) to still see it
+                notificationService.markAsSeenByUser(notification.getId(), currentUser.getUsername());
+                logger.debug("Marked notification {} as seen by user {}", notification.getId(), currentUser.getUsername());
 
                 Thread.sleep(300);
             }
