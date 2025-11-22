@@ -199,15 +199,14 @@ public class NotificationManager {
                     continue;
                 }
 
-                // IMPORTANT: Filter out notifications created by this user's device
+                // IMPORTANT: Filter out notifications created by THIS USER
                 // This implements the excludeSender behavior for missed notifications
-                // (the real-time listener already does this for live notifications)
-                String sourceDeviceId = notification.getSourceDeviceId();
-                if (currentDeviceId != null && sourceDeviceId != null &&
-                    currentDeviceId.equals(sourceDeviceId)) {
+                // We compare USERNAME, not deviceId, to handle multi-user shared devices correctly
+                String createdBy = notification.getCreatedBy();
+                if (createdBy != null && createdBy.equals(currentUser.getUsername())) {
                     skippedSenderCount++;
-                    logger.info("Skipping notification '{}' - created by current device (excludeSender)",
-                        notification.getTitle());
+                    logger.info("Skipping notification '{}' - created by current user {} (excludeSender)",
+                        notification.getTitle(), currentUser.getUsername());
                     continue; // Don't show user their own notifications
                 }
 
@@ -267,6 +266,15 @@ public class NotificationManager {
                 }
                 logger.info("User {} (role: {}) is authorized to see approval notifications",
                     currentUser.getUsername(), currentUser.getRole());
+            }
+
+            // Check excludeSender flag - don't show notifications the user created themselves
+            // IMPORTANT: Compare USERNAME, not deviceId, to handle multi-user shared devices
+            if (message.isExcludeSender() && message.getCreatedBy() != null &&
+                message.getCreatedBy().equals(currentUser.getUsername())) {
+                logger.info("Skipping real-time notification '{}' - created by current user {} (excludeSender)",
+                    message.getTitle(), currentUser.getUsername());
+                return; // Don't show user their own notifications
             }
 
             // Calculate stack index based on currently active popups
