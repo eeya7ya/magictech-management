@@ -215,8 +215,8 @@ public class NotificationService {
             .entityType(NotificationConstants.ENTITY_PROJECT)
             .entityId(projectId)
             .title("Project Completed")
-            .message(String.format("Project '%s' has been completed and is ready for pricing analysis", projectName))
-            .targetModule(NotificationConstants.MODULE_PRICING)
+            .message(String.format("Project '%s' has been completed and is ready for quality assurance review", projectName))
+            .targetModule(NotificationConstants.MODULE_QA)
             .priority(NotificationConstants.PRIORITY_HIGH)
             .createdBy(completedBy)
             .build();
