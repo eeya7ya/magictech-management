@@ -116,15 +116,39 @@ public class ModuleConfig {
                 .build();
     }
 
-    // Factory method for Pricing Module (for future implementation)
-    public static ModuleConfig createPricingConfig() {
+    // Factory method for Presales Module
+    public static ModuleConfig createPresalesConfig() {
         return new Builder()
-                .name("pricing")
-                .displayName("Pricing Module")
-                .description("Configure pricing models and manage quotes")
-                .icon("💰")
+                .name("presales")
+                .displayName("Presales Module")
+                .description("Manage quotations, initial customer contact, and pre-sales activities")
+                .icon("📋")
+                .colorScheme("module-cyan")
+                .allowedRoles(UserRole.MASTER, UserRole.PRESALES)
+                .build();
+    }
+
+    // Factory method for Quality Assurance Module (renamed from Pricing)
+    public static ModuleConfig createQualityAssuranceConfig() {
+        return new Builder()
+                .name("qualityassurance")
+                .displayName("Quality Assurance Module")
+                .description("Quality checks, verification, and approval processes")
+                .icon("✅")
                 .colorScheme("module-orange")
-                .allowedRoles(UserRole.MASTER, UserRole.PRICING)
+                .allowedRoles(UserRole.MASTER, UserRole.QUALITY_ASSURANCE)
+                .build();
+    }
+
+    // Factory method for Finance Module
+    public static ModuleConfig createFinanceConfig() {
+        return new Builder()
+                .name("finance")
+                .displayName("Finance Module")
+                .description("Manage invoicing, payments, and financial tracking")
+                .icon("💰")
+                .colorScheme("module-yellow")
+                .allowedRoles(UserRole.MASTER, UserRole.FINANCE)
                 .build();
     }
 

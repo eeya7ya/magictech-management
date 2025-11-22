@@ -472,8 +472,13 @@ public class SalesStorageController extends BaseModuleController {
             java.math.BigDecimal subtotal = java.math.BigDecimal.ZERO;
 
             for (ProjectElement element : elements) {
-                if (element.getStorageItem() != null && element.getStorageItem().getPrice() != null) {
-                    java.math.BigDecimal price = element.getStorageItem().getPrice();
+                // Use custom price if set, otherwise use storage item price
+                java.math.BigDecimal price = element.getCustomPrice();
+                if (price == null && element.getStorageItem() != null) {
+                    price = element.getStorageItem().getPrice();
+                }
+
+                if (price != null) {
                     java.math.BigDecimal quantity = new java.math.BigDecimal(element.getQuantityNeeded());
                     subtotal = subtotal.add(price.multiply(quantity));
                 }
@@ -673,6 +678,23 @@ public class SalesStorageController extends BaseModuleController {
         quantitySpinner.setStyle("-fx-background-color: #1e293b;");
         quantitySpinner.getEditor().setStyle("-fx-text-fill: white; -fx-background-color: #1e293b;");
 
+        // Custom Price field (Sales can freely edit price)
+        Label priceLabel = new Label("Custom Price:*");
+        priceLabel.setStyle("-fx-text-fill: white; -fx-font-weight: bold; -fx-font-size: 14px;");
+
+        TextField priceField = new TextField();
+        // Pre-fill with storage item price, but allow editing
+        BigDecimal defaultPrice = storageItem.getPrice() != null ? storageItem.getPrice() : BigDecimal.ZERO;
+        priceField.setText(defaultPrice.toString());
+        priceField.setPromptText("Enter price per unit");
+        priceField.setPrefWidth(150);
+        priceField.setStyle(
+                "-fx-background-color: #1e293b;" +
+                        "-fx-text-fill: #22c55e;" + // Green to indicate editable
+                        "-fx-font-weight: bold;" +
+                        "-fx-prompt-text-fill: #9ca3af;"
+        );
+
         // Notes field
         Label notesLabel = new Label("Notes (Optional):");
         notesLabel.setStyle("-fx-text-fill: white; -fx-font-weight: bold; -fx-font-size: 14px;");
@@ -688,8 +710,10 @@ public class SalesStorageController extends BaseModuleController {
 
         grid.add(neededLabel, 0, 0);
         grid.add(quantitySpinner, 1, 0);
-        grid.add(notesLabel, 0, 1);
-        grid.add(notesField, 1, 1);
+        grid.add(priceLabel, 0, 1);
+        grid.add(priceField, 1, 1);
+        grid.add(notesLabel, 0, 2);
+        grid.add(notesField, 1, 2);
 
         quantityDialog.getDialogPane().setContent(grid);
         quantityDialog.getDialogPane().setStyle("-fx-background-color: #0f172a;");
@@ -718,13 +742,28 @@ public class SalesStorageController extends BaseModuleController {
                 return;
             }
 
-            // AVAILABLE - Show confirmation
+            // Parse custom price
+            BigDecimal customPrice;
+            try {
+                customPrice = new BigDecimal(priceField.getText());
+            } catch (NumberFormatException e) {
+                Alert errorAlert = new Alert(Alert.AlertType.ERROR);
+                errorAlert.setTitle("❌ Invalid Price");
+                errorAlert.setHeaderText("Invalid price format");
+                errorAlert.setContentText("Please enter a valid numeric price.");
+                errorAlert.showAndWait();
+                return;
+            }
+
+            // AVAILABLE - Show confirmation with price
             Alert availableAlert = new Alert(Alert.AlertType.CONFIRMATION);
             availableAlert.setTitle("✅ Stock Available");
             availableAlert.setHeaderText("Confirm Addition");
             availableAlert.setContentText(
                     "Item: " + storageItem.getProductName() + "\n" +
                             "Requested: " + requestedQty + " units\n" +
+                            "Custom Price: $" + customPrice + " per unit\n" +
+                            "Total: $" + customPrice.multiply(new BigDecimal(requestedQty)) + "\n" +
                             "Status: ✅ AVAILABLE\n\n" +
                             "Add to project?"
             );
@@ -739,6 +778,7 @@ public class SalesStorageController extends BaseModuleController {
                             element.setProject(project);
                             element.setStorageItem(storageItem);
                             element.setQuantityNeeded(requestedQty);
+                            element.setCustomPrice(customPrice); // Set the custom price
                             element.setNotes(notesField.getText());
                             element.setAddedBy(currentUser != null ? currentUser.getUsername() : "system");
 

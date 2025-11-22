@@ -34,6 +34,17 @@ public class StorageItem {
     @Column(name = "price", precision = 10, scale = 2)
     private BigDecimal price;
 
+    // Workflow management
+    @Enumerated(EnumType.STRING)
+    @Column(name = "workflow_status", length = 50)
+    private WorkflowStatus workflowStatus = WorkflowStatus.DRAFT;
+
+    @Column(name = "workflow_updated_at")
+    private LocalDateTime workflowUpdatedAt;
+
+    @Column(name = "workflow_updated_by", length = 100)
+    private String workflowUpdatedBy;
+
     // Metadata fields
     @Column(name = "date_added", nullable = false)
     private LocalDateTime dateAdded;
@@ -80,6 +91,12 @@ public class StorageItem {
         }
         if (quantity == null) {
             quantity = 0;
+        }
+        if (workflowStatus == null) {
+            workflowStatus = WorkflowStatus.DRAFT;
+        }
+        if (workflowUpdatedAt == null) {
+            workflowUpdatedAt = LocalDateTime.now();
         }
     }
 
@@ -145,6 +162,31 @@ public class StorageItem {
         this.price = price;
     }
 
+    public WorkflowStatus getWorkflowStatus() {
+        return workflowStatus;
+    }
+
+    public void setWorkflowStatus(WorkflowStatus workflowStatus) {
+        this.workflowStatus = workflowStatus;
+        this.workflowUpdatedAt = LocalDateTime.now();
+    }
+
+    public LocalDateTime getWorkflowUpdatedAt() {
+        return workflowUpdatedAt;
+    }
+
+    public void setWorkflowUpdatedAt(LocalDateTime workflowUpdatedAt) {
+        this.workflowUpdatedAt = workflowUpdatedAt;
+    }
+
+    public String getWorkflowUpdatedBy() {
+        return workflowUpdatedBy;
+    }
+
+    public void setWorkflowUpdatedBy(String workflowUpdatedBy) {
+        this.workflowUpdatedBy = workflowUpdatedBy;
+    }
+
     public LocalDateTime getDateAdded() {
         return dateAdded;
     }
@@ -195,6 +237,7 @@ public class StorageItem {
                 ", serialNumber='" + serialNumber + '\'' +
                 ", quantity=" + quantity +
                 ", price=" + price +
+                ", workflowStatus=" + workflowStatus +
                 ", active=" + active +
                 '}';
     }

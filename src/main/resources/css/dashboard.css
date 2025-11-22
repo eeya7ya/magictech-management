@@ -287,6 +287,22 @@ VBox, HBox, BorderPane, Pane, AnchorPane, FlowPane {
     -fx-background-color: linear-gradient(to right, #dc2626, #b91c1c);
 }
 
+.module-cyan .module-card-header {
+    -fx-background-color: linear-gradient(to right, #06b6d4, #0891b2);
+}
+
+.module-cyan:hover .module-card-header {
+    -fx-background-color: linear-gradient(to right, #0891b2, #0e7490);
+}
+
+.module-yellow .module-card-header {
+    -fx-background-color: linear-gradient(to right, #eab308, #ca8a04);
+}
+
+.module-yellow:hover .module-card-header {
+    -fx-background-color: linear-gradient(to right, #ca8a04, #a16207);
+}
+
 /* ===== STATUS BAR ===== */
 .status-bar {
     -fx-background-color: rgba(30, 41, 59, 0.5);

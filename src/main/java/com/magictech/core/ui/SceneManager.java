@@ -7,7 +7,9 @@ import com.magictech.core.ui.controllers.MainDashboardController;
 import com.magictech.modules.storage.StorageController;
 import com.magictech.modules.maintenance.MaintenanceStorageController;
 import com.magictech.modules.projects.ProjectsStorageController;
-import com.magictech.modules.pricing.PricingController;
+import com.magictech.modules.presales.PresalesController;
+import com.magictech.modules.qualityassurance.QualityAssuranceController;
+import com.magictech.modules.finance.FinanceController;
 import javafx.animation.FadeTransition;
 import javafx.application.Platform;
 import javafx.fxml.FXMLLoader;
@@ -479,9 +481,9 @@ public class SceneManager {
     }
 
     /**
-     * ✅ FIXED: Show Pricing Module
+     * ✅ Show Presales Module
      */
-    public void showPricingModule() {
+    public void showPresalesModule() {
         if (isTransitioning) return;
 
         showLoading();
@@ -495,30 +497,126 @@ public class SceneManager {
                 try {
                     immediateCleanup();
 
-                    PricingController pricingController = new PricingController();
-                    context.getAutowireCapableBeanFactory().autowireBean(pricingController);
+                    PresalesController presalesController = new PresalesController();
+                    context.getAutowireCapableBeanFactory().autowireBean(presalesController);
 
-                    ModuleConfig config = ModuleConfig.createPricingConfig();
-                    pricingController.initialize(currentUser, config);
+                    ModuleConfig config = ModuleConfig.createPresalesConfig();
+                    presalesController.initialize(currentUser, config);
 
-                    activeModuleController = pricingController;
+                    activeModuleController = presalesController;
 
-                    Parent root = pricingController.getRootPane();
+                    Parent root = presalesController.getRootPane();
                     StackPane wrappedRoot = new StackPane(root);
                     Scene scene = new Scene(wrappedRoot);
                     scene.getStylesheets().add(getClass().getResource("/css/styles.css").toExternalForm());
                     scene.getStylesheets().add(getClass().getResource("/css/dashboard.css").toExternalForm());
 
                     primaryStage.setScene(scene);
-                    primaryStage.setTitle("MagicTech - Pricing Module");
+                    primaryStage.setTitle("MagicTech - Presales Module");
                     primaryStage.setMaximized(true);
 
                     createLoadingOverlay();
                     hideLoading();
-                    System.out.println("✓ Pricing module loaded");
+                    System.out.println("✓ Presales module loaded");
 
                 } catch (Exception e) {
-                    System.err.println("Error loading Pricing Module: " + e.getMessage());
+                    System.err.println("Error loading Presales Module: " + e.getMessage());
+                    e.printStackTrace();
+                    hideLoading();
+                }
+            });
+        });
+    }
+
+    /**
+     * ✅ Show Quality Assurance Module (formerly Pricing)
+     */
+    public void showQualityAssuranceModule() {
+        if (isTransitioning) return;
+
+        showLoading();
+
+        Platform.runLater(() -> {
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException ignored) {}
+
+            Platform.runLater(() -> {
+                try {
+                    immediateCleanup();
+
+                    QualityAssuranceController qaController = new QualityAssuranceController();
+                    context.getAutowireCapableBeanFactory().autowireBean(qaController);
+
+                    ModuleConfig config = ModuleConfig.createQualityAssuranceConfig();
+                    qaController.initialize(currentUser, config);
+
+                    activeModuleController = qaController;
+
+                    Parent root = qaController.getRootPane();
+                    StackPane wrappedRoot = new StackPane(root);
+                    Scene scene = new Scene(wrappedRoot);
+                    scene.getStylesheets().add(getClass().getResource("/css/styles.css").toExternalForm());
+                    scene.getStylesheets().add(getClass().getResource("/css/dashboard.css").toExternalForm());
+
+                    primaryStage.setScene(scene);
+                    primaryStage.setTitle("MagicTech - Quality Assurance Module");
+                    primaryStage.setMaximized(true);
+
+                    createLoadingOverlay();
+                    hideLoading();
+                    System.out.println("✓ Quality Assurance module loaded");
+
+                } catch (Exception e) {
+                    System.err.println("Error loading Quality Assurance Module: " + e.getMessage());
+                    e.printStackTrace();
+                    hideLoading();
+                }
+            });
+        });
+    }
+
+    /**
+     * ✅ Show Finance Module
+     */
+    public void showFinanceModule() {
+        if (isTransitioning) return;
+
+        showLoading();
+
+        Platform.runLater(() -> {
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException ignored) {}
+
+            Platform.runLater(() -> {
+                try {
+                    immediateCleanup();
+
+                    FinanceController financeController = new FinanceController();
+                    context.getAutowireCapableBeanFactory().autowireBean(financeController);
+
+                    ModuleConfig config = ModuleConfig.createFinanceConfig();
+                    financeController.initialize(currentUser, config);
+
+                    activeModuleController = financeController;
+
+                    Parent root = financeController.getRootPane();
+                    StackPane wrappedRoot = new StackPane(root);
+                    Scene scene = new Scene(wrappedRoot);
+                    scene.getStylesheets().add(getClass().getResource("/css/styles.css").toExternalForm());
+                    scene.getStylesheets().add(getClass().getResource("/css/dashboard.css").toExternalForm());
+
+                    primaryStage.setScene(scene);
+                    primaryStage.setTitle("MagicTech - Finance Module");
+                    primaryStage.setMaximized(true);
+
+                    createLoadingOverlay();
+                    hideLoading();
+                    System.out.println("✓ Finance module loaded");
+
+                } catch (Exception e) {
+                    System.err.println("Error loading Finance Module: " + e.getMessage());
                     e.printStackTrace();
                     hideLoading();
                 }
@@ -583,11 +681,21 @@ public class SceneManager {
             case "storage":
                 showStorageModule();
                 break;
+            case "presales":
+                showPresalesModule();
+                break;
             case "sales":
                 showSalesModule();
                 break;
             case "customers":
                 showCustomersModule();
+                break;
+            case "qualityassurance":
+            case "qa":
+                showQualityAssuranceModule();
+                break;
+            case "finance":
+                showFinanceModule();
                 break;
             case "maintenance":
                 showMaintenanceModule();
@@ -595,8 +703,9 @@ public class SceneManager {
             case "projects":
                 showProjectsModule();
                 break;
+            // Legacy support for old "pricing" route
             case "pricing":
-                showPricingModule();
+                showQualityAssuranceModule();
                 break;
             default:
                 System.err.println("Unknown module: " + moduleName);
