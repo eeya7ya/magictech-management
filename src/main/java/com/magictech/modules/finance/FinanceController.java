@@ -106,9 +106,12 @@ public class FinanceController extends BaseStorageModuleController {
         workflowPanel.getChildren().addAll(titleLabel, pendingRequestsList, refreshBtn);
 
         try {
-            VBox mainContent = (VBox) getView();
-            if (mainContent.getChildren().size() > 0) {
-                mainContent.getChildren().add(1, workflowPanel);
+            BorderPane rootPane = getRootPane();
+            if (rootPane.getCenter() instanceof VBox) {
+                VBox mainContent = (VBox) rootPane.getCenter();
+                if (mainContent.getChildren().size() > 0) {
+                    mainContent.getChildren().add(1, workflowPanel);
+                }
             }
         } catch (Exception e) {
             loadPendingRequests();
@@ -143,7 +146,7 @@ public class FinanceController extends BaseStorageModuleController {
             new FileChooser.ExtensionFilter("Excel Files", "*.xlsx", "*.xls")
         );
 
-        File file = fileChooser.showOpenDialog(getView().getScene().getWindow());
+        File file = fileChooser.showOpenDialog(getRootPane().getScene().getWindow());
         if (file != null) {
             try {
                 byte[] fileData = Files.readAllBytes(file.toPath());
