@@ -50,6 +50,16 @@ public class Project {
     @Column(columnDefinition = "TEXT")
     private String notes;
 
+    // Site survey request flag
+    @Column(name = "site_survey_requested")
+    private Boolean siteSurveyRequested = false;
+
+    @Column(name = "site_survey_request_date")
+    private LocalDateTime siteSurveyRequestDate;
+
+    @Column(name = "site_survey_requested_by", length = 100)
+    private String siteSurveyRequestedBy;
+
     // Constructors
     public Project() {
         this.dateAdded = LocalDateTime.now();
@@ -171,6 +181,30 @@ public class Project {
 
     public void setNotes(String notes) {
         this.notes = notes;
+    }
+
+    public Boolean getSiteSurveyRequested() {
+        return siteSurveyRequested;
+    }
+
+    public void setSiteSurveyRequested(Boolean siteSurveyRequested) {
+        this.siteSurveyRequested = siteSurveyRequested;
+    }
+
+    public LocalDateTime getSiteSurveyRequestDate() {
+        return siteSurveyRequestDate;
+    }
+
+    public void setSiteSurveyRequestDate(LocalDateTime siteSurveyRequestDate) {
+        this.siteSurveyRequestDate = siteSurveyRequestDate;
+    }
+
+    public String getSiteSurveyRequestedBy() {
+        return siteSurveyRequestedBy;
+    }
+
+    public void setSiteSurveyRequestedBy(String siteSurveyRequestedBy) {
+        this.siteSurveyRequestedBy = siteSurveyRequestedBy;
     }
 
     @Override
