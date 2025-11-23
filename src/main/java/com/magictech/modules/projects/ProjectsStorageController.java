@@ -2385,6 +2385,7 @@ public class ProjectsStorageController extends BaseModuleController {
         }
 
         loadElementsData();
+        loadSiteSurveyData(); // ✅ Load site survey data when opening project
 
         mainContainer.getChildren().remove(projectSelectionScreen);
         projectWorkspaceScreen.setVisible(true);
