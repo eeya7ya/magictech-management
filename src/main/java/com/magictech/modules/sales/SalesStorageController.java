@@ -1052,74 +1052,138 @@ public class SalesStorageController extends BaseModuleController {
         VBox headerBox = new VBox(10, title, subtitle);
         headerBox.setPadding(new Insets(0, 0, 20, 0));
 
-        // Workflow Status Cards Container
-        VBox workflowContent = new VBox(15);
-        workflowContent.setPadding(new Insets(20));
-        workflowContent.setStyle("-fx-background-color: rgba(30, 41, 59, 0.5); -fx-background-radius: 12px;");
-        VBox.setVgrow(workflowContent, Priority.ALWAYS);
-
         // Load workflow for this project
         try {
-            com.magictech.modules.sales.entity.ProjectWorkflow workflow =
-                workflowService.getOrCreateWorkflow(project.getId());
+            // Get or create workflow
+            java.util.Optional<com.magictech.modules.sales.entity.ProjectWorkflow> workflowOpt =
+                workflowService.getWorkflowByProjectId(project.getId());
+
+            com.magictech.modules.sales.entity.ProjectWorkflow workflow;
+            if (workflowOpt.isPresent()) {
+                workflow = workflowOpt.get();
+            } else {
+                // Create new workflow
+                workflow = workflowService.createWorkflow(project.getId(), currentUser);
+            }
 
             // Get all step completions
             java.util.List<com.magictech.modules.sales.entity.WorkflowStepCompletion> completions =
-                stepService.getStepsByWorkflowId(workflow.getId());
+                stepService.getAllSteps(workflow.getId());
 
-            // Create a status card for each of the 8 steps
+            // Workflow Status Summary
+            VBox summaryBox = new VBox(15);
+            summaryBox.setPadding(new Insets(25));
+            summaryBox.setStyle("-fx-background-color: rgba(30, 41, 59, 0.6); -fx-background-radius: 12px;");
+
+            // Current step indicator
+            HBox currentStepBox = new HBox(15);
+            currentStepBox.setAlignment(Pos.CENTER_LEFT);
+
+            Label currentStepIcon = new Label("📍");
+            currentStepIcon.setStyle("-fx-font-size: 28px;");
+
+            Label currentStepLabel = new Label("Current Step: " + workflow.getCurrentStep() + " of 8");
+            currentStepLabel.setStyle("-fx-text-fill: white; -fx-font-size: 20px; -fx-font-weight: bold;");
+
+            currentStepBox.getChildren().addAll(currentStepIcon, currentStepLabel);
+
+            // Progress indicator
+            HBox progressBox = new HBox(10);
+            progressBox.setAlignment(Pos.CENTER_LEFT);
+
+            for (int i = 1; i <= 8; i++) {
+                Label stepDot = new Label("●");
+                if (i < workflow.getCurrentStep()) {
+                    stepDot.setStyle("-fx-text-fill: #10b981; -fx-font-size: 20px;"); // Green - completed
+                } else if (i == workflow.getCurrentStep()) {
+                    stepDot.setStyle("-fx-text-fill: #f59e0b; -fx-font-size: 24px;"); // Amber - current
+                } else {
+                    stepDot.setStyle("-fx-text-fill: #6b7280; -fx-font-size: 16px;"); // Gray - pending
+                }
+                progressBox.getChildren().add(stepDot);
+            }
+
+            // Step details
+            GridPane stepsGrid = new GridPane();
+            stepsGrid.setHgap(20);
+            stepsGrid.setVgap(12);
+            stepsGrid.setPadding(new Insets(15, 0, 0, 0));
+
             String[] stepNames = {
-                "1. Site Survey",
-                "2. Selection & Design (Presales)",
-                "3. Bank Guarantee (Finance)",
-                "4. Missing Items Approval",
-                "5. Project Execution",
-                "6. Project Completion",
-                "7. QA After-Sales Check",
-                "8. Storage Analysis"
+                "Site Survey",
+                "Selection & Design (Presales)",
+                "Bank Guarantee (Finance)",
+                "Missing Items Approval",
+                "Project Execution",
+                "Project Completion",
+                "QA After-Sales Check",
+                "Storage Analysis"
             };
 
             for (int i = 0; i < stepNames.length; i++) {
-                final int stepNumber = i + 1;
-                WorkflowStatusCard card = new WorkflowStatusCard();
-                card.setStepNumber(stepNumber);
-                card.setStepTitle(stepNames[i]);
+                final int stepNum = i + 1;
 
                 // Find completion for this step
                 com.magictech.modules.sales.entity.WorkflowStepCompletion completion = null;
                 for (com.magictech.modules.sales.entity.WorkflowStepCompletion c : completions) {
-                    if (c.getStepNumber() == stepNumber) {
+                    if (c.getStepNumber() == stepNum) {
                         completion = c;
                         break;
                     }
                 }
 
-                if (completion != null) {
-                    card.setCompleted(completion.isCompleted());
-                    card.setCompletedBy(completion.getCompletedBy());
-                    card.setCompletedAt(completion.getCompletedAt());
-                    card.setNotes(completion.getNotes());
-                    card.setExcelFilePath(completion.getExcelFilePath());
+                // Step number badge
+                Label stepBadge = new Label(String.valueOf(stepNum));
+                if (completion != null && completion.getCompletedAt() != null) {
+                    stepBadge.setStyle("-fx-background-color: #10b981; -fx-text-fill: white; " +
+                        "-fx-padding: 5 10; -fx-background-radius: 50%; -fx-font-weight: bold;");
+                } else if (stepNum == workflow.getCurrentStep()) {
+                    stepBadge.setStyle("-fx-background-color: #f59e0b; -fx-text-fill: white; " +
+                        "-fx-padding: 5 10; -fx-background-radius: 50%; -fx-font-weight: bold;");
+                } else {
+                    stepBadge.setStyle("-fx-background-color: #4b5563; -fx-text-fill: white; " +
+                        "-fx-padding: 5 10; -fx-background-radius: 50%; -fx-font-weight: bold;");
                 }
 
-                // Add action button based on step
-                card.setOnAction(() -> handleWorkflowStepAction(project, workflow, stepNumber));
+                // Step name
+                Label stepName = new Label(stepNames[i]);
+                stepName.setStyle("-fx-text-fill: white; -fx-font-size: 14px;");
 
-                workflowContent.getChildren().add(card);
+                // Status icon
+                Label statusIcon = new Label();
+                if (completion != null && completion.getCompletedAt() != null) {
+                    statusIcon.setText("✓");
+                    statusIcon.setStyle("-fx-text-fill: #10b981; -fx-font-size: 18px; -fx-font-weight: bold;");
+                } else if (stepNum == workflow.getCurrentStep()) {
+                    statusIcon.setText("⏳");
+                    statusIcon.setStyle("-fx-font-size: 16px;");
+                } else {
+                    statusIcon.setText("○");
+                    statusIcon.setStyle("-fx-text-fill: #6b7280; -fx-font-size: 16px;");
+                }
+
+                stepsGrid.add(stepBadge, 0, i);
+                stepsGrid.add(stepName, 1, i);
+                stepsGrid.add(statusIcon, 2, i);
             }
 
-            // Refresh button at the bottom
-            Button refreshBtn = createStyledButton("🔄 Refresh Workflow Status", "#8b5cf6", "#7c3aed");
-            refreshBtn.setOnAction(e -> {
-                // Refresh the project details to reload workflow status
-                showProjectDetails(project);
-            });
+            summaryBox.getChildren().addAll(currentStepBox, progressBox, stepsGrid);
 
-            HBox refreshBox = new HBox(refreshBtn);
-            refreshBox.setAlignment(Pos.CENTER);
-            refreshBox.setPadding(new Insets(20, 0, 0, 0));
+            // Action buttons
+            HBox actionBox = new HBox(15);
+            actionBox.setAlignment(Pos.CENTER);
+            actionBox.setPadding(new Insets(25, 0, 0, 0));
 
-            content.getChildren().addAll(headerBox, workflowContent, refreshBox);
+            Button openWorkflowBtn = createStyledButton("🔄 Open Full Workflow Wizard", "#8b5cf6", "#7c3aed");
+            final com.magictech.modules.sales.entity.ProjectWorkflow finalWorkflow = workflow;
+            openWorkflowBtn.setOnAction(e -> handleWorkflowDialogOpen(project, finalWorkflow));
+
+            Button refreshBtn = createStyledButton("🔄 Refresh Status", "#6366f1", "#4f46e5");
+            refreshBtn.setOnAction(e -> openProjectDetails(project));
+
+            actionBox.getChildren().addAll(openWorkflowBtn, refreshBtn);
+
+            content.getChildren().addAll(headerBox, summaryBox, actionBox);
 
         } catch (Exception ex) {
             ex.printStackTrace();
@@ -1131,18 +1195,15 @@ public class SalesStorageController extends BaseModuleController {
         return content;
     }
 
-    // Handle workflow step actions
-    private void handleWorkflowStepAction(Project project,
-                                         com.magictech.modules.sales.entity.ProjectWorkflow workflow,
-                                         int stepNumber) {
-        // For now, open the full workflow dialog for the specific step
-        // In the future, this could be inline forms
+    // Handle opening workflow dialog
+    private void handleWorkflowDialogOpen(Project project,
+                                          com.magictech.modules.sales.entity.ProjectWorkflow workflow) {
         try {
             WorkflowDialog dialog = new WorkflowDialog(project, currentUser, workflowService, stepService);
             dialog.showAndWait();
 
-            // Refresh the workflow tab after dialog closes
-            showProjectDetails(project);
+            // Refresh the project details after dialog closes
+            openProjectDetails(project);
         } catch (Exception ex) {
             ex.printStackTrace();
             showError("Failed to open workflow dialog: " + ex.getMessage());
