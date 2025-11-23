@@ -34,6 +34,9 @@ public class ProjectWorkflowService {
     private ExcelStorageService excelStorageService;
 
     @Autowired
+    private SiteSurveyExcelService siteSurveyExcelService;
+
+    @Autowired
     private SiteSurveyDataRepository siteSurveyRepository;
 
     @Autowired
@@ -116,8 +119,13 @@ public class ProjectWorkflowService {
 
         validateStepCanStart(workflow, 1);
 
-        // Parse and store Excel
-        String parsedData = excelStorageService.parseExcelFile(excelFile);
+        // Validate Excel file
+        if (!siteSurveyExcelService.isValidExcelFile(excelFile, fileName)) {
+            throw new IllegalArgumentException("Invalid Excel file. Please upload a valid .xlsx or .xls file.");
+        }
+
+        // Parse Excel with comprehensive image and data extraction
+        String parsedData = siteSurveyExcelService.parseExcelToJson(excelFile, fileName);
 
         SiteSurveyData surveyData = new SiteSurveyData();
         surveyData.setProjectId(workflow.getProjectId());
@@ -125,6 +133,7 @@ public class ProjectWorkflowService {
         surveyData.setExcelFile(excelFile);
         surveyData.setFileName(fileName);
         surveyData.setFileSize((long) excelFile.length);
+        surveyData.setMimeType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
         surveyData.setParsedData(parsedData);
         surveyData.setSurveyDoneBy("SALES");
         surveyData.setSurveyDoneByUser(salesUser.getUsername());
@@ -175,8 +184,13 @@ public class ProjectWorkflowService {
         Project project = projectRepository.findById(workflow.getProjectId())
             .orElseThrow(() -> new RuntimeException("Project not found"));
 
-        // Parse and store Excel
-        String parsedData = excelStorageService.parseExcelFile(excelFile);
+        // Validate Excel file
+        if (!siteSurveyExcelService.isValidExcelFile(excelFile, fileName)) {
+            throw new IllegalArgumentException("Invalid Excel file. Please upload a valid .xlsx or .xls file.");
+        }
+
+        // Parse Excel with comprehensive image and data extraction
+        String parsedData = siteSurveyExcelService.parseExcelToJson(excelFile, fileName);
 
         SiteSurveyData surveyData = new SiteSurveyData();
         surveyData.setProjectId(workflow.getProjectId());
@@ -184,6 +198,7 @@ public class ProjectWorkflowService {
         surveyData.setExcelFile(excelFile);
         surveyData.setFileName(fileName);
         surveyData.setFileSize((long) excelFile.length);
+        surveyData.setMimeType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
         surveyData.setParsedData(parsedData);
         surveyData.setSurveyDoneBy("PROJECT");
         surveyData.setSurveyDoneByUser(projectUser.getUsername());
