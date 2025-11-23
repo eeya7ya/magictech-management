@@ -36,6 +36,7 @@ public class WorkflowNotificationService {
                 .title("Site Survey Request")
                 .message(String.format("Sales person %s is requesting a site survey for project '%s'",
                     salesUser.getUsername(), project.getProjectName()))
+                .module(NotificationConstants.MODULE_SALES)
                 .targetModule(NotificationConstants.MODULE_PROJECTS)
                 .entityType(NotificationConstants.ENTITY_PROJECT)
                 .entityId(project.getId())
@@ -55,6 +56,7 @@ public class WorkflowNotificationService {
             .title("Site Survey Completed")
             .message(String.format("Project team member %s has completed the site survey for project '%s'",
                 projectUser.getUsername(), project.getProjectName()))
+            .module(NotificationConstants.MODULE_PROJECTS)
             .targetModule(NotificationConstants.MODULE_SALES)
             .entityType(NotificationConstants.ENTITY_PROJECT)
             .entityId(project.getId())
@@ -76,6 +78,7 @@ public class WorkflowNotificationService {
                 .title("Selection & Design Request")
                 .message(String.format("Sales person %s needs selection and design for project '%s'",
                     salesUser.getUsername(), project.getProjectName()))
+                .module(NotificationConstants.MODULE_SALES)
                 .targetModule(NotificationConstants.MODULE_PRESALES)
                 .entityType(NotificationConstants.ENTITY_PROJECT)
                 .entityId(project.getId())
@@ -95,6 +98,7 @@ public class WorkflowNotificationService {
             .title("Sizing & Pricing Completed")
             .message(String.format("Presales team member %s has completed sizing and pricing for project '%s'",
                 presalesUser.getUsername(), project.getProjectName()))
+            .module(NotificationConstants.MODULE_PRESALES)
             .targetModule(NotificationConstants.MODULE_SALES)
             .entityType(NotificationConstants.ENTITY_PROJECT)
             .entityId(project.getId())
@@ -116,6 +120,7 @@ public class WorkflowNotificationService {
                 .title("Bank Guarantee Request")
                 .message(String.format("Sales person %s needs bank guarantee processing for project '%s'",
                     salesUser.getUsername(), project.getProjectName()))
+                .module(NotificationConstants.MODULE_SALES)
                 .targetModule(NotificationConstants.MODULE_FINANCE)
                 .entityType(NotificationConstants.ENTITY_PROJECT)
                 .entityId(project.getId())
@@ -135,6 +140,7 @@ public class WorkflowNotificationService {
             .title("Bank Guarantee Completed")
             .message(String.format("Finance team member %s has completed bank guarantee for project '%s'",
                 financeUser.getUsername(), project.getProjectName()))
+            .module(NotificationConstants.MODULE_FINANCE)
             .targetModule(NotificationConstants.MODULE_SALES)
             .entityType(NotificationConstants.ENTITY_PROJECT)
             .entityId(project.getId())
@@ -156,6 +162,7 @@ public class WorkflowNotificationService {
                 .title("Missing Item Approval Required")
                 .message(String.format("Sales person %s requires approval for missing item in project '%s': %s",
                     salesUser.getUsername(), project.getProjectName(), itemDetails))
+                .module(NotificationConstants.MODULE_SALES)
                 .targetModule(NotificationConstants.MODULE_ALL)
                 .entityType(NotificationConstants.ENTITY_PROJECT)
                 .entityId(project.getId())
@@ -173,6 +180,7 @@ public class WorkflowNotificationService {
                 .title("Missing Item Approval Required")
                 .message(String.format("Sales person %s requires approval for missing item in project '%s': %s",
                     salesUser.getUsername(), project.getProjectName(), itemDetails))
+                .module(NotificationConstants.MODULE_SALES)
                 .targetModule(NotificationConstants.MODULE_SALES)
                 .entityType(NotificationConstants.ENTITY_PROJECT)
                 .entityId(project.getId())
@@ -192,6 +200,7 @@ public class WorkflowNotificationService {
             .title("Missing Item Approved")
             .message(String.format("%s has approved the missing item request for project '%s'",
                 approver.getUsername(), project.getProjectName()))
+            .module(NotificationConstants.MODULE_SALES)
             .targetModule(NotificationConstants.MODULE_SALES)
             .entityType(NotificationConstants.ENTITY_PROJECT)
             .entityId(project.getId())
@@ -213,6 +222,7 @@ public class WorkflowNotificationService {
                 .title("Project Start - Tender Accepted")
                 .message(String.format("Tender accepted for project '%s'. Please start work.",
                     project.getProjectName()))
+                .module(NotificationConstants.MODULE_SALES)
                 .targetModule(NotificationConstants.MODULE_PROJECTS)
                 .entityType(NotificationConstants.ENTITY_PROJECT)
                 .entityId(project.getId())
@@ -232,6 +242,7 @@ public class WorkflowNotificationService {
             .title("Project Work Completed")
             .message(String.format("Project team has completed work on project '%s'",
                 project.getProjectName()))
+            .module(NotificationConstants.MODULE_PROJECTS)
             .targetModule(NotificationConstants.MODULE_SALES)
             .entityType(NotificationConstants.ENTITY_PROJECT)
             .entityId(project.getId())
@@ -253,6 +264,7 @@ public class WorkflowNotificationService {
                 .title("⚠️ DANGER: Project Delay")
                 .message(String.format("Project '%s' is delayed. Details: %s",
                     project.getProjectName(), delayDetails))
+                .module(NotificationConstants.MODULE_SALES)
                 .targetModule(NotificationConstants.MODULE_ALL)
                 .entityType(NotificationConstants.ENTITY_PROJECT)
                 .entityId(project.getId())
@@ -275,6 +287,7 @@ public class WorkflowNotificationService {
                 .title("After-Sales Check Required")
                 .message(String.format("Please perform profit/loss analysis for project '%s'",
                     project.getProjectName()))
+                .module(NotificationConstants.MODULE_SALES)
                 .targetModule(NotificationConstants.MODULE_QA)
                 .entityType(NotificationConstants.ENTITY_PROJECT)
                 .entityId(project.getId())
@@ -294,6 +307,7 @@ public class WorkflowNotificationService {
             .title("After-Sales Check Completed")
             .message(String.format("Quality Assurance has completed analysis for project '%s'",
                 project.getProjectName()))
+            .module(NotificationConstants.MODULE_QA)
             .targetModule(NotificationConstants.MODULE_SALES)
             .entityType(NotificationConstants.ENTITY_PROJECT)
             .entityId(project.getId())
@@ -312,6 +326,7 @@ public class WorkflowNotificationService {
             .title("✅ Project Workflow Completed")
             .message(String.format("Complete workflow for project '%s' has been finished. All data pushed to storage analysis.",
                 project.getProjectName()))
+            .module(NotificationConstants.MODULE_SALES)
             .targetModule(NotificationConstants.MODULE_SALES)
             .entityType(NotificationConstants.ENTITY_PROJECT)
             .entityId(project.getId())
