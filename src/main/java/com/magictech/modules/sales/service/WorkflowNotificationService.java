@@ -27,26 +27,28 @@ public class WorkflowNotificationService {
 
     /**
      * Step 1: Notify Project module about site survey request
+     * Notification goes to PROJECT channel - received by PROJECT role users AND MASTER users
      */
     public void notifySiteSurveyRequest(Project project, User salesUser) {
-        List<User> projectUsers = userRepository.findByRoleAndActiveTrue(UserRole.PROJECTS);
+        // Publish ONE notification to PROJECTS channel
+        // All users subscribed to PROJECTS channel will receive it:
+        // - PROJECT role users (subscribed to "projects" channel)
+        // - MASTER users (subscribed to ALL channels)
+        NotificationMessage message = new NotificationMessage.Builder()
+            .title("Site Survey Request")
+            .message(String.format("Sales person %s is requesting a site survey for project '%s'",
+                salesUser.getUsername(), project.getProjectName()))
+            .type(NotificationConstants.TYPE_INFO)
+            .module(NotificationConstants.MODULE_SALES)
+            .targetModule(NotificationConstants.MODULE_PROJECTS)
+            .entityType(NotificationConstants.ENTITY_PROJECT)
+            .entityId(project.getId())
+            .priority(NotificationConstants.PRIORITY_HIGH)
+            .createdBy(salesUser.getUsername())
+            .build();
 
-        for (User projectUser : projectUsers) {
-            NotificationMessage message = new NotificationMessage.Builder()
-                .title("Site Survey Request")
-                .message(String.format("Sales person %s is requesting a site survey for project '%s'",
-                    salesUser.getUsername(), project.getProjectName()))
-                .type(NotificationConstants.TYPE_INFO)
-                .module(NotificationConstants.MODULE_SALES)
-                .targetModule(NotificationConstants.MODULE_PROJECTS)
-                .entityType(NotificationConstants.ENTITY_PROJECT)
-                .entityId(project.getId())
-                .priority(NotificationConstants.PRIORITY_HIGH)
-                .createdBy(salesUser.getUsername())
-                .build();
-
-            notificationService.publishNotification(message);
-        }
+        notificationService.publishNotification(message);
+        System.out.println("✅ Site survey request notification published to PROJECTS channel (PROJECT + MASTER users will receive)");
     }
 
     /**
@@ -87,60 +89,47 @@ public class WorkflowNotificationService {
 
     /**
      * Step 1: Notify Projects team that site survey is completed by Sales
+     * Notification goes to PROJECTS channel - received by PROJECT role users AND MASTER users
      */
     public void notifySiteSurveyCompletedBySales(Project project, User salesUser) {
-        System.out.println("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        System.out.println("📢 NOTIFYING PROJECTS TEAM ABOUT SALES SITE SURVEY COMPLETION");
-        System.out.println("   Project: " + project.getProjectName());
-        System.out.println("   Completed by: " + salesUser.getUsername() + " (SALES team)");
-        System.out.println("   Notifying: PROJECTS team");
-        System.out.println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+        // Publish ONE notification to PROJECTS channel
+        // All users subscribed will receive it (PROJECT + MASTER users)
+        NotificationMessage message = new NotificationMessage.Builder()
+            .title("Site Survey Completed by Sales")
+            .message(String.format("Sales team member %s has completed the site survey for project '%s'. The survey data is now available for viewing.",
+                salesUser.getUsername(), project.getProjectName()))
+            .type(NotificationConstants.TYPE_SUCCESS)
+            .module(NotificationConstants.MODULE_SALES)
+            .targetModule(NotificationConstants.MODULE_PROJECTS)
+            .entityType(NotificationConstants.ENTITY_PROJECT)
+            .entityId(project.getId())
+            .priority(NotificationConstants.PRIORITY_HIGH)
+            .createdBy(salesUser.getUsername())
+            .build();
 
-        List<User> projectUsers = userRepository.findByRoleAndActiveTrue(UserRole.PROJECTS);
-
-        for (User projectUser : projectUsers) {
-            NotificationMessage message = new NotificationMessage.Builder()
-                .title("Site Survey Completed by Sales")
-                .message(String.format("Sales team member %s has completed the site survey for project '%s'. The survey data is now available for viewing.",
-                    salesUser.getUsername(), project.getProjectName()))
-                .type(NotificationConstants.TYPE_SUCCESS)
-                .module(NotificationConstants.MODULE_SALES)
-                .targetModule(NotificationConstants.MODULE_PROJECTS)
-                .entityType(NotificationConstants.ENTITY_PROJECT)
-                .entityId(project.getId())
-                .priority(NotificationConstants.PRIORITY_HIGH)
-                .createdBy(salesUser.getUsername())
-                .build();
-
-            System.out.println("📨 Sending notification to: " + projectUser.getUsername());
-            notificationService.publishNotification(message);
-        }
-
-        System.out.println("✅ All notifications published successfully!\n");
+        notificationService.publishNotification(message);
+        System.out.println("✅ Site survey completion notification published to PROJECTS channel (PROJECT + MASTER users will receive)");
     }
 
     /**
      * Step 2: Notify Presales module about selection and design request
+     * Notification goes to PRESALES channel - received by PRESALES role users AND MASTER users
      */
     public void notifyPresalesSelectionDesign(Project project, User salesUser) {
-        List<User> presalesUsers = userRepository.findByRoleAndActiveTrue(UserRole.PRESALES);
+        NotificationMessage message = new NotificationMessage.Builder()
+            .title("Selection & Design Request")
+            .message(String.format("Sales person %s needs selection and design for project '%s'",
+                salesUser.getUsername(), project.getProjectName()))
+            .type(NotificationConstants.TYPE_INFO)
+            .module(NotificationConstants.MODULE_SALES)
+            .targetModule(NotificationConstants.MODULE_PRESALES)
+            .entityType(NotificationConstants.ENTITY_PROJECT)
+            .entityId(project.getId())
+            .priority(NotificationConstants.PRIORITY_HIGH)
+            .createdBy(salesUser.getUsername())
+            .build();
 
-        for (User presalesUser : presalesUsers) {
-            NotificationMessage message = new NotificationMessage.Builder()
-                .title("Selection & Design Request")
-                .message(String.format("Sales person %s needs selection and design for project '%s'",
-                    salesUser.getUsername(), project.getProjectName()))
-                .type(NotificationConstants.TYPE_INFO)
-                .module(NotificationConstants.MODULE_SALES)
-                .targetModule(NotificationConstants.MODULE_PRESALES)
-                .entityType(NotificationConstants.ENTITY_PROJECT)
-                .entityId(project.getId())
-                .priority(NotificationConstants.PRIORITY_HIGH)
-                .createdBy(salesUser.getUsername())
-                .build();
-
-            notificationService.publishNotification(message);
-        }
+        notificationService.publishNotification(message);
     }
 
     /**
@@ -165,26 +154,23 @@ public class WorkflowNotificationService {
 
     /**
      * Step 3: Notify Finance module about bank guarantee request
+     * Notification goes to FINANCE channel - received by FINANCE role users AND MASTER users
      */
     public void notifyBankGuaranteeRequest(Project project, User salesUser) {
-        List<User> financeUsers = userRepository.findByRoleAndActiveTrue(UserRole.FINANCE);
+        NotificationMessage message = new NotificationMessage.Builder()
+            .title("Bank Guarantee Request")
+            .message(String.format("Sales person %s needs bank guarantee processing for project '%s'",
+                salesUser.getUsername(), project.getProjectName()))
+            .type(NotificationConstants.TYPE_INFO)
+            .module(NotificationConstants.MODULE_SALES)
+            .targetModule(NotificationConstants.MODULE_FINANCE)
+            .entityType(NotificationConstants.ENTITY_PROJECT)
+            .entityId(project.getId())
+            .priority(NotificationConstants.PRIORITY_HIGH)
+            .createdBy(salesUser.getUsername())
+            .build();
 
-        for (User financeUser : financeUsers) {
-            NotificationMessage message = new NotificationMessage.Builder()
-                .title("Bank Guarantee Request")
-                .message(String.format("Sales person %s needs bank guarantee processing for project '%s'",
-                    salesUser.getUsername(), project.getProjectName()))
-                .type(NotificationConstants.TYPE_INFO)
-                .module(NotificationConstants.MODULE_SALES)
-                .targetModule(NotificationConstants.MODULE_FINANCE)
-                .entityType(NotificationConstants.ENTITY_PROJECT)
-                .entityId(project.getId())
-                .priority(NotificationConstants.PRIORITY_HIGH)
-                .createdBy(salesUser.getUsername())
-                .build();
-
-            notificationService.publishNotification(message);
-        }
+        notificationService.publishNotification(message);
     }
 
     /**
@@ -209,45 +195,26 @@ public class WorkflowNotificationService {
 
     /**
      * Step 4: Notify MASTER and SALES_MANAGER about missing item request
+     * Publishes to SALES channel - received by SALES_MANAGER role users AND MASTER users
+     * (MASTER users subscribe to all channels including SALES)
      */
     public void notifyMissingItemRequest(Project project, User salesUser, String itemDetails) {
-        // Notify all MASTER users
-        List<User> masterUsers = userRepository.findByRoleAndActiveTrue(UserRole.MASTER);
-        for (User masterUser : masterUsers) {
-            NotificationMessage message = new NotificationMessage.Builder()
-                .title("Missing Item Approval Required")
-                .message(String.format("Sales person %s requires approval for missing item in project '%s': %s",
-                    salesUser.getUsername(), project.getProjectName(), itemDetails))
-                .type(NotificationConstants.TYPE_WARNING)
-                .module(NotificationConstants.MODULE_SALES)
-                .targetModule(NotificationConstants.MODULE_ALL)
-                .entityType(NotificationConstants.ENTITY_PROJECT)
-                .entityId(project.getId())
-                .priority(NotificationConstants.PRIORITY_URGENT)
-                .createdBy(salesUser.getUsername())
-                .build();
+        // Publish ONE notification to SALES channel
+        // Both SALES_MANAGER and MASTER users will receive it automatically
+        NotificationMessage message = new NotificationMessage.Builder()
+            .title("Missing Item Approval Required")
+            .message(String.format("Sales person %s requires approval for missing item in project '%s': %s",
+                salesUser.getUsername(), project.getProjectName(), itemDetails))
+            .type(NotificationConstants.TYPE_WARNING)
+            .module(NotificationConstants.MODULE_SALES)
+            .targetModule(NotificationConstants.MODULE_SALES)
+            .entityType(NotificationConstants.ENTITY_PROJECT)
+            .entityId(project.getId())
+            .priority(NotificationConstants.PRIORITY_URGENT)
+            .createdBy(salesUser.getUsername())
+            .build();
 
-            notificationService.publishNotification(message);
-        }
-
-        // Notify all SALES_MANAGER users
-        List<User> salesManagers = userRepository.findByRoleAndActiveTrue(UserRole.SALES_MANAGER);
-        for (User salesManager : salesManagers) {
-            NotificationMessage message = new NotificationMessage.Builder()
-                .title("Missing Item Approval Required")
-                .message(String.format("Sales person %s requires approval for missing item in project '%s': %s",
-                    salesUser.getUsername(), project.getProjectName(), itemDetails))
-                .type(NotificationConstants.TYPE_WARNING)
-                .module(NotificationConstants.MODULE_SALES)
-                .targetModule(NotificationConstants.MODULE_SALES)
-                .entityType(NotificationConstants.ENTITY_PROJECT)
-                .entityId(project.getId())
-                .priority(NotificationConstants.PRIORITY_URGENT)
-                .createdBy(salesUser.getUsername())
-                .build();
-
-            notificationService.publishNotification(message);
-        }
+        notificationService.publishNotification(message);
     }
 
     /**
@@ -272,26 +239,23 @@ public class WorkflowNotificationService {
 
     /**
      * Step 5: Notify Project module to start work on accepted tender
+     * Notification goes to PROJECTS channel - received by PROJECT role users AND MASTER users
      */
     public void notifyProjectStart(Project project, User salesUser) {
-        List<User> projectUsers = userRepository.findByRoleAndActiveTrue(UserRole.PROJECTS);
+        NotificationMessage message = new NotificationMessage.Builder()
+            .title("Project Start - Tender Accepted")
+            .message(String.format("Tender accepted for project '%s'. Please start work.",
+                project.getProjectName()))
+            .type(NotificationConstants.TYPE_SUCCESS)
+            .module(NotificationConstants.MODULE_SALES)
+            .targetModule(NotificationConstants.MODULE_PROJECTS)
+            .entityType(NotificationConstants.ENTITY_PROJECT)
+            .entityId(project.getId())
+            .priority(NotificationConstants.PRIORITY_URGENT)
+            .createdBy(salesUser.getUsername())
+            .build();
 
-        for (User projectUser : projectUsers) {
-            NotificationMessage message = new NotificationMessage.Builder()
-                .title("Project Start - Tender Accepted")
-                .message(String.format("Tender accepted for project '%s'. Please start work.",
-                    project.getProjectName()))
-                .type(NotificationConstants.TYPE_SUCCESS)
-                .module(NotificationConstants.MODULE_SALES)
-                .targetModule(NotificationConstants.MODULE_PROJECTS)
-                .entityType(NotificationConstants.ENTITY_PROJECT)
-                .entityId(project.getId())
-                .priority(NotificationConstants.PRIORITY_URGENT)
-                .createdBy(salesUser.getUsername())
-                .build();
-
-            notificationService.publishNotification(message);
-        }
+        notificationService.publishNotification(message);
     }
 
     /**
@@ -316,50 +280,46 @@ public class WorkflowNotificationService {
 
     /**
      * Step 6: Notify MASTER about project delay (DANGER alarm)
+     * Publishes to SALES channel - MASTER users subscribe to all channels and will receive it
      */
     public void notifyProjectDelayDanger(Project project, User salesUser, String delayDetails) {
-        List<User> masterUsers = userRepository.findByRoleAndActiveTrue(UserRole.MASTER);
+        // Publish ONE notification to SALES channel
+        // MASTER users subscribe to all channels and will see this URGENT notification
+        NotificationMessage message = new NotificationMessage.Builder()
+            .title("⚠️ DANGER: Project Delay")
+            .message(String.format("Project '%s' is delayed. Details: %s",
+                project.getProjectName(), delayDetails))
+            .type(NotificationConstants.TYPE_ERROR)
+            .module(NotificationConstants.MODULE_SALES)
+            .targetModule(NotificationConstants.MODULE_SALES)
+            .entityType(NotificationConstants.ENTITY_PROJECT)
+            .entityId(project.getId())
+            .priority(NotificationConstants.PRIORITY_URGENT)
+            .createdBy(salesUser.getUsername())
+            .build();
 
-        for (User masterUser : masterUsers) {
-            NotificationMessage message = new NotificationMessage.Builder()
-                .title("⚠️ DANGER: Project Delay")
-                .message(String.format("Project '%s' is delayed. Details: %s",
-                    project.getProjectName(), delayDetails))
-                .type(NotificationConstants.TYPE_ERROR)
-                .module(NotificationConstants.MODULE_SALES)
-                .targetModule(NotificationConstants.MODULE_ALL)
-                .entityType(NotificationConstants.ENTITY_PROJECT)
-                .entityId(project.getId())
-                .priority(NotificationConstants.PRIORITY_URGENT)
-                .createdBy(salesUser.getUsername())
-                .build();
-
-            notificationService.publishNotification(message);
-        }
+        notificationService.publishNotification(message);
     }
 
     /**
      * Step 7: Notify QA module about after-sales check
+     * Notification goes to QA channel - received by QA role users AND MASTER users
      */
     public void notifyQAAfterSalesCheck(Project project, User salesUser) {
-        List<User> qaUsers = userRepository.findByRoleAndActiveTrue(UserRole.QUALITY_ASSURANCE);
+        NotificationMessage message = new NotificationMessage.Builder()
+            .title("After-Sales Check Required")
+            .message(String.format("Please perform profit/loss analysis for project '%s'",
+                project.getProjectName()))
+            .type(NotificationConstants.TYPE_INFO)
+            .module(NotificationConstants.MODULE_SALES)
+            .targetModule(NotificationConstants.MODULE_QA)
+            .entityType(NotificationConstants.ENTITY_PROJECT)
+            .entityId(project.getId())
+            .priority(NotificationConstants.PRIORITY_MEDIUM)
+            .createdBy(salesUser.getUsername())
+            .build();
 
-        for (User qaUser : qaUsers) {
-            NotificationMessage message = new NotificationMessage.Builder()
-                .title("After-Sales Check Required")
-                .message(String.format("Please perform profit/loss analysis for project '%s'",
-                    project.getProjectName()))
-                .type(NotificationConstants.TYPE_INFO)
-                .module(NotificationConstants.MODULE_SALES)
-                .targetModule(NotificationConstants.MODULE_QA)
-                .entityType(NotificationConstants.ENTITY_PROJECT)
-                .entityId(project.getId())
-                .priority(NotificationConstants.PRIORITY_MEDIUM)
-                .createdBy(salesUser.getUsername())
-                .build();
-
-            notificationService.publishNotification(message);
-        }
+        notificationService.publishNotification(message);
     }
 
     /**
