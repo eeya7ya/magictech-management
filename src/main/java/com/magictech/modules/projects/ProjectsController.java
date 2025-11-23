@@ -135,6 +135,10 @@ public class ProjectsController extends BaseModuleController {
             refresh();
         });
 
+        Button exportButton = new Button("📊 Export All Surveys");
+        exportButton.setStyle("-fx-background-color: #10b981; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 8 16;");
+        exportButton.setOnAction(e -> exportAllSiteSurveys());
+
         pendingCountLabel = new Label("⚠️ Pending Actions: 0");
         pendingCountLabel.setFont(Font.font("System", FontWeight.BOLD, 14));
         pendingCountLabel.setStyle("-fx-text-fill: #dc2626; -fx-padding: 8 16; -fx-background-color: #fee2e2; -fx-background-radius: 6;");
@@ -142,7 +146,7 @@ public class ProjectsController extends BaseModuleController {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        buttonBox.getChildren().addAll(refreshButton, viewAllButton, spacer, pendingCountLabel);
+        buttonBox.getChildren().addAll(refreshButton, viewAllButton, exportButton, spacer, pendingCountLabel);
 
         toolbar.getChildren().addAll(searchBox, buttonBox);
         return toolbar;
@@ -774,6 +778,113 @@ public class ProjectsController extends BaseModuleController {
     private String formatDateTime(LocalDateTime dateTime) {
         if (dateTime == null) return "-";
         return dateTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
+    }
+
+    private void exportAllSiteSurveys() {
+        try {
+            // Get all projects with completed site surveys
+            List<com.magictech.modules.sales.entity.SiteSurveyData> allSurveys =
+                siteSurveyRepository.findByActiveTrue();
+
+            if (allSurveys.isEmpty()) {
+                showWarning("No site surveys available to export");
+                return;
+            }
+
+            // Let user choose save location
+            javafx.stage.FileChooser fileChooser = new javafx.stage.FileChooser();
+            fileChooser.setTitle("Export All Site Surveys");
+            fileChooser.setInitialFileName("all_site_surveys_" +
+                LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")) + ".xlsx");
+            fileChooser.getExtensionFilters().add(
+                new javafx.stage.FileChooser.ExtensionFilter("Excel Files", "*.xlsx")
+            );
+
+            java.io.File file = fileChooser.showSaveDialog(getRootPane().getScene().getWindow());
+            if (file != null) {
+                // Create workbook with all surveys
+                org.apache.poi.xssf.usermodel.XSSFWorkbook workbook = new org.apache.poi.xssf.usermodel.XSSFWorkbook();
+
+                for (com.magictech.modules.sales.entity.SiteSurveyData survey : allSurveys) {
+                    try {
+                        // Get project name for sheet name
+                        String sheetName = "Project_" + survey.getProjectId();
+                        Optional<com.magictech.modules.projects.entity.Project> projectOpt =
+                            projectService.getProjectById(survey.getProjectId());
+
+                        if (projectOpt.isPresent()) {
+                            String projectName = projectOpt.get().getProjectName();
+                            // Sanitize sheet name (max 31 chars, no special chars)
+                            sheetName = projectName.replaceAll("[\\\\/:*?\\[\\]]+", "_")
+                                .substring(0, Math.min(projectName.length(), 31));
+                        }
+
+                        // Create sheet for this survey
+                        org.apache.poi.ss.usermodel.Sheet sheet = workbook.createSheet(sheetName);
+
+                        // Add metadata
+                        int rowNum = 0;
+                        org.apache.poi.ss.usermodel.Row row;
+
+                        row = sheet.createRow(rowNum++);
+                        row.createCell(0).setCellValue("Project ID:");
+                        row.createCell(1).setCellValue(survey.getProjectId());
+
+                        row = sheet.createRow(rowNum++);
+                        row.createCell(0).setCellValue("File Name:");
+                        row.createCell(1).setCellValue(survey.getFileName());
+
+                        row = sheet.createRow(rowNum++);
+                        row.createCell(0).setCellValue("Uploaded By:");
+                        row.createCell(1).setCellValue(survey.getUploadedBy());
+
+                        row = sheet.createRow(rowNum++);
+                        row.createCell(0).setCellValue("Uploaded At:");
+                        row.createCell(1).setCellValue(formatDateTime(survey.getUploadedAt()));
+
+                        row = sheet.createRow(rowNum++);
+                        row.createCell(0).setCellValue("Survey Done By:");
+                        row.createCell(1).setCellValue(survey.getSurveyDoneBy() + " (" + survey.getSurveyDoneByUser() + ")");
+
+                        if (survey.getNotes() != null && !survey.getNotes().isEmpty()) {
+                            row = sheet.createRow(rowNum++);
+                            row.createCell(0).setCellValue("Notes:");
+                            row.createCell(1).setCellValue(survey.getNotes());
+                        }
+
+                        rowNum++; // Empty row
+
+                        // Add parsed data section
+                        if (survey.getParsedData() != null && !survey.getParsedData().isEmpty()) {
+                            row = sheet.createRow(rowNum++);
+                            row.createCell(0).setCellValue("Survey Data:");
+
+                            row = sheet.createRow(rowNum++);
+                            org.apache.poi.ss.usermodel.Cell dataCell = row.createCell(0);
+                            dataCell.setCellValue(survey.getParsedData());
+                        }
+
+                        // Auto-size columns
+                        sheet.autoSizeColumn(0);
+                        sheet.autoSizeColumn(1);
+
+                    } catch (Exception ex) {
+                        System.err.println("Error adding survey for project " + survey.getProjectId() + ": " + ex.getMessage());
+                    }
+                }
+
+                // Write to file
+                try (java.io.FileOutputStream fos = new java.io.FileOutputStream(file)) {
+                    workbook.write(fos);
+                }
+                workbook.close();
+
+                showSuccess("Exported " + allSurveys.size() + " site surveys successfully!");
+            }
+        } catch (Exception ex) {
+            showError("Failed to export site surveys: " + ex.getMessage());
+            ex.printStackTrace();
+        }
     }
 
     @Override
