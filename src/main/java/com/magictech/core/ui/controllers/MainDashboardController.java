@@ -261,8 +261,22 @@ public class MainDashboardController {
 
     @FXML
     private void handleUserManagement() {
+        System.out.println("🔧 handleUserManagement called");
+        System.out.println("  - currentUser: " + (currentUser != null ? currentUser.getUsername() : "NULL"));
+        System.out.println("  - userManagementController: " + (userManagementController != null ? "OK" : "NULL"));
+        System.out.println("  - sceneManager: " + (sceneManager != null ? "OK" : "NULL"));
+
         if (currentUser != null && currentUser.getRole() == com.magictech.core.auth.UserRole.MASTER) {
-            userManagementController.showUserManagement(sceneManager.getPrimaryStage());
+            System.out.println("✓ User is MASTER, opening user management dialog...");
+            try {
+                userManagementController.showUserManagement(sceneManager.getPrimaryStage());
+                System.out.println("✓ User management dialog opened successfully");
+            } catch (Exception e) {
+                System.err.println("❌ Error opening user management: " + e.getMessage());
+                e.printStackTrace();
+            }
+        } else {
+            System.out.println("❌ User is not MASTER or currentUser is null");
         }
     }
 
