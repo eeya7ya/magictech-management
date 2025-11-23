@@ -219,14 +219,14 @@ public class SiteSurveyRequestService {
         try {
             NotificationMessage message = new NotificationMessage.Builder()
                 .type(NotificationConstants.TYPE_INFO)
-                .module(NotificationConstants.MODULE_PROJECTS)
+                .module(NotificationConstants.MODULE_SALES)  // Sales team is requesting
                 .action("SITE_SURVEY_REQUESTED")
                 .entityType("SITE_SURVEY_REQUEST")
                 .entityId(request.getId())
                 .title("Site Survey Requested")
-                .message(String.format("Site survey requested for project '%s' by %s",
+                .message(String.format("Site survey requested for project '%s' by %s. Please upload survey sheet.",
                         project.getProjectName(), request.getRequestedBy()))
-                .targetModule(NotificationConstants.MODULE_SALES)  // Notify sales team
+                .targetModule(NotificationConstants.MODULE_PROJECTS)  // Notify project team to upload
                 .priority(request.getPriority().equals("URGENT") ?
                          NotificationConstants.PRIORITY_HIGH : NotificationConstants.PRIORITY_MEDIUM)
                 .createdBy(request.getRequestedBy())
@@ -234,7 +234,7 @@ public class SiteSurveyRequestService {
                 .build();
 
             notificationService.publishNotification(message);
-            System.out.println("✅ Site survey request notification sent to SALES module");
+            System.out.println("✅ Site survey request notification sent to PROJECTS module");
         } catch (Exception e) {
             System.err.println("❌ Failed to send site survey request notification: " + e.getMessage());
         }
@@ -244,21 +244,21 @@ public class SiteSurveyRequestService {
         try {
             NotificationMessage message = new NotificationMessage.Builder()
                 .type(NotificationConstants.TYPE_SUCCESS)
-                .module(NotificationConstants.MODULE_PROJECTS)
+                .module(NotificationConstants.MODULE_PROJECTS)  // Projects team completed it
                 .action("SITE_SURVEY_COMPLETED")
                 .entityType("SITE_SURVEY_REQUEST")
                 .entityId(request.getId())
                 .title("Site Survey Completed")
-                .message(String.format("Site survey completed for project '%s' by %s",
+                .message(String.format("Site survey uploaded for project '%s' by %s. Survey is now available for review.",
                         request.getProjectName(), request.getCompletedBy()))
-                .targetModule(NotificationConstants.MODULE_PROJECTS)  // Notify project team
+                .targetModule(NotificationConstants.MODULE_SALES)  // Notify sales team
                 .priority(NotificationConstants.PRIORITY_MEDIUM)
                 .createdBy(request.getCompletedBy())
                 .excludeSender(false)
                 .build();
 
             notificationService.publishNotification(message);
-            System.out.println("✅ Site survey completion notification sent to PROJECTS module");
+            System.out.println("✅ Site survey completion notification sent to SALES module");
         } catch (Exception e) {
             System.err.println("❌ Failed to send site survey completion notification: " + e.getMessage());
         }

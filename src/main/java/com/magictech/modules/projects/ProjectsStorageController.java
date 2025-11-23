@@ -2460,14 +2460,15 @@ public class ProjectsStorageController extends BaseModuleController {
         HBox header = new HBox(15);
         header.setAlignment(Pos.CENTER_LEFT);
 
+        VBox titleBox = new VBox(5);
         Label title = new Label("📋 Site Survey Management");
         title.setStyle("-fx-text-fill: white; -fx-font-size: 24px; -fx-font-weight: bold;");
-        HBox.setHgrow(title, Priority.ALWAYS);
+        Label subtitle = new Label("Site survey requests come from the Sales team");
+        subtitle.setStyle("-fx-text-fill: rgba(255, 255, 255, 0.6); -fx-font-size: 13px;");
+        titleBox.getChildren().addAll(title, subtitle);
+        HBox.setHgrow(titleBox, Priority.ALWAYS);
 
-        Button requestButton = createStyledButton("+ Request Site Survey", "#a855f7", "#9333ea");
-        requestButton.setOnAction(e -> handleRequestSiteSurvey());
-
-        header.getChildren().addAll(title, requestButton);
+        header.getChildren().add(titleBox);
 
         // Status Section
         VBox statusSection = new VBox(15);
@@ -2567,7 +2568,11 @@ public class ProjectsStorageController extends BaseModuleController {
                     siteSurveyUploadBox.setManaged(false);
                 }
             } else {
-                siteSurveyStatusLabel.setText("No site survey requested for this project.");
+                siteSurveyStatusLabel.setText(
+                    "ℹ️ No site survey requested for this project yet.\n\n" +
+                    "Site surveys are requested by the Sales team. When a request is made,\n" +
+                    "you will be notified and can upload the survey sheet here."
+                );
                 siteSurveyUploadBox.setVisible(false);
                 siteSurveyUploadBox.setManaged(false);
             }
@@ -2590,10 +2595,11 @@ public class ProjectsStorageController extends BaseModuleController {
         switch (status) {
             case "PENDING":
                 statusText = String.format(
-                        "🔔 Site Survey Requested\n" +
-                        "Requested by: %s on %s\n" +
-                        "Status: Pending Upload\n" +
-                        "Priority: %s",
+                        "🔔 Site Survey Requested by Sales Team\n" +
+                        "Requested by: %s (Sales) on %s\n" +
+                        "Status: Awaiting Upload from Project Team\n" +
+                        "Priority: %s\n" +
+                        "Action Required: Upload site survey Excel file below",
                         requestedBy, requestDate, request.getPriority()
                 );
                 break;
@@ -2603,9 +2609,10 @@ public class ProjectsStorageController extends BaseModuleController {
                         request.getCompletionDate().format(DateTimeFormatter.ofPattern("MMM dd, yyyy HH:mm")) : "N/A";
                 statusText = String.format(
                         "✅ Site Survey Completed\n" +
-                        "Requested by: %s on %s\n" +
-                        "Completed by: %s on %s\n" +
-                        "Status: Survey data available",
+                        "Requested by: %s (Sales) on %s\n" +
+                        "Uploaded by: %s (Project Team) on %s\n" +
+                        "Status: Survey data uploaded and available for all modules\n" +
+                        "Note: Sales team has been notified",
                         requestedBy, requestDate, completedBy, completedDate
                 );
                 break;
