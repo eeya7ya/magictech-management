@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellAddress;
+import org.apache.poi.ss.util.CellReference;
 import org.apache.poi.xssf.usermodel.*;
 import org.openxmlformats.schemas.drawingml.x2006.spreadsheetDrawing.CTMarker;
 import org.springframework.stereotype.Service;
@@ -139,7 +140,7 @@ public class SiteSurveyExcelService {
     private ObjectNode parseCell(Cell cell) {
         ObjectNode cellNode = objectMapper.createObjectNode();
         cellNode.put("columnIndex", cell.getColumnIndex());
-        cellNode.put("columnLetter", CellAddress.convertNumToColString(cell.getColumnIndex()));
+        cellNode.put("columnLetter", CellReference.convertNumToColString(cell.getColumnIndex()));
         cellNode.put("address", cell.getAddress().formatAsString());
 
         CellType cellType = cell.getCellType();
@@ -218,7 +219,9 @@ public class SiteSurveyExcelService {
         CellStyle style = cell.getCellStyle();
         if (style != null) {
             ObjectNode styleNode = objectMapper.createObjectNode();
-            styleNode.put("fontBold", style.getFont(cell.getSheet().getWorkbook()).getBold());
+            Workbook workbook = cell.getSheet().getWorkbook();
+            Font font = workbook.getFontAt(style.getFontIndexAsInt());
+            styleNode.put("fontBold", font.getBold());
             styleNode.put("fillForegroundColor", style.getFillForegroundColor());
             styleNode.put("alignment", style.getAlignment().name());
             cellNode.set("style", styleNode);
@@ -263,7 +266,7 @@ public class SiteSurveyExcelService {
                     anchorNode.put("col1", anchor.getCol1());
                     anchorNode.put("row2", anchor.getRow2());
                     anchorNode.put("col2", anchor.getCol2());
-                    anchorNode.put("cellAddress", CellAddress.convertNumToColString(anchor.getCol1()) + (anchor.getRow1() + 1));
+                    anchorNode.put("cellAddress", CellReference.convertNumToColString((int) anchor.getCol1()) + (anchor.getRow1() + 1));
                     imageNode.set("position", anchorNode);
 
                     imagesArray.add(imageNode);
