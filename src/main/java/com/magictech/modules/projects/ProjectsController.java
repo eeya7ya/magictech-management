@@ -322,9 +322,9 @@ public class ProjectsController extends BaseModuleController {
                         WorkflowStepCompletion stepComp = step1.get();
 
                         // Check if there's a site survey data
-                        List<SiteSurveyData> surveys = siteSurveyRepository.findByProjectIdAndActiveTrue(project.getId());
+                        Optional<SiteSurveyData> surveyOpt = siteSurveyRepository.findByProjectIdAndActiveTrue(project.getId());
 
-                        if (!surveys.isEmpty()) {
+                        if (surveyOpt.isPresent()) {
                             vm.setSiteSurveyStatus("✅ Completed");
                             vm.setHasSiteSurvey(true);
                         } else if (Boolean.TRUE.equals(stepComp.getNeedsExternalAction()) &&
@@ -493,9 +493,9 @@ public class ProjectsController extends BaseModuleController {
         if (vm.isHasSiteSurvey()) {
             // Show survey info
             try {
-                List<SiteSurveyData> surveys = siteSurveyRepository.findByProjectIdAndActiveTrue(vm.getId());
-                if (!surveys.isEmpty()) {
-                    SiteSurveyData survey = surveys.get(0);
+                Optional<SiteSurveyData> surveyOpt = siteSurveyRepository.findByProjectIdAndActiveTrue(vm.getId());
+                if (surveyOpt.isPresent()) {
+                    SiteSurveyData survey = surveyOpt.get();
 
                     VBox surveyInfo = new VBox(8);
                     surveyInfo.setPadding(new Insets(10));
@@ -549,7 +549,7 @@ public class ProjectsController extends BaseModuleController {
             new FileChooser.ExtensionFilter("Excel Files", "*.xlsx", "*.xls")
         );
 
-        File file = fileChooser.showOpenDialog(getView().getScene().getWindow());
+        File file = fileChooser.showOpenDialog(getRootPane().getScene().getWindow());
         if (file != null) {
             try {
                 byte[] fileData = Files.readAllBytes(file.toPath());
@@ -579,13 +579,13 @@ public class ProjectsController extends BaseModuleController {
 
     private void downloadSiteSurvey(ProjectViewModel vm) {
         try {
-            List<SiteSurveyData> surveys = siteSurveyRepository.findByProjectIdAndActiveTrue(vm.getId());
-            if (surveys.isEmpty()) {
+            Optional<SiteSurveyData> surveyOpt = siteSurveyRepository.findByProjectIdAndActiveTrue(vm.getId());
+            if (surveyOpt.isEmpty()) {
                 showWarning("No site survey available for this project");
                 return;
             }
 
-            SiteSurveyData survey = surveys.get(0);
+            SiteSurveyData survey = surveyOpt.get();
 
             FileChooser fileChooser = new FileChooser();
             fileChooser.setTitle("Save Site Survey Excel");
@@ -594,7 +594,7 @@ public class ProjectsController extends BaseModuleController {
                 new FileChooser.ExtensionFilter("Excel Files", "*.xlsx", "*.xls")
             );
 
-            File file = fileChooser.showSaveDialog(getView().getScene().getWindow());
+            File file = fileChooser.showSaveDialog(getRootPane().getScene().getWindow());
             if (file != null) {
                 try (FileOutputStream fos = new FileOutputStream(file)) {
                     fos.write(survey.getExcelFile());
