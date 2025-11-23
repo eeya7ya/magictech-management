@@ -102,6 +102,8 @@ public class ProjectsStorageController extends BaseModuleController {
     private VBox siteSurveyTabContent;
     private VBox siteSurveyUploadBox;
     private Label siteSurveyStatusLabel;
+    private Button siteSurveyViewButton;
+    private Button siteSurveyExportButton;
 
     // Current User
     private User currentUser;
@@ -2526,17 +2528,23 @@ public class ProjectsStorageController extends BaseModuleController {
         viewSurveyLabel.setWrapText(true);
         viewSurveyLabel.setVisible(false);
 
-        Button viewButton = createStyledButton("👁 View Uploaded Survey", "#3b82f6", "#2563eb");
-        viewButton.setOnAction(e -> handleViewSiteSurvey());
-        viewButton.setVisible(false);
-        viewButton.setPrefWidth(300);
+        siteSurveyViewButton = createStyledButton("👁 View Uploaded Survey", "#3b82f6", "#2563eb");
+        siteSurveyViewButton.setOnAction(e -> handleViewSiteSurvey());
+        siteSurveyViewButton.setVisible(false);
+        siteSurveyViewButton.setPrefWidth(300);
+
+        siteSurveyExportButton = createStyledButton("📥 Export Survey to Excel", "#10b981", "#059669");
+        siteSurveyExportButton.setOnAction(e -> handleExportSiteSurvey());
+        siteSurveyExportButton.setVisible(false);
+        siteSurveyExportButton.setPrefWidth(300);
 
         uploadBox.getChildren().addAll(
                 uploadTitle,
                 uploadInstructions,
                 uploadButton,
                 viewSurveyLabel,
-                viewButton
+                siteSurveyViewButton,
+                siteSurveyExportButton
         );
 
         return uploadBox;
@@ -2563,6 +2571,13 @@ public class ProjectsStorageController extends BaseModuleController {
                 if ("PENDING".equals(request.getStatus())) {
                     siteSurveyUploadBox.setVisible(true);
                     siteSurveyUploadBox.setManaged(true);
+                    siteSurveyViewButton.setVisible(false);
+                    siteSurveyExportButton.setVisible(false);
+                } else if ("COMPLETED".equals(request.getStatus())) {
+                    siteSurveyUploadBox.setVisible(true);
+                    siteSurveyUploadBox.setManaged(true);
+                    siteSurveyViewButton.setVisible(true);
+                    siteSurveyExportButton.setVisible(true);
                 } else {
                     siteSurveyUploadBox.setVisible(false);
                     siteSurveyUploadBox.setManaged(false);
@@ -2875,6 +2890,85 @@ public class ProjectsStorageController extends BaseModuleController {
         dialogPane.setStyle("-fx-background-color: #1e293b;");
 
         dialog.show();
+    }
+
+    private void handleExportSiteSurvey() {
+        if (selectedProject == null) {
+            showWarning("No project selected");
+            return;
+        }
+
+        Task<Optional<com.magictech.modules.sales.entity.SiteSurveyData>> loadTask = new Task<>() {
+            @Override
+            protected Optional<com.magictech.modules.sales.entity.SiteSurveyData> call() {
+                Optional<SiteSurveyRequest> requestOpt =
+                        siteSurveyRequestService.getRequestByProjectId(selectedProject.getId());
+
+                if (requestOpt.isPresent() && requestOpt.get().getSurveyDataId() != null) {
+                    return siteSurveyDataRepository.findById(requestOpt.get().getSurveyDataId());
+                }
+                return Optional.empty();
+            }
+        };
+
+        loadTask.setOnSucceeded(event -> {
+            Optional<com.magictech.modules.sales.entity.SiteSurveyData> dataOpt = loadTask.getValue();
+            if (dataOpt.isPresent()) {
+                com.magictech.modules.sales.entity.SiteSurveyData data = dataOpt.get();
+                exportSiteSurveyToFile(data);
+            } else {
+                showWarning("No site survey data found");
+            }
+        });
+
+        loadTask.setOnFailed(event -> {
+            showError("Failed to load site survey data: " + loadTask.getException().getMessage());
+        });
+
+        new Thread(loadTask).start();
+    }
+
+    private void exportSiteSurveyToFile(com.magictech.modules.sales.entity.SiteSurveyData data) {
+        javafx.stage.FileChooser fileChooser = new javafx.stage.FileChooser();
+        fileChooser.setTitle("Export Site Survey to Excel");
+
+        // Set default file name based on project name and current date
+        String defaultFileName = String.format("SiteSurvey_%s_%s.xlsx",
+                selectedProject.getProjectName().replaceAll("[^a-zA-Z0-9]", "_"),
+                LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"))
+        );
+        fileChooser.setInitialFileName(defaultFileName);
+
+        fileChooser.getExtensionFilters().add(
+                new javafx.stage.FileChooser.ExtensionFilter("Excel Files", "*.xlsx", "*.xls")
+        );
+
+        java.io.File selectedFile = fileChooser.showSaveDialog(siteSurveyUploadBox.getScene().getWindow());
+        if (selectedFile == null) return;
+
+        Task<Void> exportTask = new Task<>() {
+            @Override
+            protected Void call() throws Exception {
+                // Write the Excel file bytes to disk
+                java.nio.file.Files.write(selectedFile.toPath(), data.getExcelFile());
+                return null;
+            }
+        };
+
+        exportTask.setOnSucceeded(event -> {
+            showSuccess(String.format(
+                    "Site survey exported successfully!\n\nFile: %s\nSize: %d KB",
+                    selectedFile.getName(),
+                    data.getFileSize() / 1024
+            ));
+        });
+
+        exportTask.setOnFailed(event -> {
+            showError("Failed to export site survey: " + exportTask.getException().getMessage());
+            exportTask.getException().printStackTrace();
+        });
+
+        new Thread(exportTask).start();
     }
 
     // ==================== END SITE SURVEY TAB ====================
