@@ -27,6 +27,9 @@ public class ProjectService {
     @Autowired
     private NotificationService notificationService;
 
+    @Autowired
+    private SiteSurveyRequestService siteSurveyRequestService;
+
     /**
      * Get all active projects
      */
@@ -283,5 +286,29 @@ public class ProjectService {
         }
 
         return savedProject;
+    }
+
+    /**
+     * Request site survey for a project
+     */
+    public Project requestSiteSurvey(Long projectId, String requestedBy, Long requestedById,
+                                    String assignedTo, String priority, String notes) {
+        Project project = repository.findById(projectId)
+                .orElseThrow(() -> new RuntimeException("Project not found with id: " + projectId));
+
+        // Create site survey request
+        siteSurveyRequestService.createRequest(
+            projectId, requestedBy, requestedById, assignedTo, priority, notes
+        );
+
+        // Project is automatically updated in siteSurveyRequestService
+        return repository.findById(projectId).orElse(project);
+    }
+
+    /**
+     * Check if project has active site survey request
+     */
+    public boolean hasActiveSiteSurveyRequest(Long projectId) {
+        return siteSurveyRequestService.hasActiveRequest(projectId);
     }
 }
