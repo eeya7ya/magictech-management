@@ -119,6 +119,9 @@ public class ProjectWorkflowService {
 
         validateStepCanStart(workflow, 1);
 
+        Project project = projectRepository.findById(workflow.getProjectId())
+            .orElseThrow(() -> new RuntimeException("Project not found"));
+
         // Validate Excel file
         if (!siteSurveyExcelService.isValidExcelFile(excelFile, fileName)) {
             throw new IllegalArgumentException("Invalid Excel file. Please upload a valid .xlsx or .xls file.");
@@ -143,13 +146,24 @@ public class ProjectWorkflowService {
 
         siteSurveyRepository.save(surveyData);
 
+        System.out.println("✅ Site survey data saved for project: " + project.getProjectName());
+
         // Complete step
         WorkflowStepCompletion step = stepService.getStep(workflowId, 1)
             .orElseThrow(() -> new RuntimeException("Step not found"));
         stepService.completeStep(step, salesUser);
 
+        System.out.println("✅ Workflow step 1 marked as completed");
+
+        // Notify Projects team that Sales has completed the site survey
+        notificationService.notifySiteSurveyCompletedBySales(project, salesUser);
+
+        System.out.println("🔔 Notification sent to Projects team about site survey completion");
+
         // Move to next step
         advanceToNextStep(workflow, salesUser);
+
+        System.out.println("➡️ Workflow advanced to next step");
     }
 
     /**

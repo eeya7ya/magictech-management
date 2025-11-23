@@ -50,7 +50,7 @@ public class WorkflowNotificationService {
     }
 
     /**
-     * Step 1: Notify Sales user that site survey is completed
+     * Step 1: Notify Sales user that site survey is completed by Projects team
      */
     public void notifySiteSurveyCompleted(Project project, User projectUser, User salesUser) {
         System.out.println("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -83,6 +83,40 @@ public class WorkflowNotificationService {
         notificationService.publishNotification(message);
 
         System.out.println("✅ Notification published successfully!\n");
+    }
+
+    /**
+     * Step 1: Notify Projects team that site survey is completed by Sales
+     */
+    public void notifySiteSurveyCompletedBySales(Project project, User salesUser) {
+        System.out.println("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        System.out.println("📢 NOTIFYING PROJECTS TEAM ABOUT SALES SITE SURVEY COMPLETION");
+        System.out.println("   Project: " + project.getProjectName());
+        System.out.println("   Completed by: " + salesUser.getUsername() + " (SALES team)");
+        System.out.println("   Notifying: PROJECTS team");
+        System.out.println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+
+        List<User> projectUsers = userRepository.findByRoleAndActiveTrue(UserRole.PROJECTS);
+
+        for (User projectUser : projectUsers) {
+            NotificationMessage message = new NotificationMessage.Builder()
+                .title("Site Survey Completed by Sales")
+                .message(String.format("Sales team member %s has completed the site survey for project '%s'. The survey data is now available for viewing.",
+                    salesUser.getUsername(), project.getProjectName()))
+                .type(NotificationConstants.TYPE_SUCCESS)
+                .module(NotificationConstants.MODULE_SALES)
+                .targetModule(NotificationConstants.MODULE_PROJECTS)
+                .entityType(NotificationConstants.ENTITY_PROJECT)
+                .entityId(project.getId())
+                .priority(NotificationConstants.PRIORITY_HIGH)
+                .createdBy(salesUser.getUsername())
+                .build();
+
+            System.out.println("📨 Sending notification to: " + projectUser.getUsername());
+            notificationService.publishNotification(message);
+        }
+
+        System.out.println("✅ All notifications published successfully!\n");
     }
 
     /**
