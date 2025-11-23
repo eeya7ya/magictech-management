@@ -208,18 +208,27 @@ public class ProjectWorkflowService {
 
         siteSurveyRepository.save(surveyData);
 
+        System.out.println("✅ Site survey data saved for project: " + project.getProjectName());
+
         // Mark external action as completed
         WorkflowStepCompletion step = stepService.getStep(workflowId, 1)
             .orElseThrow(() -> new RuntimeException("Step not found"));
         stepService.completeExternalAction(step, projectUser);
         stepService.completeStep(step, projectUser);
 
+        System.out.println("✅ Workflow step 1 marked as completed");
+
         // Notify sales user
         User salesUser = getUserById(workflow.getCreatedById());
         notificationService.notifySiteSurveyCompleted(project, projectUser, salesUser);
 
+        System.out.println("🔔 Notification sent to Sales user: " + salesUser.getUsername() +
+                         " about site survey completion for project: " + project.getProjectName());
+
         // Move to next step
         advanceToNextStep(workflow, projectUser);
+
+        System.out.println("➡️ Workflow advanced to next step");
     }
 
     /**

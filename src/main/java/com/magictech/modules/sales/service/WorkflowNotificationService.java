@@ -53,6 +53,13 @@ public class WorkflowNotificationService {
      * Step 1: Notify Sales user that site survey is completed
      */
     public void notifySiteSurveyCompleted(Project project, User projectUser, User salesUser) {
+        System.out.println("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        System.out.println("📢 CREATING SITE SURVEY COMPLETION NOTIFICATION");
+        System.out.println("   Project: " + project.getProjectName());
+        System.out.println("   Completed by: " + projectUser.getUsername() + " (PROJECT team)");
+        System.out.println("   Notifying: " + salesUser.getUsername() + " (SALES user)");
+        System.out.println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+
         NotificationMessage message = new NotificationMessage.Builder()
             .title("Site Survey Completed")
             .message(String.format("Project team member %s has completed the site survey for project '%s'",
@@ -66,7 +73,16 @@ public class WorkflowNotificationService {
             .createdBy(projectUser.getUsername())
             .build();
 
+        System.out.println("📨 Notification message details:");
+        System.out.println("   Title: " + message.getTitle());
+        System.out.println("   Type: " + message.getType());
+        System.out.println("   Module: " + message.getModule());
+        System.out.println("   Target Module: " + message.getTargetModule());
+        System.out.println("   Priority: " + message.getPriority());
+
         notificationService.publishNotification(message);
+
+        System.out.println("✅ Notification published successfully!\n");
     }
 
     /**
