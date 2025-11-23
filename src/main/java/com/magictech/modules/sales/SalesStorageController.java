@@ -150,17 +150,13 @@ public class SalesStorageController extends BaseModuleController {
         titleLabel.setStyle("-fx-text-fill: white; -fx-font-size: 22px; -fx-font-weight: bold;");
         HBox.setHgrow(titleLabel, Priority.ALWAYS);
 
-        Button testSurveyBtn = createStyledButton("🧪 Test Site Survey", "#f59e0b", "#d97706");
-        testSurveyBtn.setOnAction(e -> handleCreateTestSiteSurveyRequest());
-        testSurveyBtn.setTooltip(new Tooltip("Create a test site survey request for PROJECT team"));
-
         Button exportProjectsBtn = createStyledButton("📥 Export", "#8b5cf6", "#7c3aed");
         exportProjectsBtn.setOnAction(e -> handleExportProjects());
 
         Button addProjectBtn = createStyledButton("+ New Project", "#3b82f6", "#2563eb");
         addProjectBtn.setOnAction(e -> handleAddProject());
 
-        header.getChildren().addAll(titleLabel, testSurveyBtn, exportProjectsBtn, addProjectBtn);
+        header.getChildren().addAll(titleLabel, exportProjectsBtn, addProjectBtn);
 
         projectsListView = new ListView<>();
         projectsListView.setPrefHeight(500);
@@ -2465,64 +2461,6 @@ public class SalesStorageController extends BaseModuleController {
             ex.printStackTrace();
             showError("Failed to open workflow: " + ex.getMessage());
         }
-    }
-
-    /**
-     * Create a test site survey request to demonstrate notification system
-     * This creates a pending request that PROJECT team will see
-     */
-    private void handleCreateTestSiteSurveyRequest() {
-        // Check if there are any projects first
-        if (projectsListView == null || projectsListView.getItems().isEmpty()) {
-            showWarning("Please create a project first before creating a site survey request");
-            return;
-        }
-
-        // Let user select a project
-        ChoiceDialog<Project> choiceDialog = new ChoiceDialog<>(
-            projectsListView.getItems().get(0),
-            projectsListView.getItems()
-        );
-        choiceDialog.setTitle("Select Project");
-        choiceDialog.setHeaderText("Create Test Site Survey Request");
-        choiceDialog.setContentText("Select project for site survey:");
-
-        choiceDialog.showAndWait().ifPresent(selectedProject -> {
-            Task<Void> createTask = new Task<>() {
-                @Override
-                protected Void call() throws Exception {
-                    // Create the site survey request through the workflow service
-                    // This will send a notification to PROJECT team members
-                    projectService.requestSiteSurvey(
-                        selectedProject.getId(),
-                        currentUser.getUsername(),
-                        currentUser.getId(),
-                        "PROJECT",  // assigned to PROJECT team
-                        "HIGH",     // priority
-                        "TEST REQUEST - Site survey needed for project demonstration"
-                    );
-
-                    System.out.println("✅ Site survey request created for project: " + selectedProject.getProjectName());
-                    System.out.println("📢 Notification should be sent to PROJECT team members");
-
-                    return null;
-                }
-            };
-
-            createTask.setOnSucceeded(e -> {
-                showSuccess("Site survey request sent to Project Team. Waiting for their response...\n\n" +
-                    "PROJECT team members should now see a notification.");
-                loadProjects(projectsListView);
-            });
-
-            createTask.setOnFailed(e -> {
-                Throwable ex = createTask.getException();
-                showError("Failed to create site survey request: " + ex.getMessage());
-                ex.printStackTrace();
-            });
-
-            new Thread(createTask).start();
-        });
     }
 
     private void handleDeleteProject(Project project) {
