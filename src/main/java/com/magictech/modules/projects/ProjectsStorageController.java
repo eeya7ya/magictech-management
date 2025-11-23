@@ -105,8 +105,7 @@ public class ProjectsStorageController extends BaseModuleController {
     private Button siteSurveyViewButton;
     private Button siteSurveyExportButton;
 
-    // Current User
-    private User currentUser;
+    // Note: currentUser is inherited from BaseModuleController as protected field
 
     @Override
     public void refresh() {
@@ -2471,12 +2470,7 @@ public class ProjectsStorageController extends BaseModuleController {
         titleBox.getChildren().addAll(title, subtitle);
         HBox.setHgrow(titleBox, Priority.ALWAYS);
 
-        // Test button to create a dummy site survey request
-        Button testButton = createStyledButton("🧪 Create Test Request", "#f59e0b", "#d97706");
-        testButton.setOnAction(e -> handleCreateTestSiteSurveyRequest());
-        testButton.setPrefWidth(200);
-
-        header.getChildren().addAll(titleBox, testButton);
+        header.getChildren().addAll(titleBox);
 
         // Status Section
         VBox statusSection = new VBox(15);
@@ -2898,105 +2892,6 @@ public class ProjectsStorageController extends BaseModuleController {
         dialog.show();
     }
 
-    private void handleCreateTestSiteSurveyRequest() {
-        if (selectedProject == null) {
-            showWarning("No project selected");
-            return;
-        }
-
-        // Check if already has a request
-        if (siteSurveyRequestService.hasActiveRequest(selectedProject.getId())) {
-            showWarning("Site survey request already exists for this project");
-            return;
-        }
-
-        Task<Void> createTask = new Task<>() {
-            @Override
-            protected Void call() throws Exception {
-                // Create a dummy Excel file using Apache POI
-                org.apache.poi.xssf.usermodel.XSSFWorkbook workbook =
-                    new org.apache.poi.xssf.usermodel.XSSFWorkbook();
-                org.apache.poi.ss.usermodel.Sheet sheet = workbook.createSheet("Site Survey");
-
-                // Add headers
-                org.apache.poi.ss.usermodel.Row headerRow = sheet.createRow(0);
-                headerRow.createCell(0).setCellValue("Item");
-                headerRow.createCell(1).setCellValue("Measurement");
-                headerRow.createCell(2).setCellValue("Notes");
-
-                // Add sample data
-                org.apache.poi.ss.usermodel.Row row1 = sheet.createRow(1);
-                row1.createCell(0).setCellValue("Room Length");
-                row1.createCell(1).setCellValue("5.5m");
-                row1.createCell(2).setCellValue("Test measurement");
-
-                org.apache.poi.ss.usermodel.Row row2 = sheet.createRow(2);
-                row2.createCell(0).setCellValue("Room Width");
-                row2.createCell(1).setCellValue("3.2m");
-                row2.createCell(2).setCellValue("Test measurement");
-
-                // Write to byte array
-                java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
-                workbook.write(baos);
-                byte[] excelBytes = baos.toByteArray();
-                workbook.close();
-
-                // Create site survey request
-                SiteSurveyRequest request = siteSurveyRequestService.createRequest(
-                    selectedProject.getId(),
-                    "test-sales-user",
-                    1L,
-                    currentUser.getUsername(),
-                    "HIGH",
-                    "TEST REQUEST - This is a test site survey request for demonstration"
-                );
-
-                // Parse Excel
-                String parsedData = siteSurveyExcelService.parseExcelToJson(excelBytes,
-                    "Test_SiteSurvey.xlsx");
-
-                // Create SiteSurveyData
-                com.magictech.modules.sales.entity.SiteSurveyData surveyData =
-                    new com.magictech.modules.sales.entity.SiteSurveyData();
-                surveyData.setProjectId(selectedProject.getId());
-                surveyData.setWorkflowId(request.getId());
-                surveyData.setExcelFile(excelBytes);
-                surveyData.setFileName("Test_SiteSurvey.xlsx");
-                surveyData.setFileSize((long) excelBytes.length);
-                surveyData.setMimeType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-                surveyData.setParsedData(parsedData);
-                surveyData.setSurveyDoneBy("PROJECT");
-                surveyData.setSurveyDoneByUser(currentUser.getUsername());
-                surveyData.setSurveyDoneByUserId(currentUser.getId());
-                surveyData.setUploadedBy(currentUser.getUsername());
-                surveyData.setUploadedById(currentUser.getId());
-
-                surveyData = siteSurveyDataRepository.save(surveyData);
-
-                // Complete the request
-                siteSurveyRequestService.completeRequest(
-                    request.getId(),
-                    surveyData.getId(),
-                    currentUser.getUsername(),
-                    currentUser.getId()
-                );
-
-                return null;
-            }
-        };
-
-        createTask.setOnSucceeded(event -> {
-            showSuccess("Test site survey request created successfully!\n\nYou can now test the Export button.");
-            loadSiteSurveyData();
-        });
-
-        createTask.setOnFailed(event -> {
-            showError("Failed to create test request: " + createTask.getException().getMessage());
-            createTask.getException().printStackTrace();
-        });
-
-        new Thread(createTask).start();
-    }
 
     private void handleExportSiteSurvey() {
         if (selectedProject == null) {
