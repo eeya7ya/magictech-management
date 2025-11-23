@@ -1,6 +1,7 @@
 package com.magictech.core.ui;
 
 import com.magictech.core.auth.User;
+import com.magictech.core.messaging.service.NotificationListenerService;
 import com.magictech.core.messaging.ui.NotificationManager;
 import com.magictech.core.module.ModuleConfig;
 import com.magictech.core.ui.controllers.MainDashboardController;
@@ -51,6 +52,9 @@ public class SceneManager {
 
     @Autowired
     private NotificationManager notificationManager;
+
+    @Autowired
+    private NotificationListenerService notificationListenerService;
 
     // Track active controllers for cleanup
     private MainDashboardController activeDashboard;
@@ -419,6 +423,9 @@ public class SceneManager {
                     primaryStage.setTitle("MagicTech - Sales Module");
                     primaryStage.setMaximized(true);
 
+                    // Subscribe to notifications for this module
+                    subscribeToModuleNotifications("sales");
+
                     createLoadingOverlay();
                     hideLoading();
                     System.out.println("✓ Sales module loaded");
@@ -524,6 +531,9 @@ public class SceneManager {
                     primaryStage.setScene(scene);
                     primaryStage.setTitle("MagicTech - Projects Module");
                     primaryStage.setMaximized(true);
+
+                    // Subscribe to notifications for this module
+                    subscribeToModuleNotifications("projects");
 
                     createLoadingOverlay();
                     hideLoading();
@@ -792,9 +802,33 @@ public class SceneManager {
     }
 
     /**
+     * Subscribe to notifications for the current module
+     */
+    private void subscribeToModuleNotifications(String moduleName) {
+        try {
+            if (notificationListenerService != null && primaryStage != null) {
+                // Set the primary window for showing popup notifications
+                notificationListenerService.setPrimaryWindow(primaryStage);
+
+                // Subscribe to module-specific channel
+                notificationListenerService.subscribeToModule(moduleName);
+
+                System.out.println("🔔 Subscribed to notifications for module: " + moduleName);
+            }
+        } catch (Exception e) {
+            System.err.println("Error subscribing to notifications: " + e.getMessage());
+        }
+    }
+
+    /**
      * Logout and return to login
      */
     public void logout() {
+        // Unsubscribe from all notifications
+        if (notificationListenerService != null) {
+            notificationListenerService.unsubscribeAll();
+        }
+
         immediateCleanup();
         currentUser = null;
         showLoginScreen();

@@ -3,6 +3,8 @@ package com.magictech.core.messaging.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.magictech.core.messaging.constants.NotificationConstants;
 import com.magictech.core.messaging.dto.NotificationMessage;
+import com.magictech.core.ui.components.NotificationPopup;
+import javafx.stage.Window;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -49,6 +51,8 @@ public class NotificationListenerService implements MessageListener {
     private final List<ChannelTopic> subscribedChannels = new ArrayList<>();
 
     private boolean isInitialized = false;
+    private Window primaryWindow; // For showing visual notifications
+    private boolean showVisualNotifications = true; // Toggle for popup notifications
 
     /**
      * Subscribe to Redis channels for a specific module.
@@ -175,6 +179,22 @@ public class NotificationListenerService implements MessageListener {
                 }
             }
 
+            // Show visual popup notification if enabled
+            if (showVisualNotifications && primaryWindow != null) {
+                System.out.println("\n┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓");
+                System.out.println("┃  📬 NOTIFICATION RECEIVED - SHOWING POPUP             ┃");
+                System.out.println("┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫");
+                System.out.println("┃  Title: " + notification.getTitle());
+                System.out.println("┃  Type: " + notification.getType());
+                System.out.println("┃  Message: " + notification.getMessage());
+                System.out.println("┃  From Module: " + notification.getModule());
+                System.out.println("┃  Target Module: " + notification.getTargetModule());
+                System.out.println("┃  Priority: " + notification.getPriority());
+                System.out.println("┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n");
+
+                NotificationPopup.showNotification(notification, primaryWindow);
+            }
+
             // Dispatch to all registered listeners
             for (Consumer<NotificationMessage> listener : listeners) {
                 try {
@@ -234,5 +254,38 @@ public class NotificationListenerService implements MessageListener {
         return subscribedChannels.stream()
             .map(ChannelTopic::getTopic)
             .toList();
+    }
+
+    /**
+     * Set the primary window for showing visual notifications.
+     * This should be called when the module is initialized.
+     */
+    public void setPrimaryWindow(Window window) {
+        this.primaryWindow = window;
+        if (window != null) {
+            logger.info("Primary window set for visual notifications");
+        }
+    }
+
+    /**
+     * Enable or disable visual popup notifications.
+     */
+    public void setShowVisualNotifications(boolean show) {
+        this.showVisualNotifications = show;
+        logger.info("Visual notifications {}", show ? "enabled" : "disabled");
+    }
+
+    /**
+     * Get the primary window.
+     */
+    public Window getPrimaryWindow() {
+        return primaryWindow;
+    }
+
+    /**
+     * Check if visual notifications are enabled.
+     */
+    public boolean isShowVisualNotifications() {
+        return showVisualNotifications;
     }
 }
