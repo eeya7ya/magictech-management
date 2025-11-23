@@ -312,6 +312,12 @@ public class SceneManager {
                     System.out.println("✓ Notification system initialized");
                 } catch (Exception e) {
                     System.err.println("Warning: Failed to initialize notification system: " + e.getMessage());
+                    System.err.println("Note: Notifications require Redis to be running.");
+                    System.err.println("      The application will continue to work, but real-time notifications will be disabled.");
+                    System.err.println("      To enable notifications, please install and start Redis:");
+                    System.err.println("      - On Ubuntu/Debian: sudo apt-get install redis-server && sudo systemctl start redis");
+                    System.err.println("      - On macOS: brew install redis && brew services start redis");
+                    System.err.println("      - On Windows: Download from https://redis.io/download");
                 }
 
                 System.out.println("✓ Dashboard loaded - NO WHITE FLASH");

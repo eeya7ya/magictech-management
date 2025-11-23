@@ -522,11 +522,20 @@ public class ProjectsController extends BaseModuleController {
 
                     surveyInfo.getChildren().addAll(fileLabel, uploadedBy, uploadedAt, surveyBy);
 
+                    HBox actionButtons = new HBox(10);
+                    actionButtons.setAlignment(Pos.CENTER_LEFT);
+
+                    Button viewDataBtn = new Button("👁️ View Survey Data");
+                    viewDataBtn.setStyle("-fx-background-color: #3b82f6; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 8 16;");
+                    viewDataBtn.setOnAction(e -> viewSiteSurveyData(survey));
+
                     Button downloadBtn = new Button("💾 Download Excel File");
                     downloadBtn.setStyle("-fx-background-color: #8b5cf6; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 8 16;");
                     downloadBtn.setOnAction(e -> downloadSiteSurvey(vm));
 
-                    box.getChildren().addAll(title, surveyInfo, downloadBtn);
+                    actionButtons.getChildren().addAll(viewDataBtn, downloadBtn);
+
+                    box.getChildren().addAll(title, surveyInfo, actionButtons);
                 }
             } catch (Exception ex) {
                 Label error = new Label("❌ Error loading survey: " + ex.getMessage());
@@ -605,6 +614,147 @@ public class ProjectsController extends BaseModuleController {
             showError("Failed to download site survey: " + ex.getMessage());
             ex.printStackTrace();
         }
+    }
+
+    private void viewSiteSurveyData(SiteSurveyData survey) {
+        Stage dataStage = new Stage();
+        dataStage.initModality(Modality.APPLICATION_MODAL);
+        dataStage.setTitle("Site Survey Data - " + survey.getFileName());
+
+        VBox content = new VBox(15);
+        content.setPadding(new Insets(20));
+        content.setStyle("-fx-background-color: #f9fafb;");
+
+        // Header
+        Label header = new Label("📊 Site Survey Data");
+        header.setFont(Font.font("System", FontWeight.BOLD, 20));
+        header.setStyle("-fx-text-fill: #1f2937;");
+
+        // Metadata box
+        VBox metadataBox = new VBox(10);
+        metadataBox.setPadding(new Insets(15));
+        metadataBox.setStyle("-fx-background-color: white; -fx-background-radius: 8; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 10, 0, 0, 2);");
+
+        Label metadataTitle = new Label("ℹ️ Survey Information");
+        metadataTitle.setFont(Font.font("System", FontWeight.BOLD, 14));
+
+        GridPane metaGrid = new GridPane();
+        metaGrid.setHgap(15);
+        metaGrid.setVgap(10);
+        addInfoRow(metaGrid, 0, "File Name:", survey.getFileName());
+        addInfoRow(metaGrid, 1, "File Size:", String.format("%.2f KB", survey.getFileSize() / 1024.0));
+        addInfoRow(metaGrid, 2, "Uploaded By:", survey.getUploadedBy());
+        addInfoRow(metaGrid, 3, "Uploaded At:", formatDateTime(survey.getUploadedAt()));
+        addInfoRow(metaGrid, 4, "Survey By:", survey.getSurveyDoneBy() + " (" + survey.getSurveyDoneByUser() + ")");
+
+        metadataBox.getChildren().addAll(metadataTitle, metaGrid);
+
+        // Parsed data display
+        VBox dataBox = new VBox(10);
+        dataBox.setPadding(new Insets(15));
+        dataBox.setStyle("-fx-background-color: white; -fx-background-radius: 8; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 10, 0, 0, 2);");
+
+        Label dataTitle = new Label("📄 Parsed Excel Data");
+        dataTitle.setFont(Font.font("System", FontWeight.BOLD, 14));
+
+        TextArea dataTextArea = new TextArea();
+        dataTextArea.setWrapText(true);
+        dataTextArea.setEditable(false);
+        dataTextArea.setPrefRowCount(20);
+        dataTextArea.setStyle("-fx-font-family: 'Monospaced'; -fx-font-size: 11px;");
+
+        if (survey.getParsedData() != null && !survey.getParsedData().isEmpty()) {
+            try {
+                // Pretty print JSON
+                dataTextArea.setText(formatJsonForDisplay(survey.getParsedData()));
+            } catch (Exception e) {
+                dataTextArea.setText(survey.getParsedData());
+            }
+        } else {
+            dataTextArea.setText("No parsed data available");
+        }
+
+        dataBox.getChildren().addAll(dataTitle, dataTextArea);
+        VBox.setVgrow(dataTextArea, Priority.ALWAYS);
+
+        // Action buttons
+        HBox buttonBox = new HBox(10);
+        buttonBox.setAlignment(Pos.CENTER_RIGHT);
+
+        Button copyButton = new Button("📋 Copy to Clipboard");
+        copyButton.setStyle("-fx-background-color: #10b981; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 10 20;");
+        copyButton.setOnAction(e -> {
+            if (survey.getParsedData() != null) {
+                javafx.scene.input.Clipboard clipboard = javafx.scene.input.Clipboard.getSystemClipboard();
+                javafx.scene.input.ClipboardContent clipContent = new javafx.scene.input.ClipboardContent();
+                clipContent.putString(survey.getParsedData());
+                clipboard.setContent(clipContent);
+                showSuccess("Data copied to clipboard!");
+            }
+        });
+
+        Button closeBtn = new Button("Close");
+        closeBtn.setStyle("-fx-background-color: #6b7280; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 10 20;");
+        closeBtn.setOnAction(e -> dataStage.close());
+
+        buttonBox.getChildren().addAll(copyButton, closeBtn);
+
+        content.getChildren().addAll(header, new Separator(), metadataBox, dataBox, buttonBox);
+        VBox.setVgrow(dataBox, Priority.ALWAYS);
+
+        ScrollPane scroll = new ScrollPane(content);
+        scroll.setFitToWidth(true);
+        scroll.setStyle("-fx-background: #f9fafb;");
+
+        Scene scene = new Scene(scroll, 900, 700);
+        dataStage.setScene(scene);
+        dataStage.show();
+    }
+
+    private String formatJsonForDisplay(String json) {
+        // Simple JSON pretty-print: add newlines and indentation
+        StringBuilder result = new StringBuilder();
+        int indent = 0;
+        boolean inQuotes = false;
+
+        for (int i = 0; i < json.length(); i++) {
+            char ch = json.charAt(i);
+
+            if (ch == '"' && (i == 0 || json.charAt(i - 1) != '\\')) {
+                inQuotes = !inQuotes;
+            }
+
+            if (!inQuotes) {
+                switch (ch) {
+                    case '{':
+                    case '[':
+                        result.append(ch).append('\n');
+                        indent++;
+                        result.append("  ".repeat(indent));
+                        break;
+                    case '}':
+                    case ']':
+                        result.append('\n');
+                        indent--;
+                        result.append("  ".repeat(indent));
+                        result.append(ch);
+                        break;
+                    case ',':
+                        result.append(ch).append('\n');
+                        result.append("  ".repeat(indent));
+                        break;
+                    case ':':
+                        result.append(ch).append(' ');
+                        break;
+                    default:
+                        result.append(ch);
+                }
+            } else {
+                result.append(ch);
+            }
+        }
+
+        return result.toString();
     }
 
     private void filterProjects() {
