@@ -2760,7 +2760,7 @@ public class ProjectsStorageController extends BaseModuleController {
                 surveyData.setWorkflowId(request.getId()); // Using request ID as workflow ID
                 surveyData.setExcelFile(fileBytes);
                 surveyData.setFileName(selectedFile.getName());
-                surveyData.setFileSize(fileBytes.length);
+                surveyData.setFileSize((long) fileBytes.length);
                 surveyData.setMimeType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
                 surveyData.setParsedData(parsedData);
                 surveyData.setSurveyDoneBy("PROJECT");
