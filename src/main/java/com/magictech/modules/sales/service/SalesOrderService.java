@@ -33,13 +33,14 @@ public class SalesOrderService {
     @Autowired
     private NotificationService notificationService;
 
-    // TODO: Uncomment when StorageService is available
-    // @Autowired
-    // private StorageService storageService;
+    @Autowired
+    private com.magictech.modules.storage.service.StorageService storageService;
 
-    // TODO: Uncomment when ProjectElementService is available
-    // @Autowired
-    // private ProjectElementService projectElementService;
+    @Autowired
+    private com.magictech.modules.projects.service.ProjectElementService projectElementService;
+
+    @Autowired
+    private com.magictech.modules.projects.service.ProjectService projectService;
 
     /**
      * Create a new sales order
@@ -175,24 +176,52 @@ public class SalesOrderService {
         // Get all order items
         List<SalesOrderItem> items = salesOrderItemRepository.findBySalesOrderIdAndActiveTrue(orderId);
 
-        // TODO: Uncomment when ProjectElementService and StorageService are available
-        // For each item:
-        // 1. Create project element
-        // 2. Deduct from storage
-        // for (SalesOrderItem item : items) {
-        //     // Create project element
-        //     projectElementService.addElementToProject(
-        //             order.getProjectId(),
-        //             item.getStorageItemId(),
-        //             item.getQuantity(),
-        //             item.getUnitPrice(),
-        //             "Added from Sales Order #" + orderId
-        //     );
-        //
-        //     // Deduct from storage
-        //     storageService.deductItem(item.getStorageItemId(), item.getQuantity(),
-        //             "Sales Order #" + orderId + " - Project ID: " + order.getProjectId());
-        // }
+        // Get the project entity
+        com.magictech.modules.projects.entity.Project project =
+            projectService.getProjectById(order.getProjectId())
+                .orElseThrow(() -> new RuntimeException("Project not found: " + order.getProjectId()));
+
+        System.out.println("📦 Pushing " + items.size() + " items to project: " + project.getProjectName());
+
+        // For each item: Create project element (automatically deducts from storage)
+        int elementCount = 0;
+        for (SalesOrderItem item : items) {
+            try {
+                // Get the storage item
+                com.magictech.modules.storage.entity.StorageItem storageItem =
+                    storageService.findById(item.getStorageItemId())
+                        .orElseThrow(() -> new RuntimeException("Storage item not found: " + item.getStorageItemId()));
+
+                // Create project element
+                com.magictech.modules.projects.entity.ProjectElement element =
+                    new com.magictech.modules.projects.entity.ProjectElement();
+
+                element.setProject(project);
+                element.setStorageItem(storageItem);
+                element.setQuantityNeeded(item.getQuantity());
+                element.setQuantityAllocated(0);  // Will be set by createElementDirectly
+                element.setCustomPrice(item.getUnitPrice());
+                element.setStatus("PENDING");  // Will be changed to APPROVED by createElementDirectly
+                element.setNotes("Added from Sales Order #" + orderId + " by " + pushedBy);
+                element.setAddedBy(pushedBy);
+                element.setAddedDate(LocalDateTime.now());
+
+                // Create element directly (Sales has permission, auto-deducts from storage)
+                projectElementService.createElementDirectly(element);
+                elementCount++;
+
+                System.out.println("✅ Created project element for item: " + storageItem.getProductName() +
+                                 " (Qty: " + item.getQuantity() + ")");
+            } catch (Exception e) {
+                System.err.println("Failed to create project element for item " + item.getStorageItemId() +
+                                 ": " + e.getMessage());
+                e.printStackTrace();
+                throw new RuntimeException("Failed to push item " + item.getStorageItemId() +
+                                         " to project: " + e.getMessage());
+            }
+        }
+
+        System.out.println("✅ Successfully created " + elementCount + " project elements");
 
         order.setStatus("PUSHED_TO_PROJECT");
         order.setUpdatedAt(LocalDateTime.now());
