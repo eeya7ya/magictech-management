@@ -56,6 +56,7 @@ public class NotificationService {
 
             // Store notification in database first
             Notification notification = saveNotificationToDatabase(message);
+            System.out.println("💾 Notification saved to database with ID: " + notification.getId());
 
             // Determine which channel(s) to publish to
             String targetModule = message.getTargetModule();
@@ -63,9 +64,11 @@ public class NotificationService {
             if (targetModule != null && !targetModule.isEmpty()) {
                 // Publish to specific module channel
                 String moduleChannel = NotificationConstants.getModuleChannel(targetModule);
+                System.out.println("📡 Publishing to module channel: " + moduleChannel);
                 publishToChannel(moduleChannel, message);
             } else {
                 // Publish to all_notifications channel (broadcast)
+                System.out.println("📡 Publishing to ALL notifications channel");
                 publishToChannel(NotificationConstants.CHANNEL_ALL_NOTIFICATIONS, message);
             }
 
@@ -76,10 +79,12 @@ public class NotificationService {
                     message.getAction(),
                     message.getEntityType()
                 );
+                System.out.println("📡 Publishing to action channel: " + actionChannel);
                 publishToChannel(actionChannel, message);
             }
 
             logger.info("Published notification: {} to module: {}", message.getTitle(), targetModule);
+            System.out.println("✅ Notification published to Redis successfully!");
 
         } catch (Exception e) {
             logger.error("Error publishing notification: {}", e.getMessage(), e);

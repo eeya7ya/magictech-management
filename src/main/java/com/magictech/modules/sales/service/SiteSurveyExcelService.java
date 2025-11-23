@@ -103,12 +103,6 @@ public class SiteSurveyExcelService {
             sheetNode.set("images", imagesArray);
         }
 
-        // Parse merged regions
-        ArrayNode mergedRegions = parseMergedRegions(sheet);
-        if (mergedRegions.size() > 0) {
-            sheetNode.set("mergedCells", mergedRegions);
-        }
-
         return sheetNode;
     }
 
@@ -135,103 +129,85 @@ public class SiteSurveyExcelService {
     }
 
     /**
-     * Parse a single cell - comprehensive data extraction
+     * Parse a single cell - simplified (no column metadata)
+     * Similar to storage management approach - just extract the value
      */
     private ObjectNode parseCell(Cell cell) {
         ObjectNode cellNode = objectMapper.createObjectNode();
-        cellNode.put("columnIndex", cell.getColumnIndex());
-        cellNode.put("columnLetter", CellReference.convertNumToColString(cell.getColumnIndex()));
-        cellNode.put("address", cell.getAddress().formatAsString());
 
+        // Extract value based on type (no column numbers, letters, or addresses)
         CellType cellType = cell.getCellType();
-        cellNode.put("cellType", cellType.name());
 
-        // Extract value based on type
         switch (cellType) {
             case STRING:
                 cellNode.put("value", cell.getStringCellValue());
-                cellNode.put("displayValue", cell.getStringCellValue());
                 break;
 
             case NUMERIC:
                 if (DateUtil.isCellDateFormatted(cell)) {
                     Date date = cell.getDateCellValue();
                     cellNode.put("value", date.toString());
-                    cellNode.put("displayValue", date.toString());
-                    cellNode.put("isDate", true);
                 } else {
                     double numValue = cell.getNumericCellValue();
-                    cellNode.put("value", numValue);
-                    cellNode.put("displayValue", decimalFormat.format(numValue));
+                    // Check if it's a whole number to avoid unnecessary decimals
+                    if (numValue == (long) numValue) {
+                        cellNode.put("value", (long) numValue);
+                    } else {
+                        cellNode.put("value", numValue);
+                    }
                 }
                 break;
 
             case BOOLEAN:
-                boolean boolValue = cell.getBooleanCellValue();
-                cellNode.put("value", boolValue);
-                cellNode.put("displayValue", String.valueOf(boolValue));
+                cellNode.put("value", cell.getBooleanCellValue());
                 break;
 
             case FORMULA:
-                cellNode.put("formula", cell.getCellFormula());
+                // For formulas, try to get the cached result
                 try {
                     CellType cachedType = cell.getCachedFormulaResultType();
-                    cellNode.put("cachedType", cachedType.name());
 
                     switch (cachedType) {
                         case NUMERIC:
                             double numResult = cell.getNumericCellValue();
-                            cellNode.put("value", numResult);
-                            cellNode.put("displayValue", decimalFormat.format(numResult));
+                            if (numResult == (long) numResult) {
+                                cellNode.put("value", (long) numResult);
+                            } else {
+                                cellNode.put("value", numResult);
+                            }
                             break;
                         case STRING:
-                            String strResult = cell.getStringCellValue();
-                            cellNode.put("value", strResult);
-                            cellNode.put("displayValue", strResult);
+                            cellNode.put("value", cell.getStringCellValue());
                             break;
                         case BOOLEAN:
-                            boolean boolResult = cell.getBooleanCellValue();
-                            cellNode.put("value", boolResult);
-                            cellNode.put("displayValue", String.valueOf(boolResult));
+                            cellNode.put("value", cell.getBooleanCellValue());
                             break;
+                        default:
+                            cellNode.put("value", "");
                     }
                 } catch (Exception e) {
-                    cellNode.put("formulaError", e.getMessage());
+                    cellNode.put("value", "");
                 }
                 break;
 
             case BLANK:
                 cellNode.put("value", "");
-                cellNode.put("displayValue", "");
                 break;
 
             case ERROR:
-                cellNode.put("error", cell.getErrorCellValue());
-                cellNode.put("displayValue", "ERROR");
+                cellNode.put("value", "ERROR");
                 break;
 
             default:
                 cellNode.put("value", "");
-                cellNode.put("displayValue", "");
-        }
-
-        // Cell styling
-        CellStyle style = cell.getCellStyle();
-        if (style != null) {
-            ObjectNode styleNode = objectMapper.createObjectNode();
-            Workbook workbook = cell.getSheet().getWorkbook();
-            Font font = workbook.getFontAt(style.getFontIndexAsInt());
-            styleNode.put("fontBold", font.getBold());
-            styleNode.put("fillForegroundColor", style.getFillForegroundColor());
-            styleNode.put("alignment", style.getAlignment().name());
-            cellNode.set("style", styleNode);
         }
 
         return cellNode;
     }
 
     /**
-     * Parse images from XSSF sheet
+     * Parse images from XSSF sheet - simplified
+     * Similar to storage approach - just extract the image data without detailed positioning
      */
     private ArrayNode parseImages(XSSFSheet sheet) {
         ArrayNode imagesArray = objectMapper.createArrayNode();
@@ -251,23 +227,13 @@ public class SiteSurveyExcelService {
                     // Get image data
                     XSSFPictureData pictureData = picture.getPictureData();
                     byte[] imageBytes = pictureData.getData();
-                    imageNode.put("imageSizeBytes", imageBytes.length);
+                    imageNode.put("size", imageBytes.length);
                     imageNode.put("mimeType", pictureData.getMimeType());
-                    imageNode.put("imageFormat", pictureData.suggestFileExtension());
+                    imageNode.put("extension", pictureData.suggestFileExtension());
 
                     // Encode image as Base64 for JSON storage
                     String base64Image = Base64.getEncoder().encodeToString(imageBytes);
-                    imageNode.put("imageDataBase64", base64Image);
-
-                    // Get anchor (position) information
-                    XSSFClientAnchor anchor = (XSSFClientAnchor) picture.getAnchor();
-                    ObjectNode anchorNode = objectMapper.createObjectNode();
-                    anchorNode.put("row1", anchor.getRow1());
-                    anchorNode.put("col1", anchor.getCol1());
-                    anchorNode.put("row2", anchor.getRow2());
-                    anchorNode.put("col2", anchor.getCol2());
-                    anchorNode.put("cellAddress", CellReference.convertNumToColString((int) anchor.getCol1()) + (anchor.getRow1() + 1));
-                    imageNode.set("position", anchorNode);
+                    imageNode.put("base64Data", base64Image);
 
                     imagesArray.add(imageNode);
                 }
@@ -275,26 +241,6 @@ public class SiteSurveyExcelService {
         }
 
         return imagesArray;
-    }
-
-    /**
-     * Parse merged cell regions
-     */
-    private ArrayNode parseMergedRegions(Sheet sheet) {
-        ArrayNode mergedArray = objectMapper.createArrayNode();
-
-        for (int i = 0; i < sheet.getNumMergedRegions(); i++) {
-            org.apache.poi.ss.util.CellRangeAddress region = sheet.getMergedRegion(i);
-            ObjectNode mergedNode = objectMapper.createObjectNode();
-            mergedNode.put("firstRow", region.getFirstRow());
-            mergedNode.put("lastRow", region.getLastRow());
-            mergedNode.put("firstColumn", region.getFirstColumn());
-            mergedNode.put("lastColumn", region.getLastColumn());
-            mergedNode.put("range", region.formatAsString());
-            mergedArray.add(mergedNode);
-        }
-
-        return mergedArray;
     }
 
     /**
