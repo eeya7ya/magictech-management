@@ -22,7 +22,6 @@ public class SiteSurveyData {
     private Long workflowId;
 
     // Excel file storage
-    @Lob
     @Column(name = "excel_file", columnDefinition = "BYTEA")
     private byte[] excelFile;
 
