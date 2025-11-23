@@ -59,6 +59,15 @@ public class ProjectsStorageController extends BaseModuleController {
     @Autowired
     private StorageService storageService;
 
+    @Autowired
+    private SiteSurveyRequestService siteSurveyRequestService;
+
+    @Autowired
+    private com.magictech.modules.sales.repository.SiteSurveyDataRepository siteSurveyDataRepository;
+
+    @Autowired
+    private com.magictech.modules.sales.service.SiteSurveyExcelService siteSurveyExcelService;
+
     // UI Components
     private com.magictech.core.ui.components.DashboardBackgroundPane backgroundPane;
     private StackPane mainContainer;
@@ -89,6 +98,11 @@ public class ProjectsStorageController extends BaseModuleController {
     private ObservableList<ProjectElementViewModel> elementItems;
     private FlowPane elementsGrid;  // ✅ Store reference to grid
 
+    // Site Survey Data
+    private VBox siteSurveyTabContent;
+    private VBox siteSurveyUploadBox;
+    private Label siteSurveyStatusLabel;
+
     // Current User
     private User currentUser;
 
@@ -98,6 +112,7 @@ public class ProjectsStorageController extends BaseModuleController {
             loadScheduleData();
             loadTasksData();
             loadElementsData();
+            loadSiteSurveyData();
         }
     }
 
@@ -383,7 +398,18 @@ public class ProjectsStorageController extends BaseModuleController {
         elementsTabContent = createElementsTab();
         elementsTab.setContent(elementsTabContent);
 
-        tabs.getTabs().addAll(scheduleTab, tasksTab, elementsTab);
+        Tab siteSurveyTab = new Tab("📋 Site Survey");
+        siteSurveyTab.setStyle(
+                "-fx-background-color: rgba(168, 85, 247, 0.9);" +
+                        "-fx-text-fill: white;" +
+                        "-fx-font-size: 16px;" +
+                        "-fx-font-weight: bold;" +
+                        "-fx-padding: 10 20;"
+        );
+        siteSurveyTabContent = createSiteSurveyTab();
+        siteSurveyTab.setContent(siteSurveyTabContent);
+
+        tabs.getTabs().addAll(scheduleTab, tasksTab, elementsTab, siteSurveyTab);
 
         tabs.setStyle(
                 "-fx-background-color: transparent;" +
@@ -2423,6 +2449,435 @@ public class ProjectsStorageController extends BaseModuleController {
 
         return button;
     }
+
+    // ==================== SITE SURVEY TAB ====================
+
+    private VBox createSiteSurveyTab() {
+        VBox content = new VBox(20);
+        content.setPadding(new Insets(30));
+        content.setStyle("-fx-background-color: transparent;");
+
+        HBox header = new HBox(15);
+        header.setAlignment(Pos.CENTER_LEFT);
+
+        VBox titleBox = new VBox(5);
+        Label title = new Label("📋 Site Survey Management");
+        title.setStyle("-fx-text-fill: white; -fx-font-size: 24px; -fx-font-weight: bold;");
+        Label subtitle = new Label("Site survey requests come from the Sales team");
+        subtitle.setStyle("-fx-text-fill: rgba(255, 255, 255, 0.6); -fx-font-size: 13px;");
+        titleBox.getChildren().addAll(title, subtitle);
+        HBox.setHgrow(titleBox, Priority.ALWAYS);
+
+        header.getChildren().add(titleBox);
+
+        // Status Section
+        VBox statusSection = new VBox(15);
+        statusSection.setPadding(new Insets(20));
+        statusSection.setStyle(
+                "-fx-background-color: rgba(30, 41, 59, 0.7);" +
+                        "-fx-border-color: rgba(168, 85, 247, 0.3);" +
+                        "-fx-border-width: 2;" +
+                        "-fx-border-radius: 8;" +
+                        "-fx-background-radius: 8;"
+        );
+
+        siteSurveyStatusLabel = new Label("Loading site survey status...");
+        siteSurveyStatusLabel.setStyle("-fx-text-fill: white; -fx-font-size: 16px;");
+        siteSurveyStatusLabel.setWrapText(true);
+
+        statusSection.getChildren().add(siteSurveyStatusLabel);
+
+        // Upload Box (only visible when site survey is requested)
+        siteSurveyUploadBox = createSiteSurveyUploadBox();
+        siteSurveyUploadBox.setVisible(false);
+        siteSurveyUploadBox.setManaged(false);
+
+        content.getChildren().addAll(header, statusSection, siteSurveyUploadBox);
+        return content;
+    }
+
+    private VBox createSiteSurveyUploadBox() {
+        VBox uploadBox = new VBox(20);
+        uploadBox.setPadding(new Insets(25));
+        uploadBox.setStyle(
+                "-fx-background-color: rgba(168, 85, 247, 0.2);" +
+                        "-fx-border-color: rgba(168, 85, 247, 0.6);" +
+                        "-fx-border-width: 3;" +
+                        "-fx-border-radius: 12;" +
+                        "-fx-background-radius: 12;"
+        );
+
+        Label uploadTitle = new Label("📋 Upload Site Survey Sheet");
+        uploadTitle.setStyle("-fx-text-fill: white; -fx-font-size: 20px; -fx-font-weight: bold;");
+
+        Label uploadInstructions = new Label(
+                "Click the button below to upload the site survey Excel file.\n" +
+                "The file should contain survey data, photos, and measurements."
+        );
+        uploadInstructions.setStyle("-fx-text-fill: rgba(255, 255, 255, 0.8); -fx-font-size: 14px;");
+        uploadInstructions.setWrapText(true);
+
+        Button uploadButton = createStyledButton("📁 Upload Survey Excel File", "#22c55e", "#16a34a");
+        uploadButton.setOnAction(e -> handleUploadSiteSurvey());
+        uploadButton.setPrefWidth(300);
+
+        Label viewSurveyLabel = new Label();
+        viewSurveyLabel.setStyle("-fx-text-fill: rgba(255, 255, 255, 0.7); -fx-font-size: 12px;");
+        viewSurveyLabel.setWrapText(true);
+        viewSurveyLabel.setVisible(false);
+
+        Button viewButton = createStyledButton("👁 View Uploaded Survey", "#3b82f6", "#2563eb");
+        viewButton.setOnAction(e -> handleViewSiteSurvey());
+        viewButton.setVisible(false);
+        viewButton.setPrefWidth(300);
+
+        uploadBox.getChildren().addAll(
+                uploadTitle,
+                uploadInstructions,
+                uploadButton,
+                viewSurveyLabel,
+                viewButton
+        );
+
+        return uploadBox;
+    }
+
+    private void loadSiteSurveyData() {
+        if (selectedProject == null) return;
+
+        Task<Optional<SiteSurveyRequest>> loadTask = new Task<>() {
+            @Override
+            protected Optional<SiteSurveyRequest> call() {
+                return siteSurveyRequestService.getRequestByProjectId(selectedProject.getId());
+            }
+        };
+
+        loadTask.setOnSucceeded(e -> {
+            Optional<SiteSurveyRequest> requestOpt = loadTask.getValue();
+
+            if (requestOpt.isPresent()) {
+                SiteSurveyRequest request = requestOpt.get();
+                updateSiteSurveyStatus(request);
+
+                // Show upload box if request is pending
+                if ("PENDING".equals(request.getStatus())) {
+                    siteSurveyUploadBox.setVisible(true);
+                    siteSurveyUploadBox.setManaged(true);
+                } else {
+                    siteSurveyUploadBox.setVisible(false);
+                    siteSurveyUploadBox.setManaged(false);
+                }
+            } else {
+                siteSurveyStatusLabel.setText(
+                    "ℹ️ No site survey requested for this project yet.\n\n" +
+                    "Site surveys are requested by the Sales team. When a request is made,\n" +
+                    "you will be notified and can upload the survey sheet here."
+                );
+                siteSurveyUploadBox.setVisible(false);
+                siteSurveyUploadBox.setManaged(false);
+            }
+        });
+
+        loadTask.setOnFailed(e -> {
+            siteSurveyStatusLabel.setText("Failed to load site survey status.");
+        });
+
+        new Thread(loadTask).start();
+    }
+
+    private void updateSiteSurveyStatus(SiteSurveyRequest request) {
+        String status = request.getStatus();
+        String requestedBy = request.getRequestedBy();
+        String requestDate = request.getRequestDate() != null ?
+                request.getRequestDate().format(DateTimeFormatter.ofPattern("MMM dd, yyyy HH:mm")) : "N/A";
+
+        String statusText;
+        switch (status) {
+            case "PENDING":
+                statusText = String.format(
+                        "🔔 Site Survey Requested by Sales Team\n" +
+                        "Requested by: %s (Sales) on %s\n" +
+                        "Status: Awaiting Upload from Project Team\n" +
+                        "Priority: %s\n" +
+                        "Action Required: Upload site survey Excel file below",
+                        requestedBy, requestDate, request.getPriority()
+                );
+                break;
+            case "COMPLETED":
+                String completedBy = request.getCompletedBy();
+                String completedDate = request.getCompletionDate() != null ?
+                        request.getCompletionDate().format(DateTimeFormatter.ofPattern("MMM dd, yyyy HH:mm")) : "N/A";
+                statusText = String.format(
+                        "✅ Site Survey Completed\n" +
+                        "Requested by: %s (Sales) on %s\n" +
+                        "Uploaded by: %s (Project Team) on %s\n" +
+                        "Status: Survey data uploaded and available for all modules\n" +
+                        "Note: Sales team has been notified",
+                        requestedBy, requestDate, completedBy, completedDate
+                );
+                break;
+            case "CANCELLED":
+                statusText = String.format(
+                        "❌ Site Survey Cancelled\n" +
+                        "Requested by: %s on %s\n" +
+                        "Status: Cancelled",
+                        requestedBy, requestDate
+                );
+                break;
+            default:
+                statusText = String.format("Site Survey Status: %s", status);
+        }
+
+        siteSurveyStatusLabel.setText(statusText);
+    }
+
+    private void handleRequestSiteSurvey() {
+        if (selectedProject == null) {
+            showWarning("No project selected");
+            return;
+        }
+
+        // Check if already requested
+        if (siteSurveyRequestService.hasActiveRequest(selectedProject.getId())) {
+            showWarning("Site survey already requested for this project");
+            return;
+        }
+
+        // Create request dialog
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Request Site Survey");
+        dialog.setHeaderText("Request Site Survey for: " + selectedProject.getProjectName());
+
+        DialogPane dialogPane = dialog.getDialogPane();
+        dialogPane.getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+
+        VBox content = new VBox(15);
+        content.setPadding(new Insets(20));
+        content.setStyle("-fx-background-color: #1e293b;");
+
+        Label priorityLabel = new Label("Priority:");
+        priorityLabel.setStyle("-fx-text-fill: white; -fx-font-size: 14px;");
+
+        ComboBox<String> priorityCombo = new ComboBox<>();
+        priorityCombo.getItems().addAll("LOW", "MEDIUM", "HIGH", "URGENT");
+        priorityCombo.setValue("MEDIUM");
+        priorityCombo.setStyle("-fx-background-color: #334155; -fx-text-fill: white;");
+
+        Label assignLabel = new Label("Assign to (optional):");
+        assignLabel.setStyle("-fx-text-fill: white; -fx-font-size: 14px;");
+
+        TextField assignField = new TextField();
+        assignField.setPromptText("Username or team");
+        assignField.setStyle("-fx-background-color: #334155; -fx-text-fill: white; -fx-prompt-text-fill: #94a3b8;");
+
+        Label notesLabel = new Label("Notes (optional):");
+        notesLabel.setStyle("-fx-text-fill: white; -fx-font-size: 14px;");
+
+        TextArea notesArea = new TextArea();
+        notesArea.setPromptText("Additional information...");
+        notesArea.setPrefRowCount(4);
+        notesArea.setStyle("-fx-control-inner-background: #334155; -fx-text-fill: white; -fx-prompt-text-fill: #94a3b8;");
+
+        content.getChildren().addAll(
+                priorityLabel, priorityCombo,
+                assignLabel, assignField,
+                notesLabel, notesArea
+        );
+
+        dialogPane.setContent(content);
+        dialogPane.setStyle("-fx-background-color: #1e293b;");
+
+        dialog.showAndWait().ifPresent(response -> {
+            if (response == ButtonType.OK) {
+                Task<Void> requestTask = new Task<>() {
+                    @Override
+                    protected Void call() {
+                        String assignedTo = assignField.getText().trim().isEmpty() ? null : assignField.getText().trim();
+                        String notes = notesArea.getText().trim().isEmpty() ? null : notesArea.getText().trim();
+
+                        siteSurveyRequestService.createRequest(
+                                selectedProject.getId(),
+                                currentUser.getUsername(),
+                                currentUser.getId(),
+                                assignedTo,
+                                priorityCombo.getValue(),
+                                notes
+                        );
+                        return null;
+                    }
+                };
+
+                requestTask.setOnSucceeded(event -> {
+                    showSuccess("Site survey requested successfully!");
+                    loadSiteSurveyData();
+                });
+
+                requestTask.setOnFailed(event -> {
+                    showError("Failed to request site survey: " + requestTask.getException().getMessage());
+                });
+
+                new Thread(requestTask).start();
+            }
+        });
+    }
+
+    private void handleUploadSiteSurvey() {
+        if (selectedProject == null) {
+            showWarning("No project selected");
+            return;
+        }
+
+        javafx.stage.FileChooser fileChooser = new javafx.stage.FileChooser();
+        fileChooser.setTitle("Select Site Survey Excel File");
+        fileChooser.getExtensionFilters().add(
+                new javafx.stage.FileChooser.ExtensionFilter("Excel Files", "*.xlsx", "*.xls")
+        );
+
+        java.io.File selectedFile = fileChooser.showOpenDialog(siteSurveyUploadBox.getScene().getWindow());
+        if (selectedFile == null) return;
+
+        Task<Void> uploadTask = new Task<>() {
+            @Override
+            protected Void call() throws Exception {
+                // Read file
+                byte[] fileBytes = java.nio.file.Files.readAllBytes(selectedFile.toPath());
+
+                // Validate
+                if (!siteSurveyExcelService.isValidExcelFile(fileBytes, selectedFile.getName())) {
+                    throw new Exception("Invalid Excel file");
+                }
+
+                // Parse Excel
+                String parsedData = siteSurveyExcelService.parseExcelToJson(fileBytes, selectedFile.getName());
+
+                // Get site survey request
+                Optional<SiteSurveyRequest> requestOpt =
+                        siteSurveyRequestService.getRequestByProjectId(selectedProject.getId());
+
+                if (!requestOpt.isPresent()) {
+                    throw new Exception("No active site survey request found");
+                }
+
+                SiteSurveyRequest request = requestOpt.get();
+
+                // Create SiteSurveyData
+                com.magictech.modules.sales.entity.SiteSurveyData surveyData =
+                        new com.magictech.modules.sales.entity.SiteSurveyData();
+                surveyData.setProjectId(selectedProject.getId());
+                surveyData.setWorkflowId(request.getId()); // Using request ID as workflow ID
+                surveyData.setExcelFile(fileBytes);
+                surveyData.setFileName(selectedFile.getName());
+                surveyData.setFileSize((long) fileBytes.length);
+                surveyData.setMimeType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+                surveyData.setParsedData(parsedData);
+                surveyData.setSurveyDoneBy("PROJECT");
+                surveyData.setSurveyDoneByUser(currentUser.getUsername());
+                surveyData.setSurveyDoneByUserId(currentUser.getId());
+                surveyData.setUploadedBy(currentUser.getUsername());
+                surveyData.setUploadedById(currentUser.getId());
+
+                surveyData = siteSurveyDataRepository.save(surveyData);
+
+                // Complete the request
+                siteSurveyRequestService.completeRequest(
+                        request.getId(),
+                        surveyData.getId(),
+                        currentUser.getUsername(),
+                        currentUser.getId()
+                );
+
+                return null;
+            }
+        };
+
+        uploadTask.setOnSucceeded(event -> {
+            showSuccess("Site survey uploaded successfully!");
+            loadSiteSurveyData();
+        });
+
+        uploadTask.setOnFailed(event -> {
+            showError("Failed to upload site survey: " + uploadTask.getException().getMessage());
+            uploadTask.getException().printStackTrace();
+        });
+
+        new Thread(uploadTask).start();
+    }
+
+    private void handleViewSiteSurvey() {
+        if (selectedProject == null) {
+            showWarning("No project selected");
+            return;
+        }
+
+        Task<Optional<com.magictech.modules.sales.entity.SiteSurveyData>> loadTask = new Task<>() {
+            @Override
+            protected Optional<com.magictech.modules.sales.entity.SiteSurveyData> call() {
+                Optional<SiteSurveyRequest> requestOpt =
+                        siteSurveyRequestService.getRequestByProjectId(selectedProject.getId());
+
+                if (requestOpt.isPresent() && requestOpt.get().getSurveyDataId() != null) {
+                    return siteSurveyDataRepository.findById(requestOpt.get().getSurveyDataId());
+                }
+                return Optional.empty();
+            }
+        };
+
+        loadTask.setOnSucceeded(event -> {
+            Optional<com.magictech.modules.sales.entity.SiteSurveyData> dataOpt = loadTask.getValue();
+            if (dataOpt.isPresent()) {
+                com.magictech.modules.sales.entity.SiteSurveyData data = dataOpt.get();
+                showSiteSurveyDataDialog(data);
+            } else {
+                showWarning("No site survey data found");
+            }
+        });
+
+        loadTask.setOnFailed(event -> {
+            showError("Failed to load site survey data: " + loadTask.getException().getMessage());
+        });
+
+        new Thread(loadTask).start();
+    }
+
+    private void showSiteSurveyDataDialog(com.magictech.modules.sales.entity.SiteSurveyData data) {
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Site Survey Data");
+        dialog.setHeaderText("Site Survey for: " + selectedProject.getProjectName());
+
+        DialogPane dialogPane = dialog.getDialogPane();
+        dialogPane.getButtonTypes().add(ButtonType.CLOSE);
+
+        VBox content = new VBox(15);
+        content.setPadding(new Insets(20));
+        content.setStyle("-fx-background-color: #1e293b;");
+
+        Label fileInfo = new Label(String.format(
+                "File: %s\nSize: %d KB\nUploaded: %s\nUploaded by: %s",
+                data.getFileName(),
+                data.getFileSize() / 1024,
+                data.getUploadedAt().format(DateTimeFormatter.ofPattern("MMM dd, yyyy HH:mm")),
+                data.getUploadedBy()
+        ));
+        fileInfo.setStyle("-fx-text-fill: white; -fx-font-size: 14px;");
+
+        TextArea parsedDataArea = new TextArea(data.getParsedData());
+        parsedDataArea.setEditable(false);
+        parsedDataArea.setPrefRowCount(20);
+        parsedDataArea.setStyle("-fx-control-inner-background: #334155; -fx-text-fill: white;");
+
+        content.getChildren().addAll(fileInfo, parsedDataArea);
+
+        ScrollPane scrollPane = new ScrollPane(content);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setPrefHeight(500);
+
+        dialogPane.setContent(scrollPane);
+        dialogPane.setStyle("-fx-background-color: #1e293b;");
+
+        dialog.show();
+    }
+
+    // ==================== END SITE SURVEY TAB ====================
 
     public void setCurrentUser(User user) {
         this.currentUser = user;

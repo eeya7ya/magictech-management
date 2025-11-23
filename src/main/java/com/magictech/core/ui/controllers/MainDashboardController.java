@@ -81,15 +81,21 @@ public class MainDashboardController {
                     createModuleCard("📦", "Storage Management",
                             "Full inventory control • All data access • Master storage operations",
                             "module-red", "storage"),
+                    createModuleCard("📋", "Presales Module",
+                            "Manage quotations • Initial customer contact • Pre-sales activities",
+                            "module-cyan", "presales"),
                     createModuleCard("🛒", "Sales Team Module",
                             "Manage sales operations • View availability & pricing • Track inventory",
                             "module-blue", "sales"),
+                    createModuleCard("✅", "Quality Assurance Module",
+                            "Quality checks • Verification & approval • Business analytics",
+                            "module-orange", "qualityassurance"),
+                    createModuleCard("💰", "Finance Module",
+                            "Manage invoicing • Track payments • Financial reporting",
+                            "module-yellow", "finance"),
                     createModuleCard("📁", "Projects Team Module",
                             "Coordinate projects • Track resources • Manage team collaboration",
                             "module-purple", "projects"),
-                    createModuleCard("💰", "Pricing Module",
-                            "Configure pricing models • Manage quotes • Availability-based pricing",
-                            "module-orange", "pricing"),
                     createModuleCard("🔧", "Maintenance Team Module",
                             "Handle maintenance requests • Equipment tracking • Service schedules",
                             "module-green", "maintenance")
@@ -100,11 +106,29 @@ public class MainDashboardController {
                             "Full inventory control • All data access • Master storage operations",
                             "module-red", "storage")
             );
+        } else if (role == com.magictech.core.auth.UserRole.PRESALES) {
+            modulesContainer.getChildren().add(
+                    createModuleCard("📋", "Presales Module",
+                            "Manage quotations • Initial customer contact • Pre-sales activities",
+                            "module-cyan", "presales")
+            );
         } else if (role == com.magictech.core.auth.UserRole.SALES) {
             modulesContainer.getChildren().add(
                     createModuleCard("🛒", "Sales Team Module",
                             "Manage sales operations • View availability & pricing • Track inventory",
                             "module-blue", "sales")
+            );
+        } else if (role == com.magictech.core.auth.UserRole.QUALITY_ASSURANCE) {
+            modulesContainer.getChildren().add(
+                    createModuleCard("✅", "Quality Assurance Module",
+                            "Quality checks • Verification & approval • Business analytics",
+                            "module-orange", "qualityassurance")
+            );
+        } else if (role == com.magictech.core.auth.UserRole.FINANCE) {
+            modulesContainer.getChildren().add(
+                    createModuleCard("💰", "Finance Module",
+                            "Manage invoicing • Track payments • Financial reporting",
+                            "module-yellow", "finance")
             );
         } else if (role == com.magictech.core.auth.UserRole.PROJECTS ||
                    role == com.magictech.core.auth.UserRole.PROJECT_SUPPLIER) {
@@ -112,12 +136,6 @@ public class MainDashboardController {
                     createModuleCard("📁", "Projects Team Module",
                             "Coordinate projects • Track resources • Manage team collaboration",
                             "module-purple", "projects")
-            );
-        } else if (role == com.magictech.core.auth.UserRole.PRICING) {
-            modulesContainer.getChildren().add(
-                    createModuleCard("💰", "Pricing Module",
-                            "Configure pricing models • Manage quotes • Availability-based pricing",
-                            "module-orange", "pricing")
             );
         } else if (role == com.magictech.core.auth.UserRole.MAINTENANCE) {
             modulesContainer.getChildren().add(

@@ -30,6 +30,8 @@ import com.magictech.modules.projects.entity.ProjectElement;
 import com.magictech.modules.projects.service.ProjectElementService;
 import javafx.scene.control.DialogPane;
 import javafx.scene.layout.FlowPane;
+import com.magictech.modules.sales.ui.WorkflowDialog;
+import com.magictech.modules.sales.ui.WorkflowStatusCard;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -49,13 +51,15 @@ public class SalesStorageController extends BaseModuleController {
     @Autowired private com.magictech.modules.sales.service.ProjectCostBreakdownService costBreakdownService;
     @Autowired private com.magictech.modules.sales.service.CustomerCostBreakdownService customerCostBreakdownService;
     @Autowired private com.magictech.modules.sales.service.SalesExcelExportService salesExcelExportService;
+    @Autowired private com.magictech.modules.sales.service.ProjectWorkflowService workflowService;
+    @Autowired private com.magictech.modules.sales.service.WorkflowStepService stepService;
 
     private com.magictech.core.ui.components.DashboardBackgroundPane backgroundPane;
     private StackPane mainContainer;
     private VBox dashboardScreen;
     private ListView<Project> projectsListView;
     private ListView<Customer> customersListView;
-    private User currentUser;
+    // Note: currentUser is inherited from BaseModuleController - do not redeclare!
 
     @Override
     public void refresh() {
@@ -64,6 +68,10 @@ public class SalesStorageController extends BaseModuleController {
 
     @Override
     protected void setupUI() {
+        // Debug logging
+        System.out.println("SalesStorageController.setupUI() - currentUser: " +
+            (currentUser != null ? currentUser.getUsername() : "NULL"));
+
         StackPane stackRoot = new StackPane();
         backgroundPane = new com.magictech.core.ui.components.DashboardBackgroundPane();
         mainContainer = new StackPane();
@@ -334,17 +342,22 @@ public class SalesStorageController extends BaseModuleController {
         tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
         VBox.setVgrow(tabPane, Priority.ALWAYS);
 
-        // Contract PDF Tab
-        Tab contractsTab = new Tab("📄 Contract PDF");
-        contractsTab.setContent(createSimplePDFTab(project));
-        styleTab(contractsTab, "#7c3aed"); // Purple theme
+        // ✅ WORKFLOW WIZARD Tab (Primary Interface - replaces Contract PDF)
+        Tab workflowTab = new Tab("🔄 Workflow Wizard");
+        workflowTab.setContent(createWorkflowWizardTab(project));
+        styleTab(workflowTab, "#8b5cf6"); // Purple theme
 
         // ✅ Project Elements Tab (synchronized with Projects module) + Cost Breakdown
         Tab elementsTab = new Tab("📦 Project Elements");
         elementsTab.setContent(createProjectElementsTab(project));
         styleTab(elementsTab, "#a78bfa"); // Light purple theme
 
-        tabPane.getTabs().addAll(contractsTab, elementsTab);
+        // Contract PDF Tab (moved to last, optional)
+        Tab contractsTab = new Tab("📄 Contract PDF");
+        contractsTab.setContent(createSimplePDFTab(project));
+        styleTab(contractsTab, "#7c3aed"); // Purple theme
+
+        tabPane.getTabs().addAll(workflowTab, elementsTab, contractsTab);
 
         mainLayout.getChildren().addAll(headerBox, tabPane);
 
@@ -472,8 +485,13 @@ public class SalesStorageController extends BaseModuleController {
             java.math.BigDecimal subtotal = java.math.BigDecimal.ZERO;
 
             for (ProjectElement element : elements) {
-                if (element.getStorageItem() != null && element.getStorageItem().getPrice() != null) {
-                    java.math.BigDecimal price = element.getStorageItem().getPrice();
+                // Use custom price if set, otherwise use storage item price
+                java.math.BigDecimal price = element.getCustomPrice();
+                if (price == null && element.getStorageItem() != null) {
+                    price = element.getStorageItem().getPrice();
+                }
+
+                if (price != null) {
                     java.math.BigDecimal quantity = new java.math.BigDecimal(element.getQuantityNeeded());
                     subtotal = subtotal.add(price.multiply(quantity));
                 }
@@ -673,6 +691,23 @@ public class SalesStorageController extends BaseModuleController {
         quantitySpinner.setStyle("-fx-background-color: #1e293b;");
         quantitySpinner.getEditor().setStyle("-fx-text-fill: white; -fx-background-color: #1e293b;");
 
+        // Custom Price field (Sales can freely edit price)
+        Label priceLabel = new Label("Custom Price:*");
+        priceLabel.setStyle("-fx-text-fill: white; -fx-font-weight: bold; -fx-font-size: 14px;");
+
+        TextField priceField = new TextField();
+        // Pre-fill with storage item price, but allow editing
+        BigDecimal defaultPrice = storageItem.getPrice() != null ? storageItem.getPrice() : BigDecimal.ZERO;
+        priceField.setText(defaultPrice.toString());
+        priceField.setPromptText("Enter price per unit");
+        priceField.setPrefWidth(150);
+        priceField.setStyle(
+                "-fx-background-color: #1e293b;" +
+                        "-fx-text-fill: #22c55e;" + // Green to indicate editable
+                        "-fx-font-weight: bold;" +
+                        "-fx-prompt-text-fill: #9ca3af;"
+        );
+
         // Notes field
         Label notesLabel = new Label("Notes (Optional):");
         notesLabel.setStyle("-fx-text-fill: white; -fx-font-weight: bold; -fx-font-size: 14px;");
@@ -688,8 +723,10 @@ public class SalesStorageController extends BaseModuleController {
 
         grid.add(neededLabel, 0, 0);
         grid.add(quantitySpinner, 1, 0);
-        grid.add(notesLabel, 0, 1);
-        grid.add(notesField, 1, 1);
+        grid.add(priceLabel, 0, 1);
+        grid.add(priceField, 1, 1);
+        grid.add(notesLabel, 0, 2);
+        grid.add(notesField, 1, 2);
 
         quantityDialog.getDialogPane().setContent(grid);
         quantityDialog.getDialogPane().setStyle("-fx-background-color: #0f172a;");
@@ -718,13 +755,28 @@ public class SalesStorageController extends BaseModuleController {
                 return;
             }
 
-            // AVAILABLE - Show confirmation
+            // Parse custom price
+            BigDecimal customPrice;
+            try {
+                customPrice = new BigDecimal(priceField.getText());
+            } catch (NumberFormatException e) {
+                Alert errorAlert = new Alert(Alert.AlertType.ERROR);
+                errorAlert.setTitle("❌ Invalid Price");
+                errorAlert.setHeaderText("Invalid price format");
+                errorAlert.setContentText("Please enter a valid numeric price.");
+                errorAlert.showAndWait();
+                return;
+            }
+
+            // AVAILABLE - Show confirmation with price
             Alert availableAlert = new Alert(Alert.AlertType.CONFIRMATION);
             availableAlert.setTitle("✅ Stock Available");
             availableAlert.setHeaderText("Confirm Addition");
             availableAlert.setContentText(
                     "Item: " + storageItem.getProductName() + "\n" +
                             "Requested: " + requestedQty + " units\n" +
+                            "Custom Price: $" + customPrice + " per unit\n" +
+                            "Total: $" + customPrice.multiply(new BigDecimal(requestedQty)) + "\n" +
                             "Status: ✅ AVAILABLE\n\n" +
                             "Add to project?"
             );
@@ -739,6 +791,7 @@ public class SalesStorageController extends BaseModuleController {
                             element.setProject(project);
                             element.setStorageItem(storageItem);
                             element.setQuantityNeeded(requestedQty);
+                            element.setCustomPrice(customPrice); // Set the custom price
                             element.setNotes(notesField.getText());
                             element.setAddedBy(currentUser != null ? currentUser.getUsername() : "system");
 
@@ -981,6 +1034,181 @@ public class SalesStorageController extends BaseModuleController {
         return card;
     }
 
+
+    // ==================== WORKFLOW WIZARD TAB ====================
+    private VBox createWorkflowWizardTab(Project project) {
+        VBox content = new VBox(20);
+        content.setPadding(new Insets(30));
+        content.setStyle("-fx-background-color: rgba(15, 23, 42, 0.6);");
+        VBox.setVgrow(content, Priority.ALWAYS);
+
+        // Header
+        Label title = new Label("🔄 8-Step Workflow Wizard");
+        title.setStyle("-fx-text-fill: white; -fx-font-size: 24px; -fx-font-weight: bold;");
+
+        Label subtitle = new Label("Complete each step sequentially to move the project through the workflow");
+        subtitle.setStyle("-fx-text-fill: #94a3b8; -fx-font-size: 14px;");
+
+        VBox headerBox = new VBox(10, title, subtitle);
+        headerBox.setPadding(new Insets(0, 0, 20, 0));
+
+        // Load workflow for this project
+        try {
+            // Get or create workflow
+            java.util.Optional<com.magictech.modules.sales.entity.ProjectWorkflow> workflowOpt =
+                workflowService.getWorkflowByProjectId(project.getId());
+
+            com.magictech.modules.sales.entity.ProjectWorkflow workflow;
+            if (workflowOpt.isPresent()) {
+                workflow = workflowOpt.get();
+            } else {
+                // Create new workflow
+                workflow = workflowService.createWorkflow(project.getId(), currentUser);
+            }
+
+            // Get all step completions
+            java.util.List<com.magictech.modules.sales.entity.WorkflowStepCompletion> completions =
+                stepService.getAllSteps(workflow.getId());
+
+            // Workflow Status Summary
+            VBox summaryBox = new VBox(15);
+            summaryBox.setPadding(new Insets(25));
+            summaryBox.setStyle("-fx-background-color: rgba(30, 41, 59, 0.6); -fx-background-radius: 12px;");
+
+            // Current step indicator
+            HBox currentStepBox = new HBox(15);
+            currentStepBox.setAlignment(Pos.CENTER_LEFT);
+
+            Label currentStepIcon = new Label("📍");
+            currentStepIcon.setStyle("-fx-font-size: 28px;");
+
+            Label currentStepLabel = new Label("Current Step: " + workflow.getCurrentStep() + " of 8");
+            currentStepLabel.setStyle("-fx-text-fill: white; -fx-font-size: 20px; -fx-font-weight: bold;");
+
+            currentStepBox.getChildren().addAll(currentStepIcon, currentStepLabel);
+
+            // Progress indicator
+            HBox progressBox = new HBox(10);
+            progressBox.setAlignment(Pos.CENTER_LEFT);
+
+            for (int i = 1; i <= 8; i++) {
+                Label stepDot = new Label("●");
+                if (i < workflow.getCurrentStep()) {
+                    stepDot.setStyle("-fx-text-fill: #10b981; -fx-font-size: 20px;"); // Green - completed
+                } else if (i == workflow.getCurrentStep()) {
+                    stepDot.setStyle("-fx-text-fill: #f59e0b; -fx-font-size: 24px;"); // Amber - current
+                } else {
+                    stepDot.setStyle("-fx-text-fill: #6b7280; -fx-font-size: 16px;"); // Gray - pending
+                }
+                progressBox.getChildren().add(stepDot);
+            }
+
+            // Step details
+            GridPane stepsGrid = new GridPane();
+            stepsGrid.setHgap(20);
+            stepsGrid.setVgap(12);
+            stepsGrid.setPadding(new Insets(15, 0, 0, 0));
+
+            String[] stepNames = {
+                "Site Survey",
+                "Selection & Design (Presales)",
+                "Bank Guarantee (Finance)",
+                "Missing Items Approval",
+                "Project Execution",
+                "Project Completion",
+                "QA After-Sales Check",
+                "Storage Analysis"
+            };
+
+            for (int i = 0; i < stepNames.length; i++) {
+                final int stepNum = i + 1;
+
+                // Find completion for this step
+                com.magictech.modules.sales.entity.WorkflowStepCompletion completion = null;
+                for (com.magictech.modules.sales.entity.WorkflowStepCompletion c : completions) {
+                    if (c.getStepNumber() == stepNum) {
+                        completion = c;
+                        break;
+                    }
+                }
+
+                // Step number badge
+                Label stepBadge = new Label(String.valueOf(stepNum));
+                if (completion != null && completion.getCompletedAt() != null) {
+                    stepBadge.setStyle("-fx-background-color: #10b981; -fx-text-fill: white; " +
+                        "-fx-padding: 5 10; -fx-background-radius: 50%; -fx-font-weight: bold;");
+                } else if (stepNum == workflow.getCurrentStep()) {
+                    stepBadge.setStyle("-fx-background-color: #f59e0b; -fx-text-fill: white; " +
+                        "-fx-padding: 5 10; -fx-background-radius: 50%; -fx-font-weight: bold;");
+                } else {
+                    stepBadge.setStyle("-fx-background-color: #4b5563; -fx-text-fill: white; " +
+                        "-fx-padding: 5 10; -fx-background-radius: 50%; -fx-font-weight: bold;");
+                }
+
+                // Step name
+                Label stepName = new Label(stepNames[i]);
+                stepName.setStyle("-fx-text-fill: white; -fx-font-size: 14px;");
+
+                // Status icon
+                Label statusIcon = new Label();
+                if (completion != null && completion.getCompletedAt() != null) {
+                    statusIcon.setText("✓");
+                    statusIcon.setStyle("-fx-text-fill: #10b981; -fx-font-size: 18px; -fx-font-weight: bold;");
+                } else if (stepNum == workflow.getCurrentStep()) {
+                    statusIcon.setText("⏳");
+                    statusIcon.setStyle("-fx-font-size: 16px;");
+                } else {
+                    statusIcon.setText("○");
+                    statusIcon.setStyle("-fx-text-fill: #6b7280; -fx-font-size: 16px;");
+                }
+
+                stepsGrid.add(stepBadge, 0, i);
+                stepsGrid.add(stepName, 1, i);
+                stepsGrid.add(statusIcon, 2, i);
+            }
+
+            summaryBox.getChildren().addAll(currentStepBox, progressBox, stepsGrid);
+
+            // Action buttons
+            HBox actionBox = new HBox(15);
+            actionBox.setAlignment(Pos.CENTER);
+            actionBox.setPadding(new Insets(25, 0, 0, 0));
+
+            Button openWorkflowBtn = createStyledButton("🔄 Open Full Workflow Wizard", "#8b5cf6", "#7c3aed");
+            final com.magictech.modules.sales.entity.ProjectWorkflow finalWorkflow = workflow;
+            openWorkflowBtn.setOnAction(e -> handleWorkflowDialogOpen(project, finalWorkflow));
+
+            Button refreshBtn = createStyledButton("🔄 Refresh Status", "#6366f1", "#4f46e5");
+            refreshBtn.setOnAction(e -> openProjectDetails(project));
+
+            actionBox.getChildren().addAll(openWorkflowBtn, refreshBtn);
+
+            content.getChildren().addAll(headerBox, summaryBox, actionBox);
+
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            Label errorLabel = new Label("Error loading workflow: " + ex.getMessage());
+            errorLabel.setStyle("-fx-text-fill: #ef4444; -fx-font-size: 14px;");
+            content.getChildren().addAll(headerBox, errorLabel);
+        }
+
+        return content;
+    }
+
+    // Handle opening workflow dialog
+    private void handleWorkflowDialogOpen(Project project,
+                                          com.magictech.modules.sales.entity.ProjectWorkflow workflow) {
+        try {
+            WorkflowDialog dialog = new WorkflowDialog(project, currentUser, workflowService, stepService);
+            dialog.showAndWait();
+
+            // Refresh the project details after dialog closes
+            openProjectDetails(project);
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            showError("Failed to open workflow dialog: " + ex.getMessage());
+        }
+    }
 
     // ==================== SIMPLIFIED PDF TAB ====================
     private VBox createSimplePDFTab(Project project) {
@@ -2136,12 +2364,17 @@ public class SalesStorageController extends BaseModuleController {
     }
 
     // ==================== ADD PROJECT/CUSTOMER DIALOGS ====================
+    /**
+     * Add new project - Always uses workflow mode (8-step process)
+     * No selling mode dialog needed - Projects submodule always uses workflow
+     */
     private void handleAddProject() {
+        // Directly create project with workflow - no mode selection dialog
         Dialog<Project> dialog = new Dialog<>();
         dialog.setTitle("🏗️ Create New Project");
-        dialog.setHeaderText("Enter Project Details");
+        dialog.setHeaderText("Enter Project Details - 8-Step Workflow Will Start");
 
-        ButtonType createButtonType = new ButtonType("Create", ButtonBar.ButtonData.OK_DONE);
+        ButtonType createButtonType = new ButtonType("Create & Start Workflow", ButtonBar.ButtonData.OK_DONE);
         dialog.getDialogPane().getButtonTypes().addAll(createButtonType, ButtonType.CANCEL);
 
         GridPane grid = new GridPane();
@@ -2155,10 +2388,14 @@ public class SalesStorageController extends BaseModuleController {
         TextField locationField = new TextField();
         locationField.setPromptText("Location");
 
+        Label infoLabel = new Label("⚠️ After creation, the 8-step workflow wizard will open automatically.");
+        infoLabel.setStyle("-fx-text-fill: #f39c12; -fx-font-style: italic;");
+
         grid.add(new Label("Name:"), 0, 0);
         grid.add(nameField, 1, 0);
         grid.add(new Label("Location:"), 0, 1);
         grid.add(locationField, 1, 1);
+        grid.add(infoLabel, 0, 2, 2, 1);
 
         dialog.getDialogPane().setContent(grid);
 
@@ -2183,12 +2420,47 @@ public class SalesStorageController extends BaseModuleController {
 
             saveTask.setOnSucceeded(e -> {
                 Project savedProject = saveTask.getValue();
-                showSuccess("✓ Project created!");
+                showSuccess("✓ Project created! Opening workflow wizard...");
                 loadProjects(projectsListView);
+
+                // Open workflow dialog
+                Platform.runLater(() -> openWorkflowDialog(savedProject));
+            });
+
+            saveTask.setOnFailed(e -> {
+                showError("Failed to create project: " + saveTask.getException().getMessage());
             });
 
             new Thread(saveTask).start();
         });
+    }
+
+    /**
+     * Open the 8-step workflow dialog
+     */
+    private void openWorkflowDialog(Project project) {
+        try {
+            // Validate currentUser before opening workflow
+            if (currentUser == null) {
+                showError("Error: Current user is not set. Please logout and login again.");
+                System.err.println("ERROR: currentUser is null in SalesStorageController.openWorkflowDialog");
+                return;
+            }
+
+            WorkflowDialog workflowDialog = new WorkflowDialog(
+                project,
+                currentUser,
+                workflowService,
+                stepService
+            );
+            workflowDialog.showAndWait();
+
+            // Refresh projects list after workflow dialog closes
+            loadProjects(projectsListView);
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            showError("Failed to open workflow: " + ex.getMessage());
+        }
     }
 
     private void handleDeleteProject(Project project) {

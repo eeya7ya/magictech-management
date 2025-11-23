@@ -2,6 +2,7 @@ package com.magictech.modules.projects.entity;
 
 import com.magictech.modules.storage.entity.StorageItem;
 import jakarta.persistence.*;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
@@ -32,6 +33,11 @@ public class ProjectElement {
 
     @Column(name = "quantity_allocated")
     private Integer quantityAllocated = 0;
+
+    // Custom price per element (can be different from storage item price)
+    // Allows sales to set project-specific or customer-specific pricing
+    @Column(name = "custom_price", precision = 10, scale = 2)
+    private BigDecimal customPrice;
 
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
@@ -93,6 +99,9 @@ public class ProjectElement {
     public void setQuantityAllocated(Integer quantityAllocated) {
         this.quantityAllocated = quantityAllocated;
     }
+
+    public BigDecimal getCustomPrice() { return customPrice; }
+    public void setCustomPrice(BigDecimal customPrice) { this.customPrice = customPrice; }
 
     public String getNotes() { return notes; }
     public void setNotes(String notes) { this.notes = notes; }

@@ -1,13 +1,16 @@
 package com.magictech.core.ui;
 
 import com.magictech.core.auth.User;
+import com.magictech.core.messaging.service.NotificationListenerService;
 import com.magictech.core.messaging.ui.NotificationManager;
 import com.magictech.core.module.ModuleConfig;
 import com.magictech.core.ui.controllers.MainDashboardController;
 import com.magictech.modules.storage.StorageController;
 import com.magictech.modules.maintenance.MaintenanceStorageController;
 import com.magictech.modules.projects.ProjectsStorageController;
-import com.magictech.modules.pricing.PricingController;
+import com.magictech.modules.presales.PresalesController;
+import com.magictech.modules.qualityassurance.QualityAssuranceController;
+import com.magictech.modules.finance.FinanceController;
 import javafx.animation.FadeTransition;
 import javafx.application.Platform;
 import javafx.fxml.FXMLLoader;
@@ -50,6 +53,9 @@ public class SceneManager {
     @Autowired
     private NotificationManager notificationManager;
 
+    @Autowired
+    private NotificationListenerService notificationListenerService;
+
     // Track active controllers for cleanup
     private MainDashboardController activeDashboard;
     private Object activeModuleController;
@@ -68,6 +74,16 @@ public class SceneManager {
     }
 
     public void setCurrentUser(User user) {
+        System.out.println("SceneManager.setCurrentUser() called - OLD: " +
+            (this.currentUser != null ? this.currentUser.getUsername() : "NULL") +
+            " -> NEW: " + (user != null ? user.getUsername() : "NULL"));
+
+        // Print stack trace to see who's calling this
+        if (user == null && this.currentUser != null) {
+            System.err.println("WARNING: currentUser being set to NULL! Stack trace:");
+            Thread.dumpStack();
+        }
+
         this.currentUser = user;
     }
 
@@ -77,6 +93,30 @@ public class SceneManager {
 
     public Stage getPrimaryStage() {
         return primaryStage;
+    }
+
+    /**
+     * Validate that currentUser is set before showing a module
+     * Returns true if valid, false if validation failed (and shows error)
+     */
+    private boolean validateCurrentUser(String moduleName) {
+        if (currentUser == null) {
+            System.err.println("CRITICAL ERROR: currentUser is NULL in show" + moduleName + "Module()!");
+            System.err.println("This should never happen - user must be logged in to access modules.");
+            Thread.dumpStack();
+            hideLoading();
+            Platform.runLater(() -> {
+                javafx.scene.control.Alert alert = new javafx.scene.control.Alert(
+                    javafx.scene.control.Alert.AlertType.ERROR);
+                alert.setTitle("Authentication Error");
+                alert.setHeaderText("Session Lost");
+                alert.setContentText("Your session has been lost. Please log in again.");
+                alert.showAndWait();
+                showLoginScreen();
+            });
+            return false;
+        }
+        return true;
     }
 
     /**
@@ -189,8 +229,8 @@ public class SceneManager {
                     ((MaintenanceStorageController) activeModuleController).immediateCleanup();
                 } else if (activeModuleController instanceof ProjectsStorageController) {
                     ((ProjectsStorageController) activeModuleController).immediateCleanup();
-                } else if (activeModuleController instanceof PricingController) {
-                    ((PricingController) activeModuleController).immediateCleanup();
+                } else if (activeModuleController instanceof QualityAssuranceController) {
+                    ((QualityAssuranceController) activeModuleController).immediateCleanup();
                 }
             } catch (Exception e) {
                 System.err.println("Module cleanup warning: " + e.getMessage());
@@ -272,6 +312,12 @@ public class SceneManager {
                     System.out.println("✓ Notification system initialized");
                 } catch (Exception e) {
                     System.err.println("Warning: Failed to initialize notification system: " + e.getMessage());
+                    System.err.println("Note: Notifications require Redis to be running.");
+                    System.err.println("      The application will continue to work, but real-time notifications will be disabled.");
+                    System.err.println("      To enable notifications, please install and start Redis:");
+                    System.err.println("      - On Ubuntu/Debian: sudo apt-get install redis-server && sudo systemctl start redis");
+                    System.err.println("      - On macOS: brew install redis && brew services start redis");
+                    System.err.println("      - On Windows: Download from https://redis.io/download");
                 }
 
                 System.out.println("✓ Dashboard loaded - NO WHITE FLASH");
@@ -300,6 +346,11 @@ public class SceneManager {
             Platform.runLater(() -> {
                 try {
                     immediateCleanup();
+
+                    // Validate currentUser is set
+                    if (!validateCurrentUser("Storage")) {
+                        return;
+                    }
 
                     // ✅ CREATE FRESH INSTANCE - not cached!
                     StorageController storageController = new StorageController();
@@ -351,6 +402,15 @@ public class SceneManager {
                 try {
                     immediateCleanup();
 
+                    // Debug: Check currentUser before creating controller
+                    System.out.println("SceneManager.showSalesModule() - currentUser before initialize: " +
+                        (currentUser != null ? currentUser.getUsername() : "NULL"));
+
+                    // CRITICAL: Validate currentUser is set
+                    if (!validateCurrentUser("Sales")) {
+                        return;
+                    }
+
                     SalesStorageController salesController = new SalesStorageController();
                     context.getAutowireCapableBeanFactory().autowireBean(salesController);
 
@@ -368,6 +428,9 @@ public class SceneManager {
                     primaryStage.setScene(scene);
                     primaryStage.setTitle("MagicTech - Sales Module");
                     primaryStage.setMaximized(true);
+
+                    // Subscribe to notifications for this module
+                    subscribeToModuleNotifications("sales");
 
                     createLoadingOverlay();
                     hideLoading();
@@ -398,6 +461,11 @@ public class SceneManager {
             Platform.runLater(() -> {
                 try {
                     immediateCleanup();
+
+                    // Validate currentUser is set
+                    if (!validateCurrentUser("Maintenance")) {
+                        return;
+                    }
 
                     MaintenanceStorageController maintenanceController = new MaintenanceStorageController();
                     context.getAutowireCapableBeanFactory().autowireBean(maintenanceController);
@@ -447,6 +515,11 @@ public class SceneManager {
                 try {
                     immediateCleanup();
 
+                    // Validate currentUser is set
+                    if (!validateCurrentUser("Projects")) {
+                        return;
+                    }
+
                     ProjectsStorageController projectsController = new ProjectsStorageController();
                     context.getAutowireCapableBeanFactory().autowireBean(projectsController);
 
@@ -465,6 +538,9 @@ public class SceneManager {
                     primaryStage.setTitle("MagicTech - Projects Module");
                     primaryStage.setMaximized(true);
 
+                    // Subscribe to notifications for this module
+                    subscribeToModuleNotifications("projects");
+
                     createLoadingOverlay();
                     hideLoading();
                     System.out.println("✓ Projects module loaded");
@@ -479,9 +555,9 @@ public class SceneManager {
     }
 
     /**
-     * ✅ FIXED: Show Pricing Module
+     * ✅ Show Presales Module
      */
-    public void showPricingModule() {
+    public void showPresalesModule() {
         if (isTransitioning) return;
 
         showLoading();
@@ -495,30 +571,141 @@ public class SceneManager {
                 try {
                     immediateCleanup();
 
-                    PricingController pricingController = new PricingController();
-                    context.getAutowireCapableBeanFactory().autowireBean(pricingController);
+                    // Validate currentUser is set
+                    if (!validateCurrentUser("Presales")) {
+                        return;
+                    }
 
-                    ModuleConfig config = ModuleConfig.createPricingConfig();
-                    pricingController.initialize(currentUser, config);
+                    PresalesController presalesController = new PresalesController();
+                    context.getAutowireCapableBeanFactory().autowireBean(presalesController);
 
-                    activeModuleController = pricingController;
+                    ModuleConfig config = ModuleConfig.createPresalesConfig();
+                    presalesController.initialize(currentUser, config);
 
-                    Parent root = pricingController.getRootPane();
+                    activeModuleController = presalesController;
+
+                    Parent root = presalesController.getRootPane();
                     StackPane wrappedRoot = new StackPane(root);
                     Scene scene = new Scene(wrappedRoot);
                     scene.getStylesheets().add(getClass().getResource("/css/styles.css").toExternalForm());
                     scene.getStylesheets().add(getClass().getResource("/css/dashboard.css").toExternalForm());
 
                     primaryStage.setScene(scene);
-                    primaryStage.setTitle("MagicTech - Pricing Module");
+                    primaryStage.setTitle("MagicTech - Presales Module");
                     primaryStage.setMaximized(true);
 
                     createLoadingOverlay();
                     hideLoading();
-                    System.out.println("✓ Pricing module loaded");
+                    System.out.println("✓ Presales module loaded");
 
                 } catch (Exception e) {
-                    System.err.println("Error loading Pricing Module: " + e.getMessage());
+                    System.err.println("Error loading Presales Module: " + e.getMessage());
+                    e.printStackTrace();
+                    hideLoading();
+                }
+            });
+        });
+    }
+
+    /**
+     * ✅ Show Quality Assurance Module (formerly Pricing)
+     */
+    public void showQualityAssuranceModule() {
+        if (isTransitioning) return;
+
+        showLoading();
+
+        Platform.runLater(() -> {
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException ignored) {}
+
+            Platform.runLater(() -> {
+                try {
+                    immediateCleanup();
+
+                    // Validate currentUser is set
+                    if (!validateCurrentUser("QualityAssurance")) {
+                        return;
+                    }
+
+                    QualityAssuranceController qaController = new QualityAssuranceController();
+                    context.getAutowireCapableBeanFactory().autowireBean(qaController);
+
+                    ModuleConfig config = ModuleConfig.createQualityAssuranceConfig();
+                    qaController.initialize(currentUser, config);
+
+                    activeModuleController = qaController;
+
+                    Parent root = qaController.getRootPane();
+                    StackPane wrappedRoot = new StackPane(root);
+                    Scene scene = new Scene(wrappedRoot);
+                    scene.getStylesheets().add(getClass().getResource("/css/styles.css").toExternalForm());
+                    scene.getStylesheets().add(getClass().getResource("/css/dashboard.css").toExternalForm());
+
+                    primaryStage.setScene(scene);
+                    primaryStage.setTitle("MagicTech - Quality Assurance Module");
+                    primaryStage.setMaximized(true);
+
+                    createLoadingOverlay();
+                    hideLoading();
+                    System.out.println("✓ Quality Assurance module loaded");
+
+                } catch (Exception e) {
+                    System.err.println("Error loading Quality Assurance Module: " + e.getMessage());
+                    e.printStackTrace();
+                    hideLoading();
+                }
+            });
+        });
+    }
+
+    /**
+     * ✅ Show Finance Module
+     */
+    public void showFinanceModule() {
+        if (isTransitioning) return;
+
+        showLoading();
+
+        Platform.runLater(() -> {
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException ignored) {}
+
+            Platform.runLater(() -> {
+                try {
+                    immediateCleanup();
+
+                    // Validate currentUser is set
+                    if (!validateCurrentUser("Finance")) {
+                        return;
+                    }
+
+                    FinanceController financeController = new FinanceController();
+                    context.getAutowireCapableBeanFactory().autowireBean(financeController);
+
+                    ModuleConfig config = ModuleConfig.createFinanceConfig();
+                    financeController.initialize(currentUser, config);
+
+                    activeModuleController = financeController;
+
+                    Parent root = financeController.getRootPane();
+                    StackPane wrappedRoot = new StackPane(root);
+                    Scene scene = new Scene(wrappedRoot);
+                    scene.getStylesheets().add(getClass().getResource("/css/styles.css").toExternalForm());
+                    scene.getStylesheets().add(getClass().getResource("/css/dashboard.css").toExternalForm());
+
+                    primaryStage.setScene(scene);
+                    primaryStage.setTitle("MagicTech - Finance Module");
+                    primaryStage.setMaximized(true);
+
+                    createLoadingOverlay();
+                    hideLoading();
+                    System.out.println("✓ Finance module loaded");
+
+                } catch (Exception e) {
+                    System.err.println("Error loading Finance Module: " + e.getMessage());
                     e.printStackTrace();
                     hideLoading();
                 }
@@ -542,6 +729,11 @@ public class SceneManager {
             Platform.runLater(() -> {
                 try {
                     immediateCleanup();
+
+                    // Validate currentUser is set
+                    if (!validateCurrentUser("Customers")) {
+                        return;
+                    }
 
                     com.magictech.modules.sales.CustomerManagementController customersController =
                         new com.magictech.modules.sales.CustomerManagementController();
@@ -583,11 +775,21 @@ public class SceneManager {
             case "storage":
                 showStorageModule();
                 break;
+            case "presales":
+                showPresalesModule();
+                break;
             case "sales":
                 showSalesModule();
                 break;
             case "customers":
                 showCustomersModule();
+                break;
+            case "qualityassurance":
+            case "qa":
+                showQualityAssuranceModule();
+                break;
+            case "finance":
+                showFinanceModule();
                 break;
             case "maintenance":
                 showMaintenanceModule();
@@ -595,8 +797,9 @@ public class SceneManager {
             case "projects":
                 showProjectsModule();
                 break;
+            // Legacy support for old "pricing" route
             case "pricing":
-                showPricingModule();
+                showQualityAssuranceModule();
                 break;
             default:
                 System.err.println("Unknown module: " + moduleName);
@@ -605,9 +808,33 @@ public class SceneManager {
     }
 
     /**
+     * Subscribe to notifications for the current module
+     */
+    private void subscribeToModuleNotifications(String moduleName) {
+        try {
+            if (notificationListenerService != null && primaryStage != null) {
+                // Set the primary window for showing popup notifications
+                notificationListenerService.setPrimaryWindow(primaryStage);
+
+                // Subscribe to module-specific channel
+                notificationListenerService.subscribeToModule(moduleName);
+
+                System.out.println("🔔 Subscribed to notifications for module: " + moduleName);
+            }
+        } catch (Exception e) {
+            System.err.println("Error subscribing to notifications: " + e.getMessage());
+        }
+    }
+
+    /**
      * Logout and return to login
      */
     public void logout() {
+        // Unsubscribe from all notifications
+        if (notificationListenerService != null) {
+            notificationListenerService.unsubscribeAll();
+        }
+
         immediateCleanup();
         currentUser = null;
         showLoginScreen();

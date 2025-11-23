@@ -232,10 +232,12 @@ public class AuthController {
             stats.put("totalUsers", authService.getTotalUsers());
             stats.put("activeUsers", authService.getActiveUserCount());
             stats.put("masterUsers", authService.getUsersByRole(UserRole.MASTER).size());
+            stats.put("presalesUsers", authService.getUsersByRole(UserRole.PRESALES).size());
             stats.put("salesUsers", authService.getUsersByRole(UserRole.SALES).size());
+            stats.put("qaUsers", authService.getUsersByRole(UserRole.QUALITY_ASSURANCE).size());
+            stats.put("financeUsers", authService.getUsersByRole(UserRole.FINANCE).size());
             stats.put("maintenanceUsers", authService.getUsersByRole(UserRole.MAINTENANCE).size());
             stats.put("projectsUsers", authService.getUsersByRole(UserRole.PROJECTS).size());
-            stats.put("pricingUsers", authService.getUsersByRole(UserRole.PRICING).size());
             stats.put("storageUsers", authService.getUsersByRole(UserRole.STORAGE).size());
             return ResponseEntity.ok(stats);
         } catch (Exception e) {

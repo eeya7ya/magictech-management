@@ -8,38 +8,52 @@ import java.util.*;
  */
 public enum ModuleStorageConfig {
 
+    PRESALES(
+            "Presales Module",
+            Arrays.asList("id", "manufacture", "productName", "code", "serialNumber", "price", "workflowStatus", "dateAdded"),
+            Arrays.asList("manufacture", "productName", "code", "serialNumber", "price", "workflowStatus"),
+            false // Presales can see and edit prices for quotations
+    ),
+
     SALES(
             "Sales Module",
-            Arrays.asList("id", "manufacture", "productName", "code", "serialNumber", "availabilityStatus", "price"),
-            Arrays.asList("manufacture", "productName", "code", "serialNumber", "price"),
+            Arrays.asList("id", "manufacture", "productName", "code", "serialNumber", "availabilityStatus", "price", "workflowStatus"),
+            Arrays.asList("manufacture", "productName", "code", "serialNumber", "price", "workflowStatus"),
             true // Can modify quantity through availability
+    ),
+
+    QUALITY_ASSURANCE(
+            "Quality Assurance Module",
+            Arrays.asList("id", "manufacture", "productName", "code", "serialNumber", "availabilityStatus", "price", "workflowStatus"),
+            Arrays.asList("manufacture", "productName", "code", "serialNumber", "price", "workflowStatus"),
+            true // QA reviews items and approves them
+    ),
+
+    FINANCE(
+            "Finance Module",
+            Arrays.asList("id", "manufacture", "productName", "code", "serialNumber", "quantity", "price", "workflowStatus", "dateAdded"),
+            Arrays.asList("workflowStatus"), // Finance primarily updates workflow status for invoicing/payment
+            false // Finance sees actual quantities for invoicing
     ),
 
     MAINTENANCE(
             "Maintenance Module",
-            Arrays.asList("id", "manufacture", "productName", "code", "serialNumber", "availabilityStatus"),
-            Arrays.asList("manufacture", "productName", "code", "serialNumber"),
+            Arrays.asList("id", "manufacture", "productName", "code", "serialNumber", "availabilityStatus", "workflowStatus"),
+            Arrays.asList("manufacture", "productName", "code", "serialNumber", "workflowStatus"),
             true
     ),
 
     PROJECTS(
             "Projects Module",
-            Arrays.asList("id", "manufacture", "productName", "code", "serialNumber", "availabilityStatus"),
-            Arrays.asList("manufacture", "productName", "code", "serialNumber"),
-            true
-    ),
-
-    PRICING(
-            "Pricing Module",
-            Arrays.asList("id", "manufacture", "productName", "code", "serialNumber", "availabilityStatus", "price"),
-            Arrays.asList("manufacture", "productName", "code", "serialNumber", "price"),
+            Arrays.asList("id", "manufacture", "productName", "code", "serialNumber", "availabilityStatus", "workflowStatus"),
+            Arrays.asList("manufacture", "productName", "code", "serialNumber", "workflowStatus"),
             true
     ),
 
     STORAGE(
             "Storage Module",
-            Arrays.asList("id", "manufacture", "productName", "code", "serialNumber", "quantity", "price", "dateAdded"),
-            Arrays.asList("manufacture", "productName", "code", "serialNumber", "quantity", "price"),
+            Arrays.asList("id", "manufacture", "productName", "code", "serialNumber", "quantity", "price", "workflowStatus", "dateAdded"),
+            Arrays.asList("manufacture", "productName", "code", "serialNumber", "quantity", "price", "workflowStatus"),
             false // Storage sees actual quantity numbers
     );
 
@@ -131,6 +145,9 @@ public enum ModuleStorageConfig {
         }
         if (isColumnVisible("price")) {
             configs.add(new ColumnConfig("price", "Price", 120, "CENTER-RIGHT"));
+        }
+        if (isColumnVisible("workflowStatus")) {
+            configs.add(new ColumnConfig("workflowStatus", "Workflow Status", 150, "CENTER"));
         }
         if (isColumnVisible("dateAdded")) {
             configs.add(new ColumnConfig("dateAdded", "Date Added", 150, "CENTER"));
