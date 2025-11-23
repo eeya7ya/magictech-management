@@ -57,6 +57,9 @@ public class ProjectWorkflowService {
     @Autowired
     private com.magictech.core.auth.UserRepository userRepository;
 
+    @Autowired
+    private com.magictech.modules.projects.service.SiteSurveyRequestService siteSurveyRequestService;
+
     /**
      * Create new workflow for a project
      */
@@ -182,6 +185,17 @@ public class ProjectWorkflowService {
         WorkflowStepCompletion step = stepService.getStep(workflowId, 1)
             .orElseThrow(() -> new RuntimeException("Step not found"));
         stepService.markNeedsExternalAction(step, "PROJECT");
+
+        // Create site survey request entity in database
+        // This is critical so PROJECT team can see and fulfill the request
+        siteSurveyRequestService.createRequest(
+            project.getId(),
+            salesUser.getUsername(),
+            salesUser.getId(),
+            "PROJECT",  // assigned to PROJECT team
+            "HIGH",     // default priority
+            "Site survey requested via workflow by Sales team"
+        );
 
         // Send notification to project team
         notificationService.notifySiteSurveyRequest(project, salesUser);
