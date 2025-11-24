@@ -86,11 +86,27 @@ public class WorkflowDialog extends Stage {
         Optional<ProjectWorkflow> existing = workflowService.getWorkflowByProjectId(project.getId());
         if (existing.isPresent()) {
             workflow = existing.get();
-            currentStep = workflow.getCurrentStep();
+
+            // CRITICAL FIX: Don't auto-jump to backend's current step
+            // Always start at Step 1 if we're at Step 2 or later
+            // This lets user see completed steps before advancing
+            int backendStep = workflow.getCurrentStep();
+            System.out.println("🔍 DEBUG: Backend workflow at step " + backendStep);
+
+            if (backendStep >= 2) {
+                // Backend has advanced, but start UI at Step 1
+                // User can manually advance by clicking Next
+                System.out.println("⚠️ DEBUG: Backend at step " + backendStep + ", but starting UI at Step 1");
+                currentStep = 1;
+            } else {
+                currentStep = backendStep;
+            }
         } else {
             workflow = workflowService.createWorkflow(project.getId(), currentUser);
             currentStep = 1;
         }
+
+        System.out.println("✅ DEBUG: Dialog initialized with currentStep = " + currentStep);
     }
 
     private void buildUI() {
@@ -242,10 +258,11 @@ public class WorkflowDialog extends Stage {
 
     // STEP 1: Site Survey
     private void loadStep1_SiteSurvey() {
-        // CRITICAL FIX: Refresh workflow state from database first
-        refreshWorkflow();
+        // CRITICAL FIX: DON'T call refreshWorkflow() here!
+        // It would change currentStep and cause unwanted jumps
+        // Just check if survey exists and show appropriate UI
 
-        System.out.println("🔍 DEBUG: Loading Step 1, current workflow step: " + workflow.getCurrentStep());
+        System.out.println("🔍 DEBUG: Loading Step 1 UI (currentStep: " + currentStep + ")");
 
         // Check if site survey already exists (uploaded by Project team or Sales)
         Optional<SiteSurveyData> surveyOpt = siteSurveyRepository.findByWorkflowIdAndActiveTrue(workflow.getId());
@@ -255,7 +272,7 @@ public class WorkflowDialog extends Stage {
             // Site survey completed - show download/view UI
             showSiteSurveyCompleted(surveyOpt.get());
         } else {
-            System.out.println("❌ DEBUG: No site survey found");
+            System.out.println("❌ DEBUG: No site survey found - showing request options");
             // Site survey not uploaded yet - show original request options
             showSiteSurveyRequestOptions();
         }
@@ -329,36 +346,29 @@ public class WorkflowDialog extends Stage {
 
         stepContainer.getChildren().addAll(completionBox, progressInfo);
 
-        // CRITICAL FIX: Check step completion status and force enable Next button
-        Optional<WorkflowStepCompletion> step1Opt = stepService.getStep(workflow.getId(), 1);
-        boolean step1Completed = step1Opt.isPresent() && Boolean.TRUE.equals(step1Opt.get().getCompleted());
-
-        System.out.println("🔍 DEBUG: Step 1 completion status from DB: " + step1Completed);
-        System.out.println("🔍 DEBUG: Workflow current step: " + workflow.getCurrentStep());
-
         // FORCE enable Next button since site survey exists
         nextButton.setDisable(false);
 
-        // OVERRIDE Next button handler to force progression
-        // This ensures Next works even if canMoveToNextStep() has issues
+        // OVERRIDE Next button handler for Step 1 completion
+        // This ensures we properly sync with backend before advancing
         nextButton.setOnAction(e -> {
             System.out.println("🔘 DEBUG: Next button clicked from Step 1 (survey completed)");
-            // If workflow already advanced to Step 2+, sync currentStep
-            if (workflow.getCurrentStep() >= 2) {
-                System.out.println("✅ DEBUG: Workflow already at step " + workflow.getCurrentStep() + ", syncing...");
-                currentStep = workflow.getCurrentStep();
-                loadCurrentStep();
-            } else if (step1Completed) {
-                // Step 1 is completed, move to Step 2
-                System.out.println("✅ DEBUG: Step 1 completed, moving to Step 2");
-                currentStep = 2;
-                loadCurrentStep();
+
+            // Refresh workflow to get latest state from backend
+            workflow = workflowService.getWorkflowById(workflow.getId()).orElse(workflow);
+            int backendStep = workflow.getCurrentStep();
+            System.out.println("🔍 DEBUG: Backend workflow is at step: " + backendStep);
+
+            // Move to Step 2 (or sync with backend if it's further ahead)
+            if (backendStep >= 2) {
+                System.out.println("✅ DEBUG: Backend already at step " + backendStep + ", syncing UI");
+                currentStep = backendStep;
             } else {
-                // Survey exists but step not marked completed - force it anyway
-                System.out.println("⚠️ DEBUG: Survey exists but step not completed, forcing to Step 2");
+                System.out.println("✅ DEBUG: Moving from Step 1 to Step 2");
                 currentStep = 2;
-                loadCurrentStep();
             }
+
+            loadCurrentStep();
         });
     }
 
@@ -378,8 +388,13 @@ public class WorkflowDialog extends Stage {
                     file.getName(), currentUser);
 
                 showSuccess("Site survey uploaded successfully!");
-                refreshWorkflow();
-                loadCurrentStep();
+
+                // CRITICAL FIX: DON'T call refreshWorkflow() which changes currentStep
+                // Just reload Step 1 UI to show completion status
+                // Stay on Step 1 to show the green completion box
+                System.out.println("✅ DEBUG: Upload successful, reloading Step 1 to show completion");
+                currentStep = 1; // Force stay on Step 1
+                loadStep1_SiteSurvey(); // This will now show completion UI
             } catch (Exception ex) {
                 showError("Failed to upload site survey: " + ex.getMessage());
             }
