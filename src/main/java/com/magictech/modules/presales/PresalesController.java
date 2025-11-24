@@ -3,7 +3,9 @@ package com.magictech.modules.presales;
 import com.magictech.core.auth.User;
 import com.magictech.modules.projects.entity.Project;
 import com.magictech.modules.projects.repository.ProjectRepository;
+import com.magictech.modules.sales.entity.SiteSurveyData;
 import com.magictech.modules.sales.entity.WorkflowStepCompletion;
+import com.magictech.modules.sales.repository.SiteSurveyDataRepository;
 import com.magictech.modules.sales.service.ProjectWorkflowService;
 import com.magictech.modules.sales.service.WorkflowStepService;
 import com.magictech.modules.storage.base.BaseStorageModuleController;
@@ -21,6 +23,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.nio.file.Files;
 import java.util.List;
 import java.util.Optional;
@@ -46,6 +49,9 @@ public class PresalesController extends BaseStorageModuleController {
 
     @Autowired
     private ProjectRepository projectRepository;
+
+    @Autowired
+    private SiteSurveyDataRepository siteSurveyRepository;
 
     private User currentUser;
     private ListView<WorkflowRequest> pendingRequestsList;
@@ -185,6 +191,31 @@ public class PresalesController extends BaseStorageModuleController {
     }
 
     /**
+     * Handle downloading site survey from Step 1
+     */
+    private void handleDownloadSiteSurvey(SiteSurveyData survey) {
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Save Site Survey Excel (from Step 1)");
+        fileChooser.setInitialFileName(survey.getFileName());
+        fileChooser.getExtensionFilters().add(
+            new FileChooser.ExtensionFilter("Excel Files", "*.xlsx", "*.xls")
+        );
+
+        File file = fileChooser.showSaveDialog(getRootPane().getScene().getWindow());
+        if (file != null) {
+            try (FileOutputStream fos = new FileOutputStream(file)) {
+                fos.write(survey.getExcelFile());
+                showSuccess("✓ Site survey downloaded successfully!\n" +
+                           "File: " + survey.getFileName() + "\n" +
+                           "Uploaded by: " + survey.getSurveyDoneByUser());
+            } catch (Exception ex) {
+                showError("Failed to download site survey: " + ex.getMessage());
+                ex.printStackTrace();
+            }
+        }
+    }
+
+    /**
      * Workflow request data class
      */
     private static class WorkflowRequest {
@@ -223,11 +254,26 @@ public class PresalesController extends BaseStorageModuleController {
                 info.getChildren().addAll(projectLabel, statusLabel);
                 HBox.setHgrow(info, Priority.ALWAYS);
 
+                // Check if site survey exists for this workflow
+                Optional<SiteSurveyData> surveyOpt = siteSurveyRepository
+                    .findByWorkflowIdAndActiveTrue(request.step.getWorkflowId());
+
+                HBox buttonsBox = new HBox(10);
+
+                if (surveyOpt.isPresent()) {
+                    // Add download site survey button
+                    Button downloadBtn = new Button("📥 Download Site Survey");
+                    downloadBtn.setStyle("-fx-background-color: #8b5cf6; -fx-text-fill: white;");
+                    downloadBtn.setOnAction(e -> handleDownloadSiteSurvey(surveyOpt.get()));
+                    buttonsBox.getChildren().add(downloadBtn);
+                }
+
                 Button submitBtn = new Button("📤 Upload Sizing & Pricing");
                 submitBtn.setStyle("-fx-background-color: #06b6d4; -fx-text-fill: white;");
                 submitBtn.setOnAction(e -> handleSubmitSizingPricing(request));
+                buttonsBox.getChildren().add(submitBtn);
 
-                cell.getChildren().addAll(info, submitBtn);
+                cell.getChildren().addAll(info, buttonsBox);
                 setGraphic(cell);
             }
         }

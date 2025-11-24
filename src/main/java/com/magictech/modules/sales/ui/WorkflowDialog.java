@@ -4,7 +4,9 @@ import com.magictech.core.auth.User;
 import com.magictech.modules.projects.entity.Project;
 import com.magictech.modules.sales.entity.MissingItemRequest;
 import com.magictech.modules.sales.entity.ProjectWorkflow;
+import com.magictech.modules.sales.entity.SiteSurveyData;
 import com.magictech.modules.sales.entity.WorkflowStepCompletion;
+import com.magictech.modules.sales.repository.SiteSurveyDataRepository;
 import com.magictech.modules.sales.service.ProjectWorkflowService;
 import com.magictech.modules.sales.service.WorkflowStepService;
 import javafx.geometry.Insets;
@@ -21,8 +23,10 @@ import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.nio.file.Files;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
 
@@ -34,6 +38,7 @@ public class WorkflowDialog extends Stage {
 
     private final ProjectWorkflowService workflowService;
     private final WorkflowStepService stepService;
+    private final SiteSurveyDataRepository siteSurveyRepository;
     private final Project project;
     private final User currentUser;
     private ProjectWorkflow workflow;
@@ -59,11 +64,13 @@ public class WorkflowDialog extends Stage {
 
     public WorkflowDialog(Project project, User currentUser,
                           ProjectWorkflowService workflowService,
-                          WorkflowStepService stepService) {
+                          WorkflowStepService stepService,
+                          SiteSurveyDataRepository siteSurveyRepository) {
         this.project = project;
         this.currentUser = currentUser;
         this.workflowService = workflowService;
         this.stepService = stepService;
+        this.siteSurveyRepository = siteSurveyRepository;
 
         initStyle(StageStyle.UTILITY);
         initModality(Modality.APPLICATION_MODAL);
@@ -235,6 +242,20 @@ public class WorkflowDialog extends Stage {
 
     // STEP 1: Site Survey
     private void loadStep1_SiteSurvey() {
+        // Check if site survey already exists (uploaded by Project team or Sales)
+        Optional<SiteSurveyData> surveyOpt = siteSurveyRepository.findByWorkflowIdAndActiveTrue(workflow.getId());
+
+        if (surveyOpt.isPresent()) {
+            // Site survey completed - show download/view UI
+            showSiteSurveyCompleted(surveyOpt.get());
+        } else {
+            // Site survey not uploaded yet - show original request options
+            showSiteSurveyRequestOptions();
+        }
+    }
+
+    private void showSiteSurveyRequestOptions() {
+        // ORIGINAL FUNCTIONALITY - PRESERVED
         Label question = new Label("Does Project need site survey?");
         question.setFont(Font.font("System", FontWeight.NORMAL, 16));
 
@@ -250,6 +271,59 @@ public class WorkflowDialog extends Stage {
         buttons.setAlignment(Pos.CENTER);
 
         stepContainer.getChildren().addAll(question, buttons);
+    }
+
+    private void showSiteSurveyCompleted(SiteSurveyData survey) {
+        // NEW FUNCTIONALITY - Show completion status with download options
+        VBox completionBox = new VBox(15);
+        completionBox.setAlignment(Pos.CENTER_LEFT);
+        completionBox.setPadding(new Insets(20));
+        completionBox.setStyle("-fx-background-color: #d1fae5; -fx-border-color: #10b981; -fx-border-width: 2; -fx-border-radius: 8; -fx-background-radius: 8;");
+
+        Label statusLabel = new Label("✅ Site Survey Completed");
+        statusLabel.setFont(Font.font("System", FontWeight.BOLD, 18));
+        statusLabel.setTextFill(Color.web("#065f46"));
+
+        Label fileLabel = new Label("📄 File: " + survey.getFileName());
+        fileLabel.setFont(Font.font("System", FontWeight.NORMAL, 14));
+
+        String uploaderTeam = "SALES".equals(survey.getSurveyDoneBy()) ? "SALES team" : "PROJECT team";
+        Label uploaderLabel = new Label("👤 Uploaded by: " + survey.getSurveyDoneByUser() + " (" + uploaderTeam + ")");
+        uploaderLabel.setFont(Font.font("System", FontWeight.NORMAL, 14));
+
+        Label dateLabel = new Label("📅 Date: " + formatDateTime(survey.getUploadedAt()));
+        dateLabel.setFont(Font.font("System", FontWeight.NORMAL, 14));
+
+        Label sizeLabel = new Label("💾 Size: " + formatFileSize(survey.getFileSize()));
+        sizeLabel.setFont(Font.font("System", FontWeight.NORMAL, 14));
+
+        // Action buttons
+        HBox actionButtons = new HBox(10);
+        actionButtons.setAlignment(Pos.CENTER);
+        actionButtons.setPadding(new Insets(10, 0, 0, 0));
+
+        Button downloadButton = new Button("📥 Download Excel File");
+        downloadButton.setStyle("-fx-background-color: #8b5cf6; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20; -fx-font-weight: bold;");
+        downloadButton.setOnAction(e -> handleDownloadSiteSurvey(survey));
+
+        Button viewButton = new Button("👁️ View Survey Data");
+        viewButton.setStyle("-fx-background-color: #3b82f6; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20; -fx-font-weight: bold;");
+        viewButton.setOnAction(e -> handleViewSiteSurvey(survey));
+
+        actionButtons.getChildren().addAll(downloadButton, viewButton);
+
+        completionBox.getChildren().addAll(statusLabel, fileLabel, uploaderLabel, dateLabel, sizeLabel, actionButtons);
+
+        // Info message about progression
+        Label progressInfo = new Label("✅ Step 1 completed. Click 'Next →' to proceed to Step 2.");
+        progressInfo.setFont(Font.font("System", FontWeight.BOLD, 14));
+        progressInfo.setTextFill(Color.web("#059669"));
+        progressInfo.setPadding(new Insets(15, 0, 0, 0));
+
+        stepContainer.getChildren().addAll(completionBox, progressInfo);
+
+        // Enable Next button since step is completed
+        nextButton.setDisable(false);
     }
 
     private void handleSiteSurveySales() {
@@ -628,5 +702,107 @@ public class WorkflowDialog extends Stage {
         alert.setHeaderText(null);
         alert.setContentText(message);
         alert.showAndWait();
+    }
+
+    // NEW METHODS FOR SITE SURVEY DOWNLOAD AND VIEW
+
+    private void handleDownloadSiteSurvey(SiteSurveyData survey) {
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Save Site Survey Excel");
+        fileChooser.setInitialFileName(survey.getFileName());
+        fileChooser.getExtensionFilters().add(
+            new FileChooser.ExtensionFilter("Excel Files", "*.xlsx", "*.xls")
+        );
+
+        File file = fileChooser.showSaveDialog(this);
+        if (file != null) {
+            try (FileOutputStream fos = new FileOutputStream(file)) {
+                fos.write(survey.getExcelFile());
+                showSuccess("Site survey downloaded successfully!\nSaved to: " + file.getAbsolutePath());
+            } catch (Exception ex) {
+                showError("Failed to download site survey: " + ex.getMessage());
+                ex.printStackTrace();
+            }
+        }
+    }
+
+    private void handleViewSiteSurvey(SiteSurveyData survey) {
+        // Create a dialog to show survey data
+        Dialog<Void> viewDialog = new Dialog<>();
+        viewDialog.setTitle("Site Survey Data - " + survey.getFileName());
+        viewDialog.setHeaderText("📊 Site Survey Information");
+
+        VBox content = new VBox(15);
+        content.setPadding(new Insets(20));
+        content.setPrefWidth(600);
+
+        // Metadata section
+        Label metadataTitle = new Label("ℹ️ Survey Metadata");
+        metadataTitle.setFont(Font.font("System", FontWeight.BOLD, 16));
+
+        GridPane metadataGrid = new GridPane();
+        metadataGrid.setHgap(15);
+        metadataGrid.setVgap(10);
+        metadataGrid.setPadding(new Insets(10, 0, 0, 0));
+
+        addGridRow(metadataGrid, 0, "File Name:", survey.getFileName());
+        addGridRow(metadataGrid, 1, "File Size:", formatFileSize(survey.getFileSize()));
+        addGridRow(metadataGrid, 2, "Survey Done By:", survey.getSurveyDoneByUser() + " (" + survey.getSurveyDoneBy() + ")");
+        addGridRow(metadataGrid, 3, "Uploaded By:", survey.getUploadedBy());
+        addGridRow(metadataGrid, 4, "Upload Date:", formatDateTime(survey.getUploadedAt()));
+
+        Separator separator = new Separator();
+
+        // Parsed data section
+        Label dataTitle = new Label("📄 Parsed Excel Data");
+        dataTitle.setFont(Font.font("System", FontWeight.BOLD, 16));
+
+        TextArea dataTextArea = new TextArea();
+        dataTextArea.setWrapText(true);
+        dataTextArea.setEditable(false);
+        dataTextArea.setPrefRowCount(15);
+        dataTextArea.setStyle("-fx-font-family: 'Monospaced'; -fx-font-size: 11px;");
+
+        if (survey.getParsedData() != null && !survey.getParsedData().isEmpty()) {
+            dataTextArea.setText(survey.getParsedData());
+        } else {
+            dataTextArea.setText("No parsed data available");
+        }
+
+        content.getChildren().addAll(metadataTitle, metadataGrid, separator, dataTitle, dataTextArea);
+
+        ScrollPane scrollPane = new ScrollPane(content);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setPrefHeight(500);
+
+        viewDialog.getDialogPane().setContent(scrollPane);
+        viewDialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+
+        viewDialog.showAndWait();
+    }
+
+    private void addGridRow(GridPane grid, int row, String label, String value) {
+        Label labelNode = new Label(label);
+        labelNode.setFont(Font.font("System", FontWeight.BOLD, 12));
+        labelNode.setStyle("-fx-text-fill: #6b7280;");
+
+        Label valueNode = new Label(value != null ? value : "-");
+        valueNode.setFont(Font.font("System", 12));
+        valueNode.setStyle("-fx-text-fill: #1f2937;");
+
+        grid.add(labelNode, 0, row);
+        grid.add(valueNode, 1, row);
+    }
+
+    private String formatDateTime(LocalDateTime dateTime) {
+        if (dateTime == null) return "-";
+        return dateTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
+    }
+
+    private String formatFileSize(Long bytes) {
+        if (bytes == null) return "0 KB";
+        if (bytes < 1024) return bytes + " B";
+        if (bytes < 1024 * 1024) return String.format("%.2f KB", bytes / 1024.0);
+        return String.format("%.2f MB", bytes / (1024.0 * 1024.0));
     }
 }
