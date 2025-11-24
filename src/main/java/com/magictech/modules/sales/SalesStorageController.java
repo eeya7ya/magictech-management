@@ -150,17 +150,13 @@ public class SalesStorageController extends BaseModuleController {
         titleLabel.setStyle("-fx-text-fill: white; -fx-font-size: 22px; -fx-font-weight: bold;");
         HBox.setHgrow(titleLabel, Priority.ALWAYS);
 
-        Button testSurveyBtn = createStyledButton("🧪 Test Site Survey", "#f59e0b", "#d97706");
-        testSurveyBtn.setOnAction(e -> handleCreateTestSiteSurveyRequest());
-        testSurveyBtn.setTooltip(new Tooltip("Create a test site survey request for PROJECT team"));
-
         Button exportProjectsBtn = createStyledButton("📥 Export", "#8b5cf6", "#7c3aed");
         exportProjectsBtn.setOnAction(e -> handleExportProjects());
 
         Button addProjectBtn = createStyledButton("+ New Project", "#3b82f6", "#2563eb");
         addProjectBtn.setOnAction(e -> handleAddProject());
 
-        header.getChildren().addAll(titleLabel, testSurveyBtn, exportProjectsBtn, addProjectBtn);
+        header.getChildren().addAll(titleLabel, exportProjectsBtn, addProjectBtn);
 
         projectsListView = new ListView<>();
         projectsListView.setPrefHeight(500);

@@ -2470,12 +2470,7 @@ public class ProjectsStorageController extends BaseModuleController {
         titleBox.getChildren().addAll(title, subtitle);
         HBox.setHgrow(titleBox, Priority.ALWAYS);
 
-        // Test button to create a dummy site survey request
-        Button testButton = createStyledButton("🧪 Create Test Request", "#f59e0b", "#d97706");
-        testButton.setOnAction(e -> handleCreateTestSiteSurveyRequest());
-        testButton.setPrefWidth(200);
-
-        header.getChildren().addAll(titleBox, testButton);
+        header.getChildren().add(titleBox);
 
         // Status Section
         VBox statusSection = new VBox(15);
