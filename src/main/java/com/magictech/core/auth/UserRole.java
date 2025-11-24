@@ -11,7 +11,11 @@ public enum UserRole {
     PROJECTS("Project Manager", "Projects module full access"),
     PROJECT_SUPPLIER("Project Supplier", "Projects module - same as Project Manager"),
     STORAGE("Storage Team", "Storage module access"),
-    CLIENT("Client", "Limited access");
+    CLIENT("Client", "Limited access"),
+
+    // Legacy/Deprecated roles (kept for backward compatibility with existing database records)
+    @Deprecated
+    PRICING("Quality Assurance Team", "DEPRECATED: Use QUALITY_ASSURANCE instead - verification and approval");
 
     private final String displayName;
     private final String description;
