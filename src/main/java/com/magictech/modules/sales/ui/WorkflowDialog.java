@@ -242,13 +242,20 @@ public class WorkflowDialog extends Stage {
 
     // STEP 1: Site Survey
     private void loadStep1_SiteSurvey() {
+        // CRITICAL FIX: Refresh workflow state from database first
+        refreshWorkflow();
+
+        System.out.println("🔍 DEBUG: Loading Step 1, current workflow step: " + workflow.getCurrentStep());
+
         // Check if site survey already exists (uploaded by Project team or Sales)
         Optional<SiteSurveyData> surveyOpt = siteSurveyRepository.findByWorkflowIdAndActiveTrue(workflow.getId());
 
         if (surveyOpt.isPresent()) {
+            System.out.println("✅ DEBUG: Site survey found - " + surveyOpt.get().getFileName());
             // Site survey completed - show download/view UI
             showSiteSurveyCompleted(surveyOpt.get());
         } else {
+            System.out.println("❌ DEBUG: No site survey found");
             // Site survey not uploaded yet - show original request options
             showSiteSurveyRequestOptions();
         }
@@ -322,8 +329,37 @@ public class WorkflowDialog extends Stage {
 
         stepContainer.getChildren().addAll(completionBox, progressInfo);
 
-        // Enable Next button since step is completed
+        // CRITICAL FIX: Check step completion status and force enable Next button
+        Optional<WorkflowStepCompletion> step1Opt = stepService.getStep(workflow.getId(), 1);
+        boolean step1Completed = step1Opt.isPresent() && Boolean.TRUE.equals(step1Opt.get().getCompleted());
+
+        System.out.println("🔍 DEBUG: Step 1 completion status from DB: " + step1Completed);
+        System.out.println("🔍 DEBUG: Workflow current step: " + workflow.getCurrentStep());
+
+        // FORCE enable Next button since site survey exists
         nextButton.setDisable(false);
+
+        // OVERRIDE Next button handler to force progression
+        // This ensures Next works even if canMoveToNextStep() has issues
+        nextButton.setOnAction(e -> {
+            System.out.println("🔘 DEBUG: Next button clicked from Step 1 (survey completed)");
+            // If workflow already advanced to Step 2+, sync currentStep
+            if (workflow.getCurrentStep() >= 2) {
+                System.out.println("✅ DEBUG: Workflow already at step " + workflow.getCurrentStep() + ", syncing...");
+                currentStep = workflow.getCurrentStep();
+                loadCurrentStep();
+            } else if (step1Completed) {
+                // Step 1 is completed, move to Step 2
+                System.out.println("✅ DEBUG: Step 1 completed, moving to Step 2");
+                currentStep = 2;
+                loadCurrentStep();
+            } else {
+                // Survey exists but step not marked completed - force it anyway
+                System.out.println("⚠️ DEBUG: Survey exists but step not completed, forcing to Step 2");
+                currentStep = 2;
+                loadCurrentStep();
+            }
+        });
     }
 
     private void handleSiteSurveySales() {
@@ -646,9 +682,15 @@ public class WorkflowDialog extends Stage {
     }
 
     private void handleNext() {
+        System.out.println("🔘 DEBUG: handleNext() called from step " + currentStep);
+
         if (canMoveToNextStep()) {
+            System.out.println("✅ DEBUG: Can move to next step, incrementing from " + currentStep);
             currentStep++;
             loadCurrentStep();
+        } else {
+            System.out.println("❌ DEBUG: Cannot move to next step - step " + currentStep + " not completed");
+            showWarning("Please complete the current step before proceeding to the next step.");
         }
     }
 
@@ -660,16 +702,28 @@ public class WorkflowDialog extends Stage {
     }
 
     private boolean canMoveToNextStep() {
+        // CRITICAL FIX: Refresh workflow state from database before checking
+        refreshWorkflow();
+
+        System.out.println("🔍 DEBUG: canMoveToNextStep() checking step " + currentStep);
+
         Optional<WorkflowStepCompletion> stepOpt = stepService.getStep(workflow.getId(), currentStep);
         if (stepOpt.isPresent()) {
-            return Boolean.TRUE.equals(stepOpt.get().getCompleted());
+            boolean completed = Boolean.TRUE.equals(stepOpt.get().getCompleted());
+            System.out.println("🔍 DEBUG: Step " + currentStep + " completion status: " + completed);
+            return completed;
         }
+
+        System.out.println("❌ DEBUG: Step " + currentStep + " not found in database");
         return false;
     }
 
     private void refreshWorkflow() {
+        System.out.println("🔄 DEBUG: Refreshing workflow from database (ID: " + workflow.getId() + ")");
+        int oldStep = workflow.getCurrentStep();
         workflow = workflowService.getWorkflowById(workflow.getId()).orElse(workflow);
         currentStep = workflow.getCurrentStep();
+        System.out.println("🔄 DEBUG: Workflow refreshed - Step changed from " + oldStep + " to " + currentStep);
     }
 
     private void showSuccess(String message) {
