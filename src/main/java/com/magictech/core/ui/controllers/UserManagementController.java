@@ -41,20 +41,50 @@ public class UserManagementController {
      * Show user management dialog
      */
     public void showUserManagement(Stage owner) {
-        dialogStage = new Stage();
-        dialogStage.initModality(Modality.APPLICATION_MODAL);
-        dialogStage.initOwner(owner);
-        dialogStage.initStyle(StageStyle.DECORATED);
-        dialogStage.setTitle("User Management - Admin Panel");
+        try {
+            System.out.println("UserManagementController.showUserManagement() called");
+            System.out.println("  - owner stage: " + (owner != null ? "OK" : "NULL"));
+            System.out.println("  - authService: " + (authService != null ? "OK" : "NULL"));
 
-        VBox root = createMainLayout();
+            if (owner == null) {
+                throw new IllegalArgumentException("Owner stage cannot be null");
+            }
 
-        Scene scene = new Scene(root, 900, 600);
-        scene.getStylesheets().add(getClass().getResource("/css/styles.css").toExternalForm());
-        
-        dialogStage.setScene(scene);
-        loadUsers();
-        dialogStage.showAndWait();
+            if (authService == null) {
+                throw new IllegalStateException("AuthenticationService is not initialized (Spring autowiring failed)");
+            }
+
+            dialogStage = new Stage();
+            dialogStage.initModality(Modality.APPLICATION_MODAL);
+            dialogStage.initOwner(owner);
+            dialogStage.initStyle(StageStyle.DECORATED);
+            dialogStage.setTitle("User Management - Admin Panel");
+
+            VBox root = createMainLayout();
+
+            Scene scene = new Scene(root, 900, 600);
+
+            // Load CSS with null check
+            java.net.URL cssUrl = getClass().getResource("/css/styles.css");
+            if (cssUrl != null) {
+                scene.getStylesheets().add(cssUrl.toExternalForm());
+                System.out.println("✓ CSS loaded successfully");
+            } else {
+                System.err.println("⚠️ Warning: CSS file not found, using default styling");
+            }
+
+            dialogStage.setScene(scene);
+            loadUsers();
+
+            System.out.println("✓ User management dialog created successfully - showing now...");
+            dialogStage.showAndWait();
+            System.out.println("✓ User management dialog closed");
+
+        } catch (Exception e) {
+            System.err.println("❌ Error in showUserManagement(): " + e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("Failed to show User Management dialog: " + e.getMessage(), e);
+        }
     }
 
     private VBox createMainLayout() {

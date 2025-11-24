@@ -266,18 +266,63 @@ public class MainDashboardController {
         System.out.println("  - userManagementController: " + (userManagementController != null ? "OK" : "NULL"));
         System.out.println("  - sceneManager: " + (sceneManager != null ? "OK" : "NULL"));
 
-        if (currentUser != null && currentUser.getRole() == com.magictech.core.auth.UserRole.MASTER) {
-            System.out.println("✓ User is MASTER, opening user management dialog...");
-            try {
-                userManagementController.showUserManagement(sceneManager.getPrimaryStage());
-                System.out.println("✓ User management dialog opened successfully");
-            } catch (Exception e) {
-                System.err.println("❌ Error opening user management: " + e.getMessage());
-                e.printStackTrace();
-            }
-        } else {
-            System.out.println("❌ User is not MASTER or currentUser is null");
+        // Check if user is authenticated
+        if (currentUser == null) {
+            System.err.println("❌ currentUser is NULL!");
+            showError("Authentication Error", "Your session has expired. Please log in again.");
+            return;
         }
+
+        // Check if user has MASTER role
+        if (currentUser.getRole() != com.magictech.core.auth.UserRole.MASTER) {
+            System.out.println("❌ User is not MASTER");
+            showError("Access Denied", "Only MASTER role users can access User Management.");
+            return;
+        }
+
+        // Check if userManagementController is autowired
+        if (userManagementController == null) {
+            System.err.println("❌ userManagementController is NULL (Spring autowiring failed)!");
+            showError("System Error", "User Management controller is not initialized. Please restart the application.");
+            return;
+        }
+
+        // Check if sceneManager is available
+        if (sceneManager == null || sceneManager.getPrimaryStage() == null) {
+            System.err.println("❌ sceneManager or primaryStage is NULL!");
+            showError("System Error", "Scene manager is not initialized. Please restart the application.");
+            return;
+        }
+
+        System.out.println("✓ All checks passed - opening user management dialog...");
+        try {
+            userManagementController.showUserManagement(sceneManager.getPrimaryStage());
+            System.out.println("✓ User management dialog opened successfully");
+        } catch (Exception e) {
+            System.err.println("❌ Error opening user management: " + e.getMessage());
+            e.printStackTrace();
+            showError("Error Opening User Management",
+                "Failed to open User Management:\n" + e.getMessage());
+        }
+    }
+
+    private void showError(String title, String message) {
+        javafx.scene.control.Alert alert = new javafx.scene.control.Alert(
+            javafx.scene.control.Alert.AlertType.ERROR);
+        alert.setTitle(title);
+        alert.setHeaderText(null);
+        alert.setContentText(message);
+
+        // Style the alert dialog
+        javafx.scene.control.DialogPane dialogPane = alert.getDialogPane();
+        dialogPane.setStyle("-fx-background-color: #1e293b; -fx-text-fill: white;");
+        dialogPane.lookupAll(".label").forEach(node -> {
+            if (node instanceof javafx.scene.control.Label) {
+                ((javafx.scene.control.Label) node).setStyle("-fx-text-fill: white;");
+            }
+        });
+
+        alert.showAndWait();
     }
 
     @FXML
