@@ -482,19 +482,48 @@ public class WorkflowDialog extends Stage {
         Button noButton = new Button("No");
         noButton.setStyle("-fx-background-color: #95a5a6; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20;");
         noButton.setOnAction(e -> {
-            workflowService.markSelectionDesignNotNeeded(workflow.getId(), currentUser);
-            showSuccess("Marked as not needed");
-            refreshWorkflow();
-            loadCurrentStep();
+            System.out.println("\n🔘 'No' button clicked for Step 2");
+            try {
+                workflowService.markSelectionDesignNotNeeded(workflow.getId(), currentUser);
+                System.out.println("✅ Successfully marked as not needed");
+                showSuccess("Marked as not needed");
+                refreshWorkflow();
+                loadCurrentStep();
+            } catch (Exception ex) {
+                System.err.println("❌ Error marking as not needed: " + ex.getMessage());
+                ex.printStackTrace();
+                showError("Error: " + ex.getMessage());
+            }
         });
 
         Button yesButton = new Button("Yes - Request from Presales");
         yesButton.setStyle("-fx-background-color: #3498db; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20;");
         yesButton.setOnAction(e -> {
-            workflowService.requestSelectionDesignFromPresales(workflow.getId(), currentUser);
-            // CRITICAL FIX: Refresh workflow and UI will automatically show pending state
-            refreshWorkflow();
-            loadCurrentStep();
+            System.out.println("\n🔘 'Yes - Request from Presales' button clicked");
+            System.out.println("   Workflow ID: " + workflow.getId());
+            System.out.println("   Current User: " + currentUser.getUsername());
+            System.out.println("   Project ID: " + project.getId());
+            System.out.println("   Project Name: " + project.getProjectName());
+
+            try {
+                System.out.println("   Calling workflowService.requestSelectionDesignFromPresales()...");
+                workflowService.requestSelectionDesignFromPresales(workflow.getId(), currentUser);
+                System.out.println("✅ Request sent successfully");
+
+                System.out.println("   Refreshing workflow...");
+                refreshWorkflow();
+
+                System.out.println("   Reloading UI...");
+                loadCurrentStep();
+
+                System.out.println("✅ UI updated successfully - should now show pending state");
+            } catch (Exception ex) {
+                System.err.println("❌ ERROR in 'Yes - Request from Presales' button:");
+                System.err.println("   Error message: " + ex.getMessage());
+                System.err.println("   Error type: " + ex.getClass().getName());
+                ex.printStackTrace();
+                showError("Failed to send request: " + ex.getMessage());
+            }
         });
 
         HBox buttons = new HBox(10, noButton, yesButton);
