@@ -410,10 +410,69 @@ public class WorkflowDialog extends Stage {
             // Sizing/pricing completed - show download/view UI
             showSizingPricingCompleted(sizingOpt.get());
         } else {
-            System.out.println("❌ DEBUG: No sizing/pricing data found");
-            // Not uploaded yet - show original request options
+            // Check if request is pending (waiting for Presales)
+            Optional<WorkflowStepCompletion> step2Opt = stepService.getStep(workflow.getId(), 2);
+            if (step2Opt.isPresent()) {
+                WorkflowStepCompletion step2 = step2Opt.get();
+                if (Boolean.TRUE.equals(step2.getNeedsExternalAction()) &&
+                    Boolean.FALSE.equals(step2.getExternalActionCompleted())) {
+                    System.out.println("⏳ DEBUG: Step 2 request pending - waiting for Presales");
+                    // Request is pending - show waiting UI
+                    showSelectionDesignPendingUI(step2);
+                    return;
+                }
+            }
+
+            System.out.println("❌ DEBUG: No sizing/pricing data found and no pending request");
+            // Not uploaded yet and no pending request - show original request options
             showSelectionDesignRequestOptions();
         }
+    }
+
+    private void showSelectionDesignPendingUI(WorkflowStepCompletion step) {
+        // NEW: Show pending/waiting state (like Step 1 does)
+        VBox pendingBox = new VBox(15);
+        pendingBox.setAlignment(Pos.CENTER_LEFT);
+        pendingBox.setPadding(new Insets(20));
+        pendingBox.setStyle("-fx-background-color: #fef3c7; -fx-border-color: #f59e0b; -fx-border-width: 2; -fx-border-radius: 8; -fx-background-radius: 8;");
+
+        Label statusLabel = new Label("⏳ Waiting for Presales Team");
+        statusLabel.setFont(Font.font("System", FontWeight.BOLD, 18));
+        statusLabel.setTextFill(Color.web("#92400e"));
+
+        Label messageLabel = new Label("You requested sizing & pricing from the Presales team.");
+        messageLabel.setFont(Font.font("System", FontWeight.NORMAL, 14));
+        messageLabel.setWrapText(true);
+
+        Label infoLabel = new Label("📋 The Presales team has been notified and will upload the sizing/pricing Excel file soon.");
+        infoLabel.setFont(Font.font("System", FontWeight.NORMAL, 14));
+        infoLabel.setWrapText(true);
+        infoLabel.setTextFill(Color.web("#78350f"));
+
+        Label dateLabel = new Label("📅 Requested: " + formatDateTime(step.getCreatedAt()));
+        dateLabel.setFont(Font.font("System", FontWeight.NORMAL, 12));
+        dateLabel.setTextFill(Color.web("#78350f"));
+
+        // Refresh button
+        Button refreshButton = new Button("🔄 Check Status");
+        refreshButton.setStyle("-fx-background-color: #f59e0b; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20; -fx-font-weight: bold;");
+        refreshButton.setOnAction(e -> {
+            refreshWorkflow();
+            loadCurrentStep();
+        });
+
+        pendingBox.getChildren().addAll(statusLabel, messageLabel, infoLabel, dateLabel, refreshButton);
+
+        Label waitingInfo = new Label("💡 This dialog will automatically show the completed state once Presales uploads the file.");
+        waitingInfo.setFont(Font.font("System", FontWeight.NORMAL, 12));
+        waitingInfo.setTextFill(Color.web("#6b7280"));
+        waitingInfo.setPadding(new Insets(15, 0, 0, 0));
+        waitingInfo.setWrapText(true);
+
+        stepContainer.getChildren().addAll(pendingBox, waitingInfo);
+
+        // Disable Next button while waiting
+        nextButton.setDisable(true);
     }
 
     private void showSelectionDesignRequestOptions() {
@@ -433,8 +492,7 @@ public class WorkflowDialog extends Stage {
         yesButton.setStyle("-fx-background-color: #3498db; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20;");
         yesButton.setOnAction(e -> {
             workflowService.requestSelectionDesignFromPresales(workflow.getId(), currentUser);
-            showInfo("Selection & design request sent to Presales Team. Waiting for their response...");
-            // CRITICAL FIX: Refresh workflow after request
+            // CRITICAL FIX: Refresh workflow and UI will automatically show pending state
             refreshWorkflow();
             loadCurrentStep();
         });
