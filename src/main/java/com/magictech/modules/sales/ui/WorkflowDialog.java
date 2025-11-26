@@ -39,6 +39,7 @@ public class WorkflowDialog extends Stage {
     private final ProjectWorkflowService workflowService;
     private final WorkflowStepService stepService;
     private final SiteSurveyDataRepository siteSurveyRepository;
+    private final com.magictech.modules.sales.repository.SizingPricingDataRepository sizingPricingRepository;
     private final Project project;
     private final User currentUser;
     private ProjectWorkflow workflow;
@@ -65,12 +66,14 @@ public class WorkflowDialog extends Stage {
     public WorkflowDialog(Project project, User currentUser,
                           ProjectWorkflowService workflowService,
                           WorkflowStepService stepService,
-                          SiteSurveyDataRepository siteSurveyRepository) {
+                          SiteSurveyDataRepository siteSurveyRepository,
+                          com.magictech.modules.sales.repository.SizingPricingDataRepository sizingPricingRepository) {
         this.project = project;
         this.currentUser = currentUser;
         this.workflowService = workflowService;
         this.stepService = stepService;
         this.siteSurveyRepository = siteSurveyRepository;
+        this.sizingPricingRepository = sizingPricingRepository;
 
         initStyle(StageStyle.UTILITY);
         initModality(Modality.APPLICATION_MODAL);
@@ -393,6 +396,27 @@ public class WorkflowDialog extends Stage {
 
     // STEP 2: Selection & Design
     private void loadStep2_SelectionDesign() {
+        // CRITICAL FIX: Refresh workflow state from database first
+        refreshWorkflow();
+
+        System.out.println("🔍 DEBUG: Loading Step 2, current workflow step: " + workflow.getCurrentStep());
+
+        // Check if sizing/pricing already exists (uploaded by Presales team)
+        Optional<com.magictech.modules.sales.entity.SizingPricingData> sizingOpt =
+            sizingPricingRepository.findByWorkflowIdAndActiveTrue(workflow.getId());
+
+        if (sizingOpt.isPresent()) {
+            System.out.println("✅ DEBUG: Sizing/pricing data found - " + sizingOpt.get().getFileName());
+            // Sizing/pricing completed - show download/view UI
+            showSizingPricingCompleted(sizingOpt.get());
+        } else {
+            System.out.println("❌ DEBUG: No sizing/pricing data found");
+            // Not uploaded yet - show original request options
+            showSelectionDesignRequestOptions();
+        }
+    }
+
+    private void showSelectionDesignRequestOptions() {
         Label question = new Label("Does it need a selection and design?");
         question.setFont(Font.font("System", FontWeight.NORMAL, 16));
 
@@ -409,13 +433,112 @@ public class WorkflowDialog extends Stage {
         yesButton.setStyle("-fx-background-color: #3498db; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20;");
         yesButton.setOnAction(e -> {
             workflowService.requestSelectionDesignFromPresales(workflow.getId(), currentUser);
-            showInfo("Selection & design request sent to Presales Team");
+            showInfo("Selection & design request sent to Presales Team. Waiting for their response...");
+            // CRITICAL FIX: Refresh workflow after request
+            refreshWorkflow();
+            loadCurrentStep();
         });
 
         HBox buttons = new HBox(10, noButton, yesButton);
         buttons.setAlignment(Pos.CENTER);
 
         stepContainer.getChildren().addAll(question, buttons);
+    }
+
+    private void showSizingPricingCompleted(com.magictech.modules.sales.entity.SizingPricingData sizing) {
+        // NEW FUNCTIONALITY - Show completion status with download options
+        VBox completionBox = new VBox(15);
+        completionBox.setAlignment(Pos.CENTER_LEFT);
+        completionBox.setPadding(new Insets(20));
+        completionBox.setStyle("-fx-background-color: #dbeafe; -fx-border-color: #3b82f6; -fx-border-width: 2; -fx-border-radius: 8; -fx-background-radius: 8;");
+
+        Label statusLabel = new Label("✅ Sizing & Pricing Completed");
+        statusLabel.setFont(Font.font("System", FontWeight.BOLD, 18));
+        statusLabel.setTextFill(Color.web("#1e40af"));
+
+        Label fileLabel = new Label("📄 File: " + sizing.getFileName());
+        fileLabel.setFont(Font.font("System", FontWeight.NORMAL, 14));
+
+        Label uploaderLabel = new Label("👤 Uploaded by: " + sizing.getUploadedBy() + " (PRESALES team)");
+        uploaderLabel.setFont(Font.font("System", FontWeight.NORMAL, 14));
+
+        Label dateLabel = new Label("📅 Date: " + formatDateTime(sizing.getUploadedAt()));
+        dateLabel.setFont(Font.font("System", FontWeight.NORMAL, 14));
+
+        Label sizeLabel = new Label("💾 Size: " + formatFileSize(sizing.getFileSize()));
+        sizeLabel.setFont(Font.font("System", FontWeight.NORMAL, 14));
+
+        // Action buttons
+        HBox actionButtons = new HBox(10);
+        actionButtons.setAlignment(Pos.CENTER);
+        actionButtons.setPadding(new Insets(10, 0, 0, 0));
+
+        Button downloadButton = new Button("📥 Download Sizing/Pricing File");
+        downloadButton.setStyle("-fx-background-color: #06b6d4; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20; -fx-font-weight: bold;");
+        downloadButton.setOnAction(e -> handleDownloadSizingPricing(sizing));
+
+        actionButtons.getChildren().add(downloadButton);
+
+        completionBox.getChildren().addAll(statusLabel, fileLabel, uploaderLabel, dateLabel, sizeLabel, actionButtons);
+
+        // Info message about progression
+        Label progressInfo = new Label("✅ Step 2 completed. Click 'Next →' to proceed to Step 3.");
+        progressInfo.setFont(Font.font("System", FontWeight.BOLD, 14));
+        progressInfo.setTextFill(Color.web("#1e40af"));
+        progressInfo.setPadding(new Insets(15, 0, 0, 0));
+
+        stepContainer.getChildren().addAll(completionBox, progressInfo);
+
+        // CRITICAL FIX: Check step completion status and force enable Next button
+        Optional<WorkflowStepCompletion> step2Opt = stepService.getStep(workflow.getId(), 2);
+        boolean step2Completed = step2Opt.isPresent() && Boolean.TRUE.equals(step2Opt.get().getCompleted());
+
+        System.out.println("🔍 DEBUG: Step 2 completion status from DB: " + step2Completed);
+        System.out.println("🔍 DEBUG: Workflow current step: " + workflow.getCurrentStep());
+
+        // FORCE enable Next button since sizing/pricing exists
+        nextButton.setDisable(false);
+
+        // OVERRIDE Next button handler to force progression
+        nextButton.setOnAction(e -> {
+            System.out.println("🔘 DEBUG: Next button clicked from Step 2 (sizing completed)");
+            // If workflow already advanced to Step 3+, sync currentStep
+            if (workflow.getCurrentStep() >= 3) {
+                System.out.println("✅ DEBUG: Workflow already at step " + workflow.getCurrentStep() + ", syncing...");
+                currentStep = workflow.getCurrentStep();
+                loadCurrentStep();
+            } else if (step2Completed) {
+                // Step 2 is completed, move to Step 3
+                System.out.println("✅ DEBUG: Step 2 completed, moving to Step 3");
+                currentStep = 3;
+                loadCurrentStep();
+            } else {
+                // Sizing exists but step not marked completed - force it anyway
+                System.out.println("⚠️ DEBUG: Sizing exists but step not completed, forcing to Step 3");
+                currentStep = 3;
+                loadCurrentStep();
+            }
+        });
+    }
+
+    private void handleDownloadSizingPricing(com.magictech.modules.sales.entity.SizingPricingData sizing) {
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Save Sizing & Pricing Excel");
+        fileChooser.setInitialFileName(sizing.getFileName());
+        fileChooser.getExtensionFilters().add(
+            new FileChooser.ExtensionFilter("Excel Files", "*.xlsx", "*.xls")
+        );
+
+        File file = fileChooser.showSaveDialog(this);
+        if (file != null) {
+            try (FileOutputStream fos = new FileOutputStream(file)) {
+                fos.write(sizing.getExcelFile());
+                showSuccess("Sizing & Pricing file downloaded successfully!\nSaved to: " + file.getAbsolutePath());
+            } catch (Exception ex) {
+                showError("Failed to download sizing & pricing: " + ex.getMessage());
+                ex.printStackTrace();
+            }
+        }
     }
 
     // STEP 3: Bank Guarantee

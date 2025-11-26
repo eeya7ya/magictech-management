@@ -54,6 +54,7 @@ public class SalesStorageController extends BaseModuleController {
     @Autowired private com.magictech.modules.sales.service.ProjectWorkflowService workflowService;
     @Autowired private com.magictech.modules.sales.service.WorkflowStepService stepService;
     @Autowired private com.magictech.modules.sales.repository.SiteSurveyDataRepository siteSurveyRepository;
+    @Autowired private com.magictech.modules.sales.repository.SizingPricingDataRepository sizingPricingRepository;
 
     private com.magictech.core.ui.components.DashboardBackgroundPane backgroundPane;
     private StackPane mainContainer;
@@ -1200,7 +1201,7 @@ public class SalesStorageController extends BaseModuleController {
     private void handleWorkflowDialogOpen(Project project,
                                           com.magictech.modules.sales.entity.ProjectWorkflow workflow) {
         try {
-            WorkflowDialog dialog = new WorkflowDialog(project, currentUser, workflowService, stepService, siteSurveyRepository);
+            WorkflowDialog dialog = new WorkflowDialog(project, currentUser, workflowService, stepService, siteSurveyRepository, sizingPricingRepository);
             dialog.showAndWait();
 
             // Refresh the project details after dialog closes
@@ -2453,7 +2454,8 @@ public class SalesStorageController extends BaseModuleController {
                 currentUser,
                 workflowService,
                 stepService,
-                siteSurveyRepository
+                siteSurveyRepository,
+                sizingPricingRepository
             );
             workflowDialog.showAndWait();
 
