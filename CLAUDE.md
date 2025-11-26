@@ -2,7 +2,7 @@
 
 **AI Assistant Guide for Code Development**
 
-Last Updated: 2025-11-18
+Last Updated: 2025-11-26
 Project: MagicTech Management System
 Version: 1.0-SNAPSHOT
 
@@ -17,11 +17,13 @@ Version: 1.0-SNAPSHOT
 5. [Database Architecture](#database-architecture)
 6. [UI Framework & Patterns](#ui-framework--patterns)
 7. [Module System](#module-system)
-8. [Development Workflows](#development-workflows)
-9. [Coding Conventions](#coding-conventions)
-10. [Security Considerations](#security-considerations)
-11. [Testing & API](#testing--api)
-12. [Common Tasks](#common-tasks)
+8. [Notification & Messaging System](#notification--messaging-system)
+9. [Workflow System](#workflow-system)
+10. [Development Workflows](#development-workflows)
+11. [Coding Conventions](#coding-conventions)
+12. [Security Considerations](#security-considerations)
+13. [Testing & API](#testing--api)
+14. [Common Tasks](#common-tasks)
 
 ---
 
@@ -31,10 +33,14 @@ Version: 1.0-SNAPSHOT
 
 A **hybrid JavaFX desktop application with Spring Boot backend** for comprehensive business management, including:
 - Storage/Inventory Management
-- Sales Order Processing
-- Project Management
+- Sales Order Processing & Customer Management
+- Presales (Quotations & Sizing)
+- Project Management with Workflows
+- Finance & Invoicing
+- Quality Assurance
 - Maintenance Tracking
-- Pricing Management
+- Real-time Notifications & Inter-module Communication
+- 8-Step Project Workflow with Site Surveys
 
 ### Tech Stack
 
@@ -46,7 +52,9 @@ A **hybrid JavaFX desktop application with Spring Boot backend** for comprehensi
 | Database | PostgreSQL | Latest |
 | ORM | Hibernate/JPA | Spring Boot managed |
 | Connection Pool | HikariCP | Spring Boot managed |
+| Messaging | Redis (Lettuce) | Spring Boot managed |
 | UI Library | AtlantaFX | 2.0.1 |
+| UI Controls | ControlsFX | 11.2.1 |
 | Icons | Ikonli (FontAwesome 5 + Material) | 12.3.1 |
 | PDF Processing | Apache PDFBox + iText 7 | 2.0.29 / 7.2.5 |
 | Excel Processing | Apache POI | 5.2.5 |
@@ -121,7 +129,34 @@ com.magictech/
 │   │
 │   ├── config/                           # Application configuration
 │   │   ├── DatabaseConfig.java           # JPA/Hibernate configuration
-│   │   └── SecurityConfig.java           # Security config (placeholder)
+│   │   ├── SecurityConfig.java           # Security config (placeholder)
+│   │   ├── RedisConfig.java              # Redis pub/sub configuration
+│   │   └── SchedulingConfig.java         # Scheduled tasks configuration
+│   │
+│   ├── messaging/                        # NEW: Real-time notification system
+│   │   ├── config/
+│   │   │   └── RedisConfig.java          # Redis connection & listeners
+│   │   ├── constants/
+│   │   │   └── NotificationConstants.java # Notification types, channels
+│   │   ├── dto/
+│   │   │   └── NotificationMessage.java  # Notification message DTO
+│   │   ├── entity/
+│   │   │   ├── Notification.java         # Notification persistence
+│   │   │   ├── NotificationUserStatus.java # User read status tracking
+│   │   │   └── DeviceRegistration.java   # Device tracking
+│   │   ├── repository/
+│   │   │   ├── NotificationRepository.java
+│   │   │   ├── NotificationUserStatusRepository.java
+│   │   │   └── DeviceRegistrationRepository.java
+│   │   ├── service/
+│   │   │   ├── NotificationService.java  # Main notification service
+│   │   │   ├── NotificationListenerService.java # Redis listener
+│   │   │   └── DeviceRegistrationService.java
+│   │   ├── ui/
+│   │   │   ├── NotificationManager.java  # UI notification management
+│   │   │   └── NotificationPopup.java    # Visual notification popup
+│   │   └── util/
+│   │       └── NotificationSoundGenerator.java # Sound generation
 │   │
 │   ├── module/                           # Module framework
 │   │   ├── BaseModuleController.java     # Abstract base for all modules
@@ -133,10 +168,13 @@ com.magictech/
 │       ├── components/                   # Reusable UI components
 │       │   ├── BackgroundManager.java
 │       │   ├── GradientBackgroundPane.java
-│       │   └── DashboardBackgroundPane.java
+│       │   ├── DashboardBackgroundPane.java
+│       │   ├── NotificationPopup.java    # Legacy notification popup
+│       │   └── ToastNotification.java    # Toast-style notifications
 │       └── controllers/                  # Core UI controllers
 │           ├── LoginController.java      # Login screen
-│           └── MainDashboardController.java  # Module dashboard
+│           ├── MainDashboardController.java  # Module dashboard
+│           └── UserManagementController.java # User management UI
 │
 └── modules/                              # Business domain modules
     ├── storage/                          # Storage module (foundation)
@@ -145,8 +183,9 @@ com.magictech/
     │   ├── config/
     │   │   └── ModuleStorageConfig.java  # Column visibility configuration
     │   ├── entity/
-    │   │   ├── StorageItem.java          # Main shared entity
-    │   │   └── StorageColumnConfig.java  # Dynamic columns
+    │   │   ├── StorageItem.java          # Main shared entity (with workflowStatus)
+    │   │   ├── StorageColumnConfig.java  # Dynamic columns
+    │   │   └── WorkflowStatus.java       # NEW: Item workflow status enum
     │   ├── model/
     │   │   └── StorageItemViewModel.java # JavaFX binding model
     │   ├── repository/
@@ -155,19 +194,64 @@ com.magictech/
     │   ├── service/
     │   │   ├── StorageService.java
     │   │   ├── StorageColumnConfigService.java
+    │   │   ├── AnalyticsService.java     # NEW: Analytics & reporting
     │   │   ├── ExcelImportService.java
     │   │   └── ExcelExportService.java
     │   └── StorageController.java        # Storage module UI
     │
-    ├── sales/                            # Sales module
+    ├── sales/                            # Sales module (SIGNIFICANTLY EXPANDED)
     │   ├── entity/
     │   │   ├── Customer.java
+    │   │   ├── CustomerElement.java      # NEW: Customer-item relationships
+    │   │   ├── CustomerTask.java         # NEW: Customer tasks
+    │   │   ├── CustomerNote.java         # NEW: Customer notes
+    │   │   ├── CustomerSchedule.java     # NEW: Customer schedules
+    │   │   ├── CustomerDocument.java     # NEW: Customer documents
+    │   │   ├── CustomerCostBreakdown.java # NEW: Cost analysis
     │   │   ├── SalesOrder.java
     │   │   ├── SalesOrderItem.java
-    │   │   └── SalesContract.java
-    │   ├── repository/
+    │   │   ├── SalesContract.java
+    │   │   ├── ProjectWorkflow.java      # NEW: 8-step workflow tracker
+    │   │   ├── WorkflowStepCompletion.java # NEW: Step-level tracking
+    │   │   ├── SiteSurveyData.java       # NEW: Site survey Excel + images
+    │   │   ├── SizingPricingData.java    # NEW: Presales pricing data
+    │   │   ├── BankGuaranteeData.java    # NEW: Finance bank guarantee
+    │   │   ├── MissingItemRequest.java   # NEW: Missing items tracking
+    │   │   ├── ProjectCostData.java      # NEW: Project cost tracking
+    │   │   └── ProjectCostBreakdown.java # NEW: Cost breakdown
+    │   ├── model/                        # ViewModels for JavaFX
+    │   │   ├── CustomerViewModel.java
+    │   │   ├── CustomerElementViewModel.java
+    │   │   ├── CustomerTaskViewModel.java
+    │   │   ├── CustomerNoteViewModel.java
+    │   │   ├── CustomerScheduleViewModel.java
+    │   │   ├── SalesOrderViewModel.java
+    │   │   └── SalesOrderItemViewModel.java
+    │   ├── repository/                   # All repositories
     │   ├── service/
-    │   └── SalesStorageController.java   # Sales UI (storage view)
+    │   │   ├── CustomerService.java
+    │   │   ├── CustomerElementService.java
+    │   │   ├── CustomerTaskService.java
+    │   │   ├── CustomerNoteService.java
+    │   │   ├── CustomerScheduleService.java
+    │   │   ├── CustomerDocumentService.java
+    │   │   ├── CustomerCostBreakdownService.java
+    │   │   ├── SalesOrderService.java
+    │   │   ├── ProjectWorkflowService.java # NEW: Workflow orchestration
+    │   │   ├── WorkflowStepService.java    # NEW: Step management
+    │   │   ├── WorkflowNotificationService.java
+    │   │   ├── SiteSurveyExcelService.java # NEW: Excel parsing
+    │   │   ├── ComprehensiveExcelExportService.java
+    │   │   └── SalesExcelExportService.java
+    │   ├── SalesController.java          # Main sales UI with workflow
+    │   ├── SalesStorageController.java   # Sales storage view
+    │   └── CustomerManagementController.java # NEW: Customer management UI
+    │
+    ├── presales/                         # NEW: Presales module
+    │   └── PresalesController.java       # Quotations & sizing/pricing
+    │
+    ├── finance/                          # NEW: Finance module
+    │   └── FinanceController.java        # Invoicing & bank guarantees
     │
     ├── projects/                         # Project management module
     │   ├── entity/
@@ -175,16 +259,33 @@ com.magictech/
     │   │   ├── ProjectElement.java       # Links StorageItem to Project
     │   │   ├── ProjectTask.java
     │   │   ├── ProjectNote.java
-    │   │   └── ProjectSchedule.java
+    │   │   ├── ProjectSchedule.java
+    │   │   ├── ProjectDocument.java      # NEW: Document storage (PDFs, etc.)
+    │   │   └── SiteSurveyRequest.java    # NEW: Site survey requests
+    │   ├── model/                        # ViewModels
+    │   │   ├── ProjectViewModel.java
+    │   │   ├── ProjectElementViewModel.java
+    │   │   ├── ProjectTaskViewModel.java
+    │   │   └── ProjectScheduleViewModel.java
     │   ├── repository/
     │   ├── service/
-    │   └── ProjectsStorageController.java
+    │   │   ├── ProjectService.java
+    │   │   ├── ProjectElementService.java
+    │   │   ├── ProjectTaskService.java
+    │   │   ├── ProjectNoteService.java
+    │   │   ├── ProjectScheduleService.java
+    │   │   ├── ProjectDocumentService.java
+    │   │   └── SiteSurveyRequestService.java
+    │   ├── ProjectsController.java       # Main projects UI
+    │   ├── ProjectDetailViewController.java # Detailed project view
+    │   └── ProjectsStorageController.java # Storage view
     │
     ├── maintenance/                      # Maintenance module
+    │   ├── MaintenanceController.java
     │   └── MaintenanceStorageController.java
     │
-    └── pricing/                          # Pricing module
-        └── PricingStorageController.java
+    └── qualityassurance/                 # NEW: QA module (formerly "pricing")
+        └── QualityAssuranceController.java # QA management + analytics
 ```
 
 ### Resources Structure
@@ -420,7 +521,7 @@ User
 └── Standard metadata fields
 ```
 
-**UserRole enum**: `MASTER`, `SALES`, `MAINTENANCE`, `PROJECTS`, `PRICING`, `STORAGE`, `CLIENT`
+**UserRole enum**: `MASTER`, `SALES`, `PRESALES`, `FINANCE`, `MAINTENANCE`, `PROJECTS`, `QUALITY_ASSURANCE`, `STORAGE`, `CLIENT`
 
 #### **Storage Module** (Shared Entity)
 ```
@@ -718,6 +819,659 @@ STORAGE(
 
 ---
 
+## Notification & Messaging System
+
+### Overview
+
+The application features a **comprehensive real-time notification system** built on **Redis Pub/Sub** for inter-module communication. This enables seamless collaboration between different modules (Sales, Projects, Presales, Finance, QA, etc.) with instant notifications.
+
+### Architecture
+
+```
+┌─────────────────┐         Redis          ┌─────────────────┐
+│  Sales Module   │ ───► Pub/Sub Channels ◄─── │ Projects Module │
+└─────────────────┘                        └─────────────────┘
+        │                                           │
+        ▼                                           ▼
+┌──────────────────────────────────────────────────────────┐
+│            NotificationService (Core)                    │
+│  - Publishes notifications to Redis                     │
+│  - Stores notification history in PostgreSQL            │
+│  - Tracks read status per user                          │
+└──────────────────────────────────────────────────────────┘
+        │
+        ▼
+┌──────────────────────────────────────────────────────────┐
+│      NotificationListenerService (Subscribers)           │
+│  - Listens on module-specific channels                  │
+│  - Displays notifications via UI popups                 │
+│  - Plays notification sounds                            │
+└──────────────────────────────────────────────────────────┘
+```
+
+### Key Components
+
+#### 1. **Notification Entity**
+
+```java
+@Entity
+@Table(name = "notifications")
+public class Notification {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    // Notification metadata
+    private String title;
+    private String message;
+    private String type;  // INFO, WARNING, SUCCESS, ERROR
+    private String priority;  // LOW, MEDIUM, HIGH, URGENT
+
+    // Module routing
+    private String module;  // Target module (SALES, PROJECTS, etc.)
+    private String action;  // Action type (CREATE, UPDATE, APPROVE, etc.)
+    private String entityType;  // Entity type (PROJECT, ORDER, etc.)
+    private Long entityId;  // Entity ID reference
+
+    // Status tracking
+    private Boolean isRead = false;
+    private Boolean resolved = false;  // For approvals
+
+    // Metadata
+    private String metadata;  // JSON for additional data
+    private LocalDateTime timestamp;
+
+    // User tracking
+    private String senderUsername;
+    private String targetDeviceId;  // Optional device targeting
+}
+```
+
+#### 2. **NotificationUserStatus Entity**
+
+Tracks which users have seen which notifications (prevents showing same notification multiple times):
+
+```java
+@Entity
+@Table(name = "notification_user_status")
+public class NotificationUserStatus {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private Long notificationId;
+    private String username;
+    private LocalDateTime seenAt;
+    private Boolean dismissed = false;
+}
+```
+
+#### 3. **NotificationService** (Core Service)
+
+Main service for publishing and managing notifications:
+
+```java
+@Service
+public class NotificationService {
+
+    @Autowired
+    private RedisTemplate<String, Object> redisTemplate;
+
+    @Autowired
+    private NotificationRepository notificationRepository;
+
+    // Publish notification to Redis and save to database
+    public void publishNotification(NotificationMessage message) {
+        // Save to database
+        Notification notification = saveNotification(message);
+
+        // Publish to Redis channels
+        String moduleChannel = message.getModule() + "_notifications";
+        redisTemplate.convertAndSend(moduleChannel, message);
+
+        // Also publish to specific action channel if needed
+        if (message.getAction() != null) {
+            String actionChannel = String.format("%s:%s:%s",
+                message.getModule(), message.getAction(), message.getEntityType());
+            redisTemplate.convertAndSend(actionChannel, message);
+        }
+    }
+
+    // Built-in notification templates
+    public void notifyProjectCreated(Long projectId, String projectName, String creator);
+    public void notifyElementApprovalRequest(Long projectId, Long elementId);
+    public void notifyConfirmationRequested(Long projectId);
+    public void notifyProjectCompleted(Long projectId, String projectName);
+}
+```
+
+#### 4. **Redis Channels**
+
+The system uses multiple channel patterns:
+
+| Channel Pattern | Purpose | Example |
+|----------------|---------|---------|
+| `{module}_notifications` | Module-specific notifications | `projects_notifications`, `sales_notifications` |
+| `{module}:{action}:{entityType}` | Action-specific channels | `projects:APPROVE:PROJECT_ELEMENT` |
+| `all_notifications` | Broadcast to all modules | Used for system-wide announcements |
+
+#### 5. **NotificationListener Service**
+
+Subscribes to Redis channels and displays UI notifications:
+
+```java
+@Service
+public class NotificationListenerService {
+
+    @Autowired
+    private NotificationManager notificationManager;
+
+    @MessageListener
+    public void handleNotification(NotificationMessage message) {
+        // Check if user should see this notification
+        if (shouldDisplayForCurrentUser(message)) {
+            // Display visual popup
+            Platform.runLater(() -> {
+                notificationManager.showNotification(
+                    message.getTitle(),
+                    message.getMessage(),
+                    message.getType()
+                );
+
+                // Play sound if enabled
+                NotificationSoundGenerator.playNotificationSound();
+            });
+
+            // Mark as seen for this user
+            notificationService.markAsSeenByUser(message.getId(), currentUser);
+        }
+    }
+}
+```
+
+#### 6. **Notification UI Components**
+
+- **NotificationPopup**: Visual popup using ControlsFX `Notifications`
+- **ToastNotification**: Lightweight toast-style notifications
+- **NotificationManager**: Manages popup display, stacking, and auto-dismiss
+- **NotificationSoundGenerator**: Generates simple notification beeps
+
+### Common Notification Workflows
+
+#### Workflow 1: Project Created (Sales → Projects)
+
+```java
+// In SalesController
+projectWorkflowService.createWorkflow(project);
+
+// NotificationService automatically publishes:
+notificationService.notifyProjectCreated(
+    project.getId(),
+    project.getProjectName(),
+    currentUser.getUsername()
+);
+
+// ProjectsController receives notification via Redis listener
+// and displays popup: "New project 'ABC Corp' created by John"
+```
+
+#### Workflow 2: Approval Request (Projects → Sales)
+
+```java
+// In ProjectsController
+projectElementService.requestApproval(element);
+
+// Publishes approval notification
+notificationService.notifyElementApprovalRequest(
+    projectId,
+    elementId
+);
+
+// SalesController receives and displays approval popup
+// with Accept/Reject buttons
+```
+
+### Notification Types & Priorities
+
+**Types** (affects visual styling):
+- `INFO` - Blue, informational
+- `WARNING` - Orange, warning
+- `SUCCESS` - Green, success
+- `ERROR` - Red, error/critical
+
+**Priorities** (affects persistence and sound):
+- `LOW` - Auto-dismiss after 5 seconds
+- `MEDIUM` - Auto-dismiss after 8 seconds
+- `HIGH` - Persists until dismissed
+- `URGENT` - Persists + blocking modal dialog
+
+### Missed Notifications
+
+The system loads missed notifications on login:
+
+```java
+// On user login, load notifications missed since last session
+List<Notification> missedNotifications =
+    notificationService.getNotificationsSinceLastSeen(
+        username,
+        lastLoginTime
+    );
+
+// Display all missed notifications as stacked popups
+for (Notification notification : missedNotifications) {
+    notificationManager.showNotification(notification);
+}
+```
+
+### Configuration
+
+**Redis Configuration** (`RedisConfig.java`):
+```java
+@Configuration
+public class RedisConfig {
+
+    @Bean
+    public LettuceConnectionFactory redisConnectionFactory() {
+        return new LettuceConnectionFactory(
+            new RedisStandaloneConfiguration("localhost", 6379)
+        );
+    }
+
+    @Bean
+    public RedisMessageListenerContainer redisContainer() {
+        RedisMessageListenerContainer container = new RedisMessageListenerContainer();
+        container.setConnectionFactory(redisConnectionFactory());
+        container.setRecoveryInterval(5000L);  // Auto-reconnect every 5s
+        return container;
+    }
+}
+```
+
+**Requirements**:
+- Redis server running on localhost:6379 (default)
+- Redis pub/sub enabled (default)
+- No authentication required (can be configured)
+
+---
+
+## Workflow System
+
+### Overview
+
+The application implements a **comprehensive 8-step sequential workflow** for project lifecycle management, spanning multiple modules (Sales, Presales, Finance, Projects, QA). This workflow orchestrates complex business processes with approval gates, notifications, and external actions.
+
+### The 8-Step Workflow
+
+```
+Step 1: Site Survey          (Sales uploads Excel with photos)
+   ↓ → Notification to Presales
+Step 2: Selection & Design   (Presales uploads sizing/pricing)
+   ↓ → Notification to Finance
+Step 3: Bank Guarantee       (Finance uploads bank guarantee)
+   ↓ → Notification to Sales
+Step 4: Missing Item Request (Sales tracks missing items)
+   ↓
+Step 5: Tender Acceptance    (Sales approves/rejects tender)
+   ↓ → Notification to Projects
+Step 6: Project Finished     (Projects completes execution)
+   ↓ → Notification to QA/Storage
+Step 7: After-Sales Support  (Post-sale service)
+   ↓
+Step 8: Completion           (Final closure)
+```
+
+### Key Workflow Entities
+
+#### 1. **ProjectWorkflow** (Main Workflow Tracker)
+
+```java
+@Entity
+@Table(name = "project_workflows")
+public class ProjectWorkflow {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    // Workflow identification
+    private Long projectId;  // References Project entity
+    private Long customerId;  // Optional: for customer-based workflows
+
+    // Status tracking
+    private Integer currentStep;  // 1-8
+    private String status;  // IN_PROGRESS, COMPLETED, REJECTED, ON_HOLD
+
+    // Step completion flags
+    private Boolean step1Completed = false;  // Site Survey
+    private Boolean step2Completed = false;  // Selection & Design
+    private Boolean step3Completed = false;  // Bank Guarantee
+    private Boolean step4Completed = false;  // Missing Items
+    private Boolean step5Completed = false;  // Tender Acceptance
+    private Boolean step6Completed = false;  // Project Finished
+    private Boolean step7Completed = false;  // After-Sales
+    private Boolean step8Completed = false;  // Completion
+
+    // Timestamps
+    private LocalDateTime createdAt;
+    private LocalDateTime completedAt;
+
+    // Helper methods
+    public boolean isStepCompleted(int stepNumber) {
+        // Returns completion status for given step
+    }
+
+    public void markStepCompleted(int stepNumber) {
+        // Marks step as completed and advances currentStep
+    }
+}
+```
+
+#### 2. **WorkflowStepCompletion** (Detailed Step Tracking)
+
+```java
+@Entity
+@Table(name = "workflow_step_completions")
+public class WorkflowStepCompletion {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private Long workflowId;
+    private Integer stepNumber;  // 1-8
+    private String stepName;  // "Site Survey", "Selection & Design", etc.
+
+    // Completion tracking
+    private Boolean completed = false;
+    private LocalDateTime completedAt;
+    private String completedBy;  // Username
+
+    // External action tracking
+    private Boolean needsExternalAction = false;
+    private String externalModule;  // PRESALES, FINANCE, PROJECT, QA
+    private Boolean externalActionCompleted = false;
+    private LocalDateTime externalActionCompletedAt;
+
+    // Step-specific data
+    private String rejectionReason;  // For Step 5 (tender rejection)
+    private LocalDate expectedCompletionDate;  // For Step 6
+    private Boolean delayAlarm = false;  // Warning for delays
+}
+```
+
+#### 3. **Step-Specific Data Entities**
+
+Each workflow step has associated data:
+
+**Step 1: Site Survey**
+```java
+@Entity
+public class SiteSurveyData {
+    private Long workflowId;
+
+    // Excel file with embedded images/photos
+    @Lob
+    @Column(name = "excel_file", columnDefinition = "BYTEA")
+    private byte[] excelFile;
+
+    private String filename;
+    private String mimeType;
+    private Long fileSize;
+
+    // Parsed data (JSON format)
+    @Column(columnDefinition = "TEXT")
+    private String parsedData;
+
+    // Survey metadata
+    private String surveyDoneBy;  // SALES or PROJECT
+    private String surveyUsername;
+    private LocalDateTime surveyDate;
+
+    // Approval
+    private Boolean approvedBySales;
+    private LocalDateTime approvalDate;
+}
+```
+
+**Step 2: Selection & Design (Sizing/Pricing)**
+```java
+@Entity
+public class SizingPricingData {
+    private Long workflowId;
+
+    // Sizing & pricing Excel sheet
+    @Lob
+    private byte[] sizingPricingFile;
+
+    private String filename;
+
+    // Uploaded by Presales
+    private String uploadedBy;
+    private LocalDateTime uploadedAt;
+
+    // Status
+    private Boolean sentToSales;
+    private LocalDateTime sentToSalesAt;
+}
+```
+
+**Step 3: Bank Guarantee**
+```java
+@Entity
+public class BankGuaranteeData {
+    private Long workflowId;
+
+    // Bank guarantee document
+    @Lob
+    private byte[] guaranteeFile;
+
+    private String filename;
+
+    // Uploaded by Finance
+    private String uploadedBy;
+    private LocalDateTime uploadedAt;
+
+    // Guarantee details
+    private BigDecimal guaranteeAmount;
+    private LocalDate guaranteeExpiryDate;
+    private String bankName;
+}
+```
+
+**Step 4: Missing Item Request**
+```java
+@Entity
+public class MissingItemRequest {
+    private Long workflowId;
+    private Long projectId;
+
+    // Missing item details
+    private String itemDescription;
+    private Integer quantityNeeded;
+    private String reason;
+
+    // Status
+    private String status;  // PENDING, APPROVED, REJECTED, ORDERED
+
+    // Requestor
+    private String requestedBy;
+    private LocalDateTime requestedAt;
+}
+```
+
+**Step 6: Project Cost Data**
+```java
+@Entity
+public class ProjectCostData {
+    private Long workflowId;
+    private Long projectId;
+
+    // Cost tracking
+    private BigDecimal totalCost;
+    private BigDecimal laborCost;
+    private BigDecimal materialCost;
+    private BigDecimal overheadCost;
+
+    // Profit analysis
+    private BigDecimal revenue;
+    private BigDecimal profit;
+    private BigDecimal profitMargin;
+
+    // Completion tracking
+    private LocalDate expectedCompletion;
+    private LocalDate actualCompletion;
+}
+```
+
+### Workflow Services
+
+#### 1. **ProjectWorkflowService** (Orchestration)
+
+```java
+@Service
+@Transactional
+public class ProjectWorkflowService {
+
+    // Create new workflow
+    public ProjectWorkflow createWorkflow(Project project) {
+        ProjectWorkflow workflow = new ProjectWorkflow();
+        workflow.setProjectId(project.getId());
+        workflow.setCurrentStep(1);
+        workflow.setStatus("IN_PROGRESS");
+
+        // Create step completion records for all 8 steps
+        for (int i = 1; i <= 8; i++) {
+            workflowStepService.createStepCompletion(workflow.getId(), i);
+        }
+
+        return workflowRepository.save(workflow);
+    }
+
+    // Submit step data
+    public void submitSiteSurvey(Long workflowId, byte[] excelFile, String filename);
+    public void submitSizingPricing(Long workflowId, byte[] file);
+    public void submitBankGuarantee(Long workflowId, byte[] file);
+
+    // Advance workflow
+    public void completeStep(Long workflowId, int stepNumber, String username) {
+        WorkflowStepCompletion step = workflowStepService.getStep(workflowId, stepNumber);
+        step.setCompleted(true);
+        step.setCompletedAt(LocalDateTime.now());
+        step.setCompletedBy(username);
+
+        // Trigger next step notification
+        notificationService.notifyStepCompleted(workflowId, stepNumber);
+    }
+}
+```
+
+#### 2. **WorkflowStepService** (Step Management)
+
+```java
+@Service
+public class WorkflowStepService {
+
+    // Get pending external actions for a module
+    public List<WorkflowStepCompletion> getPendingActionsForModule(String moduleName) {
+        return repository.findByExternalModuleAndExternalActionCompletedFalse(moduleName);
+    }
+
+    // Mark external action complete
+    public void completeExternalAction(Long stepId, String username) {
+        WorkflowStepCompletion step = repository.findById(stepId)
+            .orElseThrow(() -> new RuntimeException("Step not found"));
+
+        step.setExternalActionCompleted(true);
+        step.setExternalActionCompletedAt(LocalDateTime.now());
+
+        repository.save(step);
+
+        // Notify original module that action is complete
+        notificationService.notifyExternalActionCompleted(step);
+    }
+}
+```
+
+### Workflow UI Integration
+
+**In Sales Module**:
+```java
+// SalesController has workflow wizard UI
+private void showWorkflowDialog(Project project) {
+    // Display TabPane with 8 tabs (one per step)
+    // Each tab shows:
+    // - Step status (✓ completed, ⏳ in progress, ○ pending)
+    // - Upload button (for file-based steps)
+    // - External action status
+    // - "Complete Step" button
+}
+```
+
+**Step Indicators**:
+```
+[✓] Step 1: Site Survey (Completed 2024-11-20)
+[⏳] Step 2: Selection & Design (In Progress - Waiting for Presales)
+[○] Step 3: Bank Guarantee (Pending)
+[○] Step 4: Missing Item Request (Pending)
+...
+```
+
+### Workflow Notifications
+
+The workflow system integrates heavily with the notification system:
+
+```java
+// Example: Step 1 completion triggers notification to Presales
+workflowService.completeStep(workflowId, 1, currentUser);
+
+// This triggers:
+notificationService.publishNotification(
+    NotificationMessage.builder()
+        .title("Site Survey Completed")
+        .message("Site survey for Project X is ready for sizing")
+        .type("INFO")
+        .module("PRESALES")
+        .action("SIZING_REQUEST")
+        .entityType("WORKFLOW")
+        .entityId(workflowId)
+        .build()
+);
+
+// Presales module receives notification and displays:
+// "Site Survey Completed - Project X needs sizing/pricing"
+// [View Survey] [Upload Sizing Sheet]
+```
+
+### Approval Workflow Pattern
+
+Some workflow steps require approval (e.g., adding project elements):
+
+```java
+// Projects module requests approval to add element
+notificationService.publishNotification(
+    NotificationMessage.builder()
+        .title("Element Approval Request")
+        .message("Project ABC wants to add Item XYZ (Qty: 10)")
+        .type("WARNING")
+        .priority("HIGH")
+        .module("SALES")
+        .action("APPROVE")
+        .entityType("PROJECT_ELEMENT")
+        .entityId(elementId)
+        .metadata("{\"projectId\": 123, \"elementId\": 456}")
+        .build()
+);
+
+// Sales module displays persistent notification with buttons:
+// [✓ Approve] [✗ Reject]
+
+// On approval:
+projectElementService.approveElement(elementId);
+notificationService.publishNotification(
+    // Approval confirmation back to Projects
+);
+```
+
+---
+
 ## Development Workflows
 
 ### Prerequisites
@@ -725,6 +1479,7 @@ STORAGE(
 - **Java 21** or higher
 - **Maven 3.6+**
 - **PostgreSQL** database server
+- **Redis** server (for real-time notifications)
 - **IntelliJ IDEA** (recommended) or any Java IDE
 
 ### Build & Run
@@ -758,6 +1513,50 @@ java -jar target/magictech-management-1.0-SNAPSHOT.jar
    spring.datasource.password=your_password
    ```
 4. **Run application** - Hibernate will auto-create tables
+
+### Redis Setup
+
+1. **Install Redis**:
+   ```bash
+   # On Ubuntu/Debian
+   sudo apt-get install redis-server
+
+   # On macOS
+   brew install redis
+
+   # On Windows
+   # Download from https://redis.io/download
+   ```
+
+2. **Start Redis server**:
+   ```bash
+   # On Linux/macOS
+   redis-server
+
+   # Or as a service
+   sudo systemctl start redis
+   ```
+
+3. **Verify Redis is running**:
+   ```bash
+   redis-cli ping
+   # Should return: PONG
+   ```
+
+4. **Configuration** (optional):
+   - Default: localhost:6379
+   - No authentication by default
+   - Update `RedisConfig.java` if using different host/port
+
+5. **Monitor notifications** (for debugging):
+   ```bash
+   redis-cli
+   > PUBSUB CHANNELS
+   > SUBSCRIBE projects_notifications
+   > SUBSCRIBE sales_notifications
+   ```
+
+**Note**: The application will start without Redis, but notifications won't work. Check logs for Redis connection errors.
 
 ### Testing API Endpoints
 
@@ -1425,6 +2224,36 @@ public class Child {
 4. **Implement authentication** - Current state is INSECURE
 5. **Restrict CORS** - Don't use `origins = "*"` in production
 
+### Working with Notifications
+
+1. **Always use NotificationService** - Don't directly publish to Redis
+2. **Choose correct notification type** - INFO, WARNING, SUCCESS, ERROR affect styling
+3. **Set appropriate priority** - HIGH/URGENT for approval requests
+4. **Target specific modules** - Use `module` field to route correctly
+5. **Include metadata** - Add JSON metadata for entity IDs and context
+6. **Handle missed notifications** - System automatically loads on login
+7. **Test notification flow** - Ensure receiving module displays correctly
+8. **Use built-in templates** - `notifyProjectCreated()`, `notifyElementApprovalRequest()`, etc.
+
+### Working with Workflows
+
+1. **Always create workflows for projects** - Call `projectWorkflowService.createWorkflow()`
+2. **Complete steps sequentially** - Steps must be completed in order (1→8)
+3. **Upload files for file-based steps** - Steps 1, 2, 3 require Excel/document uploads
+4. **Trigger notifications on step completion** - Notify next module when step completes
+5. **Track external actions** - Mark when external module completes their action
+6. **Handle approval gates** - Step 5 (Tender Acceptance) requires explicit approval
+7. **Update workflow status** - Mark as COMPLETED, REJECTED, or ON_HOLD as appropriate
+8. **Link step data to workflow** - Use `workflowId` foreign key in step-specific entities
+
+### Redis Requirements
+
+1. **Ensure Redis is running** - localhost:6379 by default
+2. **Check Redis connection** - Application logs show connection status
+3. **Monitor Redis channels** - Use `redis-cli PUBSUB CHANNELS` to debug
+4. **Handle Redis downtime gracefully** - Auto-reconnect configured with 5s interval
+5. **Don't rely solely on Redis** - Notifications also persisted to PostgreSQL
+
 ---
 
 ## Conclusion
@@ -1441,18 +2270,34 @@ This codebase demonstrates a well-structured enterprise application with:
 - Shared `StorageItem` entity with column-level permissions
 - Spring Boot + JavaFX integration is seamless
 - Soft delete pattern preserves data integrity
+- Real-time inter-module communication via Redis Pub/Sub
+- Comprehensive 8-step workflow system with approval gates
+- Modular notification system with persistence and missed notification handling
+- Excel-based site survey with image embedding support
+- Role-based module access with column-level security
 
 **Areas for Improvement**:
-- Security implementation (authentication/authorization)
+- Security implementation (authentication/authorization - passwords in plain text)
 - Unit and integration tests
 - API documentation (Swagger/OpenAPI)
 - Error handling standardization
 - Logging framework (SLF4J/Logback)
+- Redis authentication and encryption for production
+- Workflow step validation and rollback mechanisms
 
 ---
 
 **Document Maintained By**: AI Assistant (Claude)
-**Last Updated**: 2025-11-18
-**Version**: 1.0
+**Last Updated**: 2025-11-26
+**Version**: 2.0
+
+**Major Changes in v2.0**:
+- Added Presales, Finance, and Quality Assurance modules
+- Documented comprehensive Notification & Messaging System (Redis Pub/Sub)
+- Documented 8-Step Workflow System for project lifecycle management
+- Expanded Sales module with customer management and workflow entities
+- Added site survey functionality with Excel parsing and image support
+- Updated entity relationships to reflect new workflow and notification architecture
+- Added approval workflow patterns and inter-module communication
 
 For questions or clarifications, refer to the source code and existing patterns.
