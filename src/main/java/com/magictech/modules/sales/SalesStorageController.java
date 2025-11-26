@@ -55,12 +55,15 @@ public class SalesStorageController extends BaseModuleController {
     @Autowired private com.magictech.modules.sales.service.WorkflowStepService stepService;
     @Autowired private com.magictech.modules.sales.repository.SiteSurveyDataRepository siteSurveyRepository;
     @Autowired private com.magictech.modules.sales.repository.SizingPricingDataRepository sizingPricingRepository;
+    @Autowired private com.magictech.core.messaging.service.NotificationListenerService notificationListenerService;
 
     private com.magictech.core.ui.components.DashboardBackgroundPane backgroundPane;
     private StackPane mainContainer;
     private VBox dashboardScreen;
     private ListView<Project> projectsListView;
     private ListView<Customer> customersListView;
+    private Project currentlyDisplayedProject; // Track which project is currently shown
+    private java.util.function.Consumer<com.magictech.core.messaging.dto.NotificationMessage> notificationListener;
     // Note: currentUser is inherited from BaseModuleController - do not redeclare!
 
     @Override
@@ -85,6 +88,9 @@ public class SalesStorageController extends BaseModuleController {
         BorderPane root = getRootPane();
         root.setCenter(stackRoot);
         root.setStyle("-fx-background-color: transparent;");
+
+        // Register notification listener for workflow updates
+        registerWorkflowNotificationListener();
     }
 
     @Override
@@ -317,6 +323,9 @@ public class SalesStorageController extends BaseModuleController {
 
     // ==================== PROJECT DETAILS ====================
     private void openProjectDetails(Project project) {
+        // Track currently displayed project for auto-refresh
+        currentlyDisplayedProject = project;
+
         VBox mainLayout = new VBox(20);
         mainLayout.setPadding(new Insets(30));
         mainLayout.setStyle("-fx-background-color: transparent;");
@@ -3984,5 +3993,81 @@ public class SalesStorageController extends BaseModuleController {
             this.quantity = quantity;
             this.unitPrice = unitPrice;
         }
+    }
+
+    // ==================== NOTIFICATION LISTENER ====================
+
+    /**
+     * Register a notification listener for workflow updates.
+     * Auto-refreshes the project details sidebar when workflow notifications arrive.
+     */
+    private void registerWorkflowNotificationListener() {
+        if (notificationListenerService == null) {
+            System.err.println("⚠️ NotificationListenerService not available, auto-refresh disabled");
+            return;
+        }
+
+        // Create the listener
+        notificationListener = notification -> {
+            // Check if this is a workflow-related notification
+            boolean isWorkflowNotification =
+                "SITE_SURVEY_COMPLETED".equals(notification.getAction()) ||
+                "SIZING_PRICING_COMPLETED".equals(notification.getAction()) ||
+                "BANK_GUARANTEE_COMPLETED".equals(notification.getAction()) ||
+                "STEP_COMPLETED".equals(notification.getAction()) ||
+                "WORKFLOW_ADVANCED".equals(notification.getAction());
+
+            if (!isWorkflowNotification) {
+                return; // Not a workflow notification, ignore
+            }
+
+            // Check if we have a project details view open
+            if (currentlyDisplayedProject == null) {
+                System.out.println("📊 Workflow notification received but no project details open, skipping refresh");
+                return;
+            }
+
+            // Check if the notification is for the currently displayed project
+            Long notificationProjectId = notification.getEntityId();
+            if (notificationProjectId != null &&
+                notificationProjectId.equals(currentlyDisplayedProject.getId())) {
+
+                System.out.println("\n┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓");
+                System.out.println("┃  🔄 AUTO-REFRESHING PROJECT DETAILS SIDEBAR          ┃");
+                System.out.println("┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫");
+                System.out.println("┃  Notification: " + notification.getTitle());
+                System.out.println("┃  Action: " + notification.getAction());
+                System.out.println("┃  Project: " + currentlyDisplayedProject.getProjectName());
+                System.out.println("┃  Project ID: " + currentlyDisplayedProject.getId());
+                System.out.println("┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n");
+
+                // Refresh on JavaFX thread
+                javafx.application.Platform.runLater(() -> {
+                    try {
+                        openProjectDetails(currentlyDisplayedProject);
+                        System.out.println("✅ Project details sidebar auto-refreshed successfully");
+                    } catch (Exception ex) {
+                        System.err.println("❌ Error auto-refreshing project details: " + ex.getMessage());
+                        ex.printStackTrace();
+                    }
+                });
+            }
+        };
+
+        // Register the listener
+        notificationListenerService.addListener(notificationListener);
+        System.out.println("✅ Workflow notification listener registered for auto-refresh");
+    }
+
+    /**
+     * Cleanup method - unregister notification listener
+     */
+    @Override
+    public void cleanup() {
+        if (notificationListenerService != null && notificationListener != null) {
+            notificationListenerService.removeListener(notificationListener);
+            System.out.println("🧹 Workflow notification listener unregistered");
+        }
+        currentlyDisplayedProject = null;
     }
 }
