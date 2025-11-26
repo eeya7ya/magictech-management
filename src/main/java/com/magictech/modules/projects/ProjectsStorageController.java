@@ -2594,7 +2594,13 @@ public class ProjectsStorageController extends BaseModuleController {
         });
 
         loadTask.setOnFailed(e -> {
-            siteSurveyStatusLabel.setText("Failed to load site survey status.");
+            Throwable exception = loadTask.getException();
+            String errorMsg = "Failed to load site survey status.";
+            if (exception != null) {
+                errorMsg += "\nError: " + exception.getMessage();
+                exception.printStackTrace();
+            }
+            siteSurveyStatusLabel.setText(errorMsg);
         });
 
         new Thread(loadTask).start();
