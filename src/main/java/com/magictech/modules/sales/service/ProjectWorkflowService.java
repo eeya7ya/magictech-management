@@ -60,6 +60,9 @@ public class ProjectWorkflowService {
     @Autowired
     private com.magictech.modules.projects.service.SiteSurveyRequestService siteSurveyRequestService;
 
+    @Autowired
+    private jakarta.persistence.EntityManager entityManager;
+
     /**
      * Create new workflow for a project
      */
@@ -156,7 +159,10 @@ public class ProjectWorkflowService {
             .orElseThrow(() -> new RuntimeException("Step not found"));
         stepService.completeStep(step, salesUser);
 
-        System.out.println("✅ Workflow step 1 marked as completed");
+        // CRITICAL FIX: Flush to database to ensure completion is persisted before advancing
+        entityManager.flush();
+
+        System.out.println("✅ Workflow step 1 marked as completed and flushed to database");
 
         // Notify Projects team that Sales has completed the site survey
         notificationService.notifySiteSurveyCompletedBySales(project, salesUser);
@@ -166,7 +172,10 @@ public class ProjectWorkflowService {
         // Move to next step
         advanceToNextStep(workflow, salesUser);
 
-        System.out.println("➡️ Workflow advanced to next step");
+        // CRITICAL FIX: Flush workflow advancement to database
+        entityManager.flush();
+
+        System.out.println("➡️ Workflow advanced to next step and flushed to database");
     }
 
     /**
@@ -244,7 +253,10 @@ public class ProjectWorkflowService {
         stepService.completeExternalAction(step, projectUser);
         stepService.completeStep(step, projectUser);
 
-        System.out.println("✅ Workflow step 1 marked as completed");
+        // CRITICAL FIX: Flush to database to ensure completion is persisted before advancing
+        entityManager.flush();
+
+        System.out.println("✅ Workflow step 1 marked as completed and flushed to database");
 
         // Notify sales user
         User salesUser = getUserById(workflow.getCreatedById());
@@ -256,7 +268,10 @@ public class ProjectWorkflowService {
         // Move to next step
         advanceToNextStep(workflow, projectUser);
 
-        System.out.println("➡️ Workflow advanced to next step");
+        // CRITICAL FIX: Flush workflow advancement to database
+        entityManager.flush();
+
+        System.out.println("➡️ Workflow advanced to next step and flushed to database");
     }
 
     /**
@@ -283,6 +298,20 @@ public class ProjectWorkflowService {
         ProjectWorkflow workflow = getWorkflowById(workflowId)
             .orElseThrow(() -> new RuntimeException("Workflow not found"));
 
+        // CRITICAL FIX: Refresh workflow from database to get latest state
+        entityManager.refresh(workflow);
+
+        System.out.println("🔍 DEBUG requestSelectionDesignFromPresales:");
+        System.out.println("   Workflow ID: " + workflow.getId());
+        System.out.println("   Current step: " + workflow.getCurrentStep());
+        System.out.println("   Step 1 completed (workflow flag): " + workflow.getStep1Completed());
+
+        // Check if step 1 is completed
+        Optional<WorkflowStepCompletion> step1Opt = stepService.getStep(workflowId, 1);
+        if (step1Opt.isPresent()) {
+            System.out.println("   Step 1 completed (step table): " + step1Opt.get().getCompleted());
+        }
+
         validateStepCanStart(workflow, 2);
 
         Project project = projectRepository.findById(workflow.getProjectId())
@@ -292,7 +321,12 @@ public class ProjectWorkflowService {
             .orElseThrow(() -> new RuntimeException("Step not found"));
         stepService.markNeedsExternalAction(step, "PRESALES");
 
+        // CRITICAL FIX: Flush to ensure presales notification is persisted
+        entityManager.flush();
+
         notificationService.notifyPresalesSelectionDesign(project, salesUser);
+
+        System.out.println("✅ Selection & Design request sent to Presales team");
     }
 
     /**
@@ -320,15 +354,29 @@ public class ProjectWorkflowService {
 
         sizingPricingRepository.save(sizingData);
 
+        System.out.println("✅ Sizing/Pricing data saved for project: " + project.getProjectName());
+
         WorkflowStepCompletion step = stepService.getStep(workflowId, 2)
             .orElseThrow(() -> new RuntimeException("Step not found"));
         stepService.completeExternalAction(step, presalesUser);
         stepService.completeStep(step, presalesUser);
 
+        // CRITICAL FIX: Flush to database to ensure completion is persisted before advancing
+        entityManager.flush();
+
+        System.out.println("✅ Workflow step 2 marked as completed and flushed to database");
+
         User salesUser = getUserById(workflow.getCreatedById());
         notificationService.notifyPresalesCompleted(project, presalesUser, salesUser);
 
+        System.out.println("🔔 Notification sent to Sales user about presales completion");
+
         advanceToNextStep(workflow, presalesUser);
+
+        // CRITICAL FIX: Flush workflow advancement to database
+        entityManager.flush();
+
+        System.out.println("➡️ Workflow advanced to next step and flushed to database");
     }
 
     /**
