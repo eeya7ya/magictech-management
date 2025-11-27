@@ -76,8 +76,16 @@ public class PresalesController extends BaseStorageModuleController {
         this.currentUser = user;
         super.initialize(user, config);
 
-        // Add workflow requests section to UI
-        Platform.runLater(this::addWorkflowRequestsSection);
+        // CRITICAL FIX: Add workflow requests section AFTER super.initialize() builds the UI
+        Platform.runLater(() -> {
+            try {
+                addWorkflowRequestsSection();
+                System.out.println("✅ Workflow requests section added to Presales UI");
+            } catch (Exception ex) {
+                System.err.println("❌ ERROR adding workflow requests section: " + ex.getMessage());
+                ex.printStackTrace();
+            }
+        });
     }
 
     @Override
@@ -97,14 +105,18 @@ public class PresalesController extends BaseStorageModuleController {
 
     /**
      * Add workflow requests section to the module UI
+     * CRITICAL FIX: Add at TOP of content, make it always visible
      */
     private void addWorkflowRequestsSection() {
+        System.out.println("🔧 Adding workflow requests section to Presales UI...");
+
         // Create workflow requests panel
         VBox workflowPanel = new VBox(15);
         workflowPanel.setPadding(new Insets(20));
         workflowPanel.setStyle("-fx-background-color: rgba(6, 182, 212, 0.1); " +
                               "-fx-background-radius: 10; -fx-border-color: #06b6d4; " +
                               "-fx-border-radius: 10; -fx-border-width: 2;");
+        workflowPanel.setMaxHeight(400); // Limit height
 
         Label titleLabel = new Label("📋 Pending Sizing & Pricing Requests");
         titleLabel.setStyle("-fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: #06b6d4;");
@@ -112,30 +124,49 @@ public class PresalesController extends BaseStorageModuleController {
         // Requests list
         pendingRequestsList = new ListView<>();
         pendingRequestsList.setPrefHeight(200);
+        pendingRequestsList.setMaxHeight(300);
         pendingRequestsList.setCellFactory(lv -> new WorkflowRequestCell());
+        pendingRequestsList.setStyle("-fx-background-color: white; -fx-background-radius: 5;");
 
         // Refresh button
         Button refreshBtn = new Button("🔄 Refresh Requests");
-        refreshBtn.setStyle("-fx-background-color: #06b6d4; -fx-text-fill: white;");
-        refreshBtn.setOnAction(e -> loadPendingRequests());
+        refreshBtn.setStyle("-fx-background-color: #06b6d4; -fx-text-fill: white; " +
+                          "-fx-padding: 10 20; -fx-font-size: 14px; -fx-font-weight: bold;");
+        refreshBtn.setOnAction(e -> {
+            System.out.println("🔄 Refreshing pending requests...");
+            loadPendingRequests();
+        });
 
         workflowPanel.getChildren().addAll(titleLabel, pendingRequestsList, refreshBtn);
 
-        // Add to main content
+        // CRITICAL FIX: Add to TOP of root pane, not nested VBox
         try {
             BorderPane rootPane = getRootPane();
-            if (rootPane.getCenter() instanceof VBox) {
-                VBox mainContent = (VBox) rootPane.getCenter();
-                if (mainContent.getChildren().size() > 0) {
-                    mainContent.getChildren().add(1, workflowPanel);
-                }
+            System.out.println("   Root pane found: " + rootPane);
+
+            // Get the current center content
+            javafx.scene.Node centerNode = rootPane.getCenter();
+            System.out.println("   Current center node type: " + (centerNode != null ? centerNode.getClass().getSimpleName() : "null"));
+
+            // Create a new VBox to hold both workflow panel AND existing content
+            VBox newCenterContent = new VBox(20);
+            newCenterContent.setPadding(new Insets(20));
+            newCenterContent.getChildren().add(workflowPanel); // Add workflow panel FIRST
+
+            if (centerNode != null) {
+                newCenterContent.getChildren().add(centerNode); // Then add existing content
             }
+
+            rootPane.setCenter(newCenterContent);
+            System.out.println("✅ Workflow panel added successfully at TOP of content");
+
         } catch (Exception e) {
-            // Fallback: just load requests
-            loadPendingRequests();
+            System.err.println("❌ ERROR adding workflow panel to UI:");
+            e.printStackTrace();
         }
 
         // Initial load
+        System.out.println("📊 Loading initial pending requests...");
         loadPendingRequests();
     }
 
@@ -143,21 +174,42 @@ public class PresalesController extends BaseStorageModuleController {
      * Load pending workflow requests for presales
      */
     private void loadPendingRequests() {
-        List<WorkflowStepCompletion> pendingSteps =
-            stepService.getPendingExternalActions("PRESALES");
+        System.out.println("\n📥 Loading pending requests for PRESALES module...");
 
-        pendingRequestsList.getItems().clear();
+        try {
+            List<WorkflowStepCompletion> pendingSteps =
+                stepService.getPendingExternalActions("PRESALES");
 
-        for (WorkflowStepCompletion step : pendingSteps) {
-            Optional<Project> projectOpt = projectRepository.findById(step.getProjectId());
-            projectOpt.ifPresent(project -> {
-                WorkflowRequest request = new WorkflowRequest(step, project);
-                pendingRequestsList.getItems().add(request);
-            });
-        }
+            System.out.println("   Found " + pendingSteps.size() + " pending step(s) from database");
 
-        if (pendingRequestsList.getItems().isEmpty()) {
-            showToastInfo("No pending presales requests");
+            pendingRequestsList.getItems().clear();
+
+            for (WorkflowStepCompletion step : pendingSteps) {
+                System.out.println("   Processing step: workflow_id=" + step.getWorkflowId() +
+                                 ", project_id=" + step.getProjectId() +
+                                 ", step_number=" + step.getStepNumber());
+
+                Optional<Project> projectOpt = projectRepository.findById(step.getProjectId());
+                if (projectOpt.isPresent()) {
+                    Project project = projectOpt.get();
+                    WorkflowRequest request = new WorkflowRequest(step, project);
+                    pendingRequestsList.getItems().add(request);
+                    System.out.println("   ✅ Added request for project: " + project.getProjectName());
+                } else {
+                    System.err.println("   ❌ Project not found for ID: " + step.getProjectId());
+                }
+            }
+
+            if (pendingRequestsList.getItems().isEmpty()) {
+                System.out.println("⚠️ No pending presales requests found");
+                showToastInfo("No pending presales requests");
+            } else {
+                System.out.println("✅ Loaded " + pendingRequestsList.getItems().size() + " pending request(s)");
+            }
+        } catch (Exception ex) {
+            System.err.println("❌ ERROR loading pending requests:");
+            ex.printStackTrace();
+            showError("Failed to load requests: " + ex.getMessage());
         }
     }
 
