@@ -157,12 +157,27 @@ public class ProjectWorkflowService {
         // Complete step
         WorkflowStepCompletion step = stepService.getStep(workflowId, 1)
             .orElseThrow(() -> new RuntimeException("Step not found"));
+
+        System.out.println("🔧 DEBUG: Before completeStep - Step 1 completed status: " + step.getCompleted());
+
         stepService.completeStep(step, salesUser);
+
+        System.out.println("🔧 DEBUG: After completeStep - Step 1 completed status: " + step.getCompleted());
 
         // CRITICAL FIX: Flush to database to ensure completion is persisted before advancing
         entityManager.flush();
 
         System.out.println("✅ Workflow step 1 marked as completed and flushed to database");
+
+        // VERIFICATION: Re-fetch from database to confirm it was saved
+        Optional<WorkflowStepCompletion> verifyStep = stepService.getStep(workflowId, 1);
+        if (verifyStep.isPresent()) {
+            System.out.println("✅ VERIFICATION: Step 1 completed status in DB: " + verifyStep.get().getCompleted());
+            System.out.println("✅ VERIFICATION: Step 1 completed by: " + verifyStep.get().getCompletedBy());
+            System.out.println("✅ VERIFICATION: Step 1 completed at: " + verifyStep.get().getCompletedAt());
+        } else {
+            System.out.println("❌ VERIFICATION FAILED: Could not re-fetch step 1 from database!");
+        }
 
         // Notify Projects team that Sales has completed the site survey
         notificationService.notifySiteSurveyCompletedBySales(project, salesUser);
@@ -250,13 +265,28 @@ public class ProjectWorkflowService {
         // Mark external action as completed
         WorkflowStepCompletion step = stepService.getStep(workflowId, 1)
             .orElseThrow(() -> new RuntimeException("Step not found"));
+
+        System.out.println("🔧 DEBUG: Before completeStep (PROJECT) - Step 1 completed status: " + step.getCompleted());
+
         stepService.completeExternalAction(step, projectUser);
         stepService.completeStep(step, projectUser);
+
+        System.out.println("🔧 DEBUG: After completeStep (PROJECT) - Step 1 completed status: " + step.getCompleted());
 
         // CRITICAL FIX: Flush to database to ensure completion is persisted before advancing
         entityManager.flush();
 
         System.out.println("✅ Workflow step 1 marked as completed and flushed to database");
+
+        // VERIFICATION: Re-fetch from database to confirm it was saved
+        Optional<WorkflowStepCompletion> verifyStep = stepService.getStep(workflowId, 1);
+        if (verifyStep.isPresent()) {
+            System.out.println("✅ VERIFICATION (PROJECT): Step 1 completed status in DB: " + verifyStep.get().getCompleted());
+            System.out.println("✅ VERIFICATION (PROJECT): Step 1 completed by: " + verifyStep.get().getCompletedBy());
+            System.out.println("✅ VERIFICATION (PROJECT): Step 1 completed at: " + verifyStep.get().getCompletedAt());
+        } else {
+            System.out.println("❌ VERIFICATION FAILED (PROJECT): Could not re-fetch step 1 from database!");
+        }
 
         // Notify sales user
         User salesUser = getUserById(workflow.getCreatedById());
@@ -295,11 +325,11 @@ public class ProjectWorkflowService {
      * STEP 2: Request selection & design from Presales
      */
     public void requestSelectionDesignFromPresales(Long workflowId, User salesUser) {
+        // CRITICAL FIX: Clear entity manager cache and re-fetch workflow
+        entityManager.clear();
+
         ProjectWorkflow workflow = getWorkflowById(workflowId)
             .orElseThrow(() -> new RuntimeException("Workflow not found"));
-
-        // CRITICAL FIX: Refresh workflow from database to get latest state
-        entityManager.refresh(workflow);
 
         System.out.println("🔍 DEBUG requestSelectionDesignFromPresales:");
         System.out.println("   Workflow ID: " + workflow.getId());
@@ -309,7 +339,24 @@ public class ProjectWorkflowService {
         // Check if step 1 is completed
         Optional<WorkflowStepCompletion> step1Opt = stepService.getStep(workflowId, 1);
         if (step1Opt.isPresent()) {
-            System.out.println("   Step 1 completed (step table): " + step1Opt.get().getCompleted());
+            WorkflowStepCompletion step1 = step1Opt.get();
+            System.out.println("   Step 1 completed (step table): " + step1.getCompleted());
+            System.out.println("   Step 1 ID: " + step1.getId());
+            System.out.println("   Step 1 completed at: " + step1.getCompletedAt());
+            System.out.println("   Step 1 completed by: " + step1.getCompletedBy());
+        } else {
+            System.out.println("   ❌ Step 1 NOT FOUND in database!");
+        }
+
+        // CRITICAL: If step 1 is not completed, don't validate - just fail with clear message
+        if (step1Opt.isEmpty() || !Boolean.TRUE.equals(step1Opt.get().getCompleted())) {
+            throw new RuntimeException(
+                "Step 1 (Site Survey) is not completed yet. Please ensure the site survey is uploaded and saved before requesting from Presales.\n\n" +
+                "Current workflow state:\n" +
+                "- Workflow current step: " + workflow.getCurrentStep() + "\n" +
+                "- Step 1 completed: " + (step1Opt.isPresent() ? step1Opt.get().getCompleted() : "NOT FOUND") + "\n\n" +
+                "This usually means the site survey upload failed or wasn't saved to the database."
+            );
         }
 
         validateStepCanStart(workflow, 2);
