@@ -75,6 +75,14 @@ public class WorkflowStepService {
     }
 
     /**
+     * Force save step completion (for explicit persistence)
+     */
+    public void forceStepSave(WorkflowStepCompletion step) {
+        stepRepository.save(step);
+        stepRepository.flush();
+    }
+
+    /**
      * Mark step as requiring external action
      */
     public void markNeedsExternalAction(WorkflowStepCompletion step, String externalModule) {
