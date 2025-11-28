@@ -215,6 +215,11 @@ public class WorkflowDialog extends Stage {
     private void loadCurrentStep() {
         stepContainer.getChildren().clear();
 
+        // CRITICAL FIX: Reset Next button handler to default BEFORE loading step content
+        // This prevents Steps 1 and 2's custom handlers from persisting into other steps
+        nextButton.setOnAction(e -> handleNext());
+        nextButton.setDisable(false); // Re-enable by default
+
         // Step title
         Label stepTitle = new Label("Step " + currentStep + ": " + stepTitles[currentStep - 1]);
         stepTitle.setFont(Font.font("System", FontWeight.BOLD, 20));
