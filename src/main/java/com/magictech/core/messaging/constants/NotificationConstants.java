@@ -32,6 +32,7 @@ public class NotificationConstants {
 
     // Entity Types
     public static final String ENTITY_PROJECT = "project";
+    public static final String ENTITY_WORKFLOW = "workflow";
     public static final String ENTITY_PRESALES_ITEM = "presales_item";
     public static final String ENTITY_SALES_ORDER = "sales_order";
     public static final String ENTITY_QA_ITEM = "qa_item";

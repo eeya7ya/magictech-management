@@ -94,4 +94,10 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
      * Used to show approval notifications to all authorized users until resolved.
      */
     List<Notification> findByActionAndResolvedFalseAndActiveTrue(String action);
+
+    /**
+     * Check if a notification already exists for a specific entity, title, and target module.
+     * Used to prevent duplicate workflow notifications.
+     */
+    boolean existsByEntityIdAndTitleAndTargetModuleAndActiveTrue(Long entityId, String title, String targetModule);
 }
