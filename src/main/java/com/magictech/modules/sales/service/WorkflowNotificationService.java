@@ -115,16 +115,26 @@ public class WorkflowNotificationService {
      * Step 2: Notify Presales module about selection and design request
      * Notification goes to PRESALES channel - received by PRESALES role users AND MASTER users
      */
-    public void notifyPresalesSelectionDesign(Project project, User salesUser) {
+    public void notifyPresalesSelectionDesign(Long workflowId, Project project, User salesUser) {
+        // Check if notification already exists for this workflow step to prevent duplicates
+        if (notificationService.notificationExistsForWorkflowStep(
+            workflowId,
+            "Selection & Design Request",
+            NotificationConstants.MODULE_PRESALES)) {
+            System.out.println("⚠️ Notification already exists for workflow " + workflowId +
+                             " step 2 - skipping duplicate");
+            return;
+        }
+
         NotificationMessage message = new NotificationMessage.Builder()
             .title("Selection & Design Request")
-            .message(String.format("Sales person %s needs selection and design for project '%s'",
-                salesUser.getUsername(), project.getProjectName()))
+            .message(String.format("Sales person %s needs selection and design for project '%s' (Workflow #%d)",
+                salesUser.getUsername(), project.getProjectName(), workflowId))
             .type(NotificationConstants.TYPE_INFO)
             .module(NotificationConstants.MODULE_SALES)
             .targetModule(NotificationConstants.MODULE_PRESALES)
-            .entityType(NotificationConstants.ENTITY_PROJECT)
-            .entityId(project.getId())
+            .entityType(NotificationConstants.ENTITY_WORKFLOW)
+            .entityId(workflowId)
             .priority(NotificationConstants.PRIORITY_HIGH)
             .createdBy(salesUser.getUsername())
             .build();

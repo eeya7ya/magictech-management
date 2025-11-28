@@ -371,7 +371,7 @@ public class ProjectWorkflowService {
         // CRITICAL FIX: Flush to ensure presales notification is persisted
         entityManager.flush();
 
-        notificationService.notifyPresalesSelectionDesign(project, salesUser);
+        notificationService.notifyPresalesSelectionDesign(workflowId, project, salesUser);
 
         System.out.println("✅ Selection & Design request sent to Presales team");
     }
@@ -395,6 +395,7 @@ public class ProjectWorkflowService {
         sizingData.setExcelFile(excelFile);
         sizingData.setFileName(fileName);
         sizingData.setFileSize((long) excelFile.length);
+        sizingData.setMimeType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
         sizingData.setParsedData(parsedData);
         sizingData.setUploadedBy(presalesUser.getUsername());
         sizingData.setUploadedById(presalesUser.getId());
@@ -481,6 +482,7 @@ public class ProjectWorkflowService {
         guaranteeData.setExcelFile(excelFile);
         guaranteeData.setFileName(fileName);
         guaranteeData.setFileSize((long) excelFile.length);
+        guaranteeData.setMimeType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
         guaranteeData.setParsedData(parsedData);
         guaranteeData.setUploadedBy(financeUser.getUsername());
         guaranteeData.setUploadedById(financeUser.getId());
@@ -660,6 +662,7 @@ public class ProjectWorkflowService {
         costData.setExcelFile(excelFile);
         costData.setFileName(fileName);
         costData.setFileSize((long) excelFile.length);
+        costData.setMimeType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
         costData.setParsedData(parsedData);
         costData.setUploadedBy(salesUser.getUsername());
         costData.setUploadedById(salesUser.getId());

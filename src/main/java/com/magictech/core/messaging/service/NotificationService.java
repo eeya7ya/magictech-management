@@ -339,4 +339,25 @@ public class NotificationService {
     public boolean hasUserSeenNotification(Long notificationId, String username) {
         return notificationUserStatusRepository.existsByNotificationIdAndUsernameAndActiveTrue(notificationId, username);
     }
+
+    /**
+     * Check if a notification already exists for a specific workflow step.
+     * This prevents duplicate notifications from being created when the same workflow
+     * step is requested multiple times.
+     *
+     * @param workflowId The workflow ID
+     * @param title The notification title to match
+     * @param targetModule The target module
+     * @return true if a notification already exists, false otherwise
+     */
+    public boolean notificationExistsForWorkflowStep(Long workflowId, String title, String targetModule) {
+        try {
+            return notificationRepository.existsByEntityIdAndTitleAndTargetModuleAndActiveTrue(
+                workflowId, title, targetModule
+            );
+        } catch (Exception e) {
+            logger.error("Error checking for existing workflow notification: {}", e.getMessage(), e);
+            return false; // If error, assume no duplicate and allow creating new notification
+        }
+    }
 }
