@@ -357,9 +357,16 @@ public class WorkflowDialog extends Stage {
                 currentStep = 2;
                 loadCurrentStep();
             } else {
-                // Survey exists but step not marked completed - force it anyway
-                System.out.println("⚠️ DEBUG: Survey exists but step not completed, forcing to Step 2");
-                currentStep = 2;
+                // Survey exists but step NOT completed - DO NOT ADVANCE
+                System.out.println("❌ ERROR: Survey file exists but step 1 is NOT completed!");
+                System.out.println("   This means the upload transaction rolled back.");
+                System.out.println("   DELETE the old file and re-upload to complete the step.");
+                showError("Site survey file exists but Step 1 is NOT completed.\n\n" +
+                         "Previous upload failed or was rolled back.\n\n" +
+                         "Please delete this workflow and create a new one,\n" +
+                         "then upload the site survey file again.");
+                // Stay on Step 1 - DO NOT advance
+                currentStep = 1;
                 loadCurrentStep();
             }
         });
@@ -600,9 +607,14 @@ public class WorkflowDialog extends Stage {
                 currentStep = 3;
                 loadCurrentStep();
             } else {
-                // Sizing exists but step not marked completed - force it anyway
-                System.out.println("⚠️ DEBUG: Sizing exists but step not completed, forcing to Step 3");
-                currentStep = 3;
+                // Sizing exists but step NOT completed - DO NOT ADVANCE
+                System.out.println("❌ ERROR: Sizing file exists but step 2 is NOT completed!");
+                System.out.println("   This means Presales upload transaction rolled back.");
+                showError("Sizing & Pricing file exists but Step 2 is NOT completed.\n\n" +
+                         "Presales upload failed or was rolled back.\n\n" +
+                         "Please ask Presales to re-upload the file.");
+                // Stay on Step 2
+                currentStep = 2;
                 loadCurrentStep();
             }
         });
