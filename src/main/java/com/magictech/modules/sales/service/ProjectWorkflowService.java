@@ -243,6 +243,7 @@ public class ProjectWorkflowService {
     /**
      * STEP 1: Project team submits site survey
      */
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
     public void submitSiteSurveyFromProject(Long workflowId, byte[] excelFile, String fileName,
                                             User projectUser) throws Exception {
         ProjectWorkflow workflow = getWorkflowById(workflowId)
@@ -290,6 +291,23 @@ public class ProjectWorkflowService {
 
         // CRITICAL FIX: Flush to database to ensure completion is persisted before advancing
         entityManager.flush();
+
+        // ADDITIONAL FIX: Force immediate persistence by clearing cache and re-saving
+        entityManager.clear();
+        WorkflowStepCompletion refreshedStep = stepService.getStep(workflowId, 1)
+            .orElseThrow(() -> new RuntimeException("Step not found after flush!"));
+        if (!Boolean.TRUE.equals(refreshedStep.getCompleted())) {
+            System.out.println("❌ CRITICAL ERROR (PROJECT): Step completion was NOT persisted! Forcing save...");
+            refreshedStep.setCompleted(true);
+            refreshedStep.setCompletedBy(projectUser.getUsername());
+            refreshedStep.setCompletedById(projectUser.getId());
+            refreshedStep.setCompletedAt(java.time.LocalDateTime.now());
+            refreshedStep.setExternalActionCompleted(true);
+            refreshedStep.setExternalCompletedBy(projectUser.getUsername());
+            refreshedStep.setExternalCompletedAt(java.time.LocalDateTime.now());
+            stepService.forceStepSave(refreshedStep);
+            entityManager.flush();
+        }
 
         System.out.println("✅ Workflow step 1 marked as completed and flushed to database");
 
