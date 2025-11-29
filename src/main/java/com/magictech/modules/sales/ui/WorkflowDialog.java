@@ -362,11 +362,19 @@ public class WorkflowDialog extends Stage {
                 currentStep = 2;
                 loadCurrentStep();
             } else {
-                // Survey exists but step NOT completed - OFFER RECOVERY
-                System.out.println("❌ ERROR: Survey file exists but step 1 is NOT completed!");
-                System.out.println("   This means the upload transaction rolled back.");
-                System.out.println("   Offering manual recovery option...");
-                showRecoveryDialog(survey);
+                // Survey exists but step NOT completed - AUTO-RECOVER
+                System.out.println("⚠️ WARNING: Survey file exists but step 1 is NOT completed!");
+                System.out.println("   This is a corrupted state from a previous transaction rollback.");
+                System.out.println("   Auto-recovering by completing the step...");
+
+                // Auto-complete the step since the file exists and is valid
+                try {
+                    handleForceCompleteStep1(survey);
+                } catch (Exception ex) {
+                    // If auto-recovery fails, show manual recovery dialog
+                    System.out.println("❌ Auto-recovery failed: " + ex.getMessage());
+                    showRecoveryDialog(survey);
+                }
             }
         });
     }
@@ -606,11 +614,19 @@ public class WorkflowDialog extends Stage {
                 currentStep = 3;
                 loadCurrentStep();
             } else {
-                // Sizing exists but step NOT completed - OFFER RECOVERY
-                System.out.println("❌ ERROR: Sizing file exists but step 2 is NOT completed!");
-                System.out.println("   This means Presales upload transaction rolled back.");
-                System.out.println("   Offering manual recovery option...");
-                showRecoveryDialogStep2(sizing);
+                // Sizing exists but step NOT completed - AUTO-RECOVER
+                System.out.println("⚠️ WARNING: Sizing file exists but step 2 is NOT completed!");
+                System.out.println("   This is a corrupted state from a previous transaction rollback.");
+                System.out.println("   Auto-recovering by completing the step...");
+
+                // Auto-complete the step since the file exists and is valid
+                try {
+                    handleForceCompleteStep2();
+                } catch (Exception ex) {
+                    // If auto-recovery fails, show manual recovery dialog
+                    System.out.println("❌ Auto-recovery failed: " + ex.getMessage());
+                    showRecoveryDialogStep2(sizing);
+                }
             }
         });
     }

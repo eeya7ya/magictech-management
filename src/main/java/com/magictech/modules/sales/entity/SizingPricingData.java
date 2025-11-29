@@ -23,7 +23,8 @@ public class SizingPricingData {
 
     // Excel file storage
     @Lob
-    @Column(name = "excel_file", columnDefinition = "BYTEA")
+    @Basic(fetch = FetchType.LAZY)
+    @Column(name = "excel_file", columnDefinition = "BYTEA", nullable = true)
     private byte[] excelFile;
 
     @Column(name = "file_name", length = 255)

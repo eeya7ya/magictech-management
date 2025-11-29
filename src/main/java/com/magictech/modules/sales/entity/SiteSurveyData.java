@@ -22,7 +22,9 @@ public class SiteSurveyData {
     private Long workflowId;
 
     // Excel file storage
-    @Column(name = "excel_file", columnDefinition = "BYTEA")
+    @Lob
+    @Basic(fetch = FetchType.LAZY)
+    @Column(name = "excel_file", columnDefinition = "BYTEA", nullable = true)
     private byte[] excelFile;
 
     @Column(name = "file_name", length = 255)
