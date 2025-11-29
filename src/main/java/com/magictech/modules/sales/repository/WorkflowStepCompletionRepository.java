@@ -3,11 +3,9 @@ package com.magictech.modules.sales.repository;
 import com.magictech.modules.sales.entity.WorkflowStepCompletion;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.jpa.repository.QueryHints;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import jakarta.persistence.QueryHint;
 import java.util.List;
 import java.util.Optional;
 
@@ -15,10 +13,9 @@ import java.util.Optional;
 public interface WorkflowStepCompletionRepository extends JpaRepository<WorkflowStepCompletion, Long> {
 
     /**
-     * Optimized query to fetch all steps for a workflow, ordered by step number
-     * Uses query hint for cacheability to reduce database load
+     * Optimized query to fetch all steps for a workflow in a single batch query, ordered by step number
+     * This eliminates N+1 query problem when loading all workflow steps
      */
-    @QueryHints(@QueryHint(name = "org.hibernate.cacheable", value = "true"))
     @Query("SELECT s FROM WorkflowStepCompletion s WHERE s.workflowId = :workflowId AND s.active = true ORDER BY s.stepNumber ASC")
     List<WorkflowStepCompletion> findByWorkflowIdOptimized(@Param("workflowId") Long workflowId);
 
