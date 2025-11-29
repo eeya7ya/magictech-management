@@ -155,6 +155,9 @@ public class ProjectWorkflowService {
 
         System.out.println("✅ Site survey data saved for project: " + project.getProjectName());
 
+        // CRITICAL FIX: Flush site survey to database FIRST
+        entityManager.flush();
+
         // Complete step
         WorkflowStepCompletion step = stepService.getStep(workflowId, 1)
             .orElseThrow(() -> new RuntimeException("Step not found"));
@@ -165,47 +168,23 @@ public class ProjectWorkflowService {
 
         System.out.println("🔧 DEBUG: After completeStep - Step 1 completed status: " + step.getCompleted());
 
-        // CRITICAL FIX: Flush to database to ensure completion is persisted before advancing
+        // CRITICAL FIX: Flush step completion immediately
         entityManager.flush();
-
-        // ADDITIONAL FIX: Force immediate persistence by clearing cache and re-saving
-        entityManager.clear();
-        WorkflowStepCompletion refreshedStep = stepService.getStep(workflowId, 1)
-            .orElseThrow(() -> new RuntimeException("Step not found after flush!"));
-        if (!Boolean.TRUE.equals(refreshedStep.getCompleted())) {
-            System.out.println("❌ CRITICAL ERROR: Step completion was NOT persisted! Forcing save...");
-            refreshedStep.setCompleted(true);
-            refreshedStep.setCompletedBy(salesUser.getUsername());
-            refreshedStep.setCompletedById(salesUser.getId());
-            refreshedStep.setCompletedAt(java.time.LocalDateTime.now());
-            stepService.forceStepSave(refreshedStep);
-            entityManager.flush();
-        }
 
         System.out.println("✅ Workflow step 1 marked as completed and flushed to database");
 
-        // VERIFICATION: Re-fetch from database to confirm it was saved
-        Optional<WorkflowStepCompletion> verifyStep = stepService.getStep(workflowId, 1);
-        if (verifyStep.isPresent()) {
-            System.out.println("✅ VERIFICATION: Step 1 completed status in DB: " + verifyStep.get().getCompleted());
-            System.out.println("✅ VERIFICATION: Step 1 completed by: " + verifyStep.get().getCompletedBy());
-            System.out.println("✅ VERIFICATION: Step 1 completed at: " + verifyStep.get().getCompletedAt());
-        } else {
-            System.out.println("❌ VERIFICATION FAILED: Could not re-fetch step 1 from database!");
-        }
+        // Move to next step
+        advanceToNextStep(workflow, salesUser);
+
+        // CRITICAL FIX: Flush workflow advancement
+        entityManager.flush();
+
+        System.out.println("➡️ Workflow advanced to step " + workflow.getCurrentStep());
 
         // Notify Projects team that Sales has completed the site survey
         notificationService.notifySiteSurveyCompletedBySales(project, salesUser);
 
         System.out.println("🔔 Notification sent to Projects team about site survey completion");
-
-        // Move to next step
-        advanceToNextStep(workflow, salesUser);
-
-        // CRITICAL FIX: Flush workflow advancement to database
-        entityManager.flush();
-
-        System.out.println("➡️ Workflow advanced to next step and flushed to database");
     }
 
     /**
@@ -278,6 +257,9 @@ public class ProjectWorkflowService {
 
         System.out.println("✅ Site survey data saved for project: " + project.getProjectName());
 
+        // CRITICAL FIX: Flush site survey to database FIRST
+        entityManager.flush();
+
         // Mark external action as completed
         WorkflowStepCompletion step = stepService.getStep(workflowId, 1)
             .orElseThrow(() -> new RuntimeException("Step not found"));
@@ -289,37 +271,18 @@ public class ProjectWorkflowService {
 
         System.out.println("🔧 DEBUG: After completeStep (PROJECT) - Step 1 completed status: " + step.getCompleted());
 
-        // CRITICAL FIX: Flush to database to ensure completion is persisted before advancing
+        // CRITICAL FIX: Flush step completion immediately
         entityManager.flush();
-
-        // ADDITIONAL FIX: Force immediate persistence by clearing cache and re-saving
-        entityManager.clear();
-        WorkflowStepCompletion refreshedStep = stepService.getStep(workflowId, 1)
-            .orElseThrow(() -> new RuntimeException("Step not found after flush!"));
-        if (!Boolean.TRUE.equals(refreshedStep.getCompleted())) {
-            System.out.println("❌ CRITICAL ERROR (PROJECT): Step completion was NOT persisted! Forcing save...");
-            refreshedStep.setCompleted(true);
-            refreshedStep.setCompletedBy(projectUser.getUsername());
-            refreshedStep.setCompletedById(projectUser.getId());
-            refreshedStep.setCompletedAt(java.time.LocalDateTime.now());
-            refreshedStep.setExternalActionCompleted(true);
-            refreshedStep.setExternalCompletedBy(projectUser.getUsername());
-            refreshedStep.setExternalCompletedAt(java.time.LocalDateTime.now());
-            stepService.forceStepSave(refreshedStep);
-            entityManager.flush();
-        }
 
         System.out.println("✅ Workflow step 1 marked as completed and flushed to database");
 
-        // VERIFICATION: Re-fetch from database to confirm it was saved
-        Optional<WorkflowStepCompletion> verifyStep = stepService.getStep(workflowId, 1);
-        if (verifyStep.isPresent()) {
-            System.out.println("✅ VERIFICATION (PROJECT): Step 1 completed status in DB: " + verifyStep.get().getCompleted());
-            System.out.println("✅ VERIFICATION (PROJECT): Step 1 completed by: " + verifyStep.get().getCompletedBy());
-            System.out.println("✅ VERIFICATION (PROJECT): Step 1 completed at: " + verifyStep.get().getCompletedAt());
-        } else {
-            System.out.println("❌ VERIFICATION FAILED (PROJECT): Could not re-fetch step 1 from database!");
-        }
+        // Move to next step
+        advanceToNextStep(workflow, projectUser);
+
+        // CRITICAL FIX: Flush workflow advancement
+        entityManager.flush();
+
+        System.out.println("➡️ Workflow advanced to step " + workflow.getCurrentStep());
 
         // Notify sales user
         User salesUser = getUserById(workflow.getCreatedById());
@@ -327,14 +290,6 @@ public class ProjectWorkflowService {
 
         System.out.println("🔔 Notification sent to Sales user: " + salesUser.getUsername() +
                          " about site survey completion for project: " + project.getProjectName());
-
-        // Move to next step
-        advanceToNextStep(workflow, projectUser);
-
-        // CRITICAL FIX: Flush workflow advancement to database
-        entityManager.flush();
-
-        System.out.println("➡️ Workflow advanced to next step and flushed to database");
     }
 
     /**
@@ -358,9 +313,6 @@ public class ProjectWorkflowService {
      * STEP 2: Request selection & design from Presales
      */
     public void requestSelectionDesignFromPresales(Long workflowId, User salesUser) {
-        // CRITICAL FIX: Clear entity manager cache and re-fetch workflow
-        entityManager.clear();
-
         ProjectWorkflow workflow = getWorkflowById(workflowId)
             .orElseThrow(() -> new RuntimeException("Workflow not found"));
 
@@ -437,27 +389,30 @@ public class ProjectWorkflowService {
 
         System.out.println("✅ Sizing/Pricing data saved for project: " + project.getProjectName());
 
+        // CRITICAL FIX: Flush sizing data to database FIRST
+        entityManager.flush();
+
         WorkflowStepCompletion step = stepService.getStep(workflowId, 2)
             .orElseThrow(() -> new RuntimeException("Step not found"));
         stepService.completeExternalAction(step, presalesUser);
         stepService.completeStep(step, presalesUser);
 
-        // CRITICAL FIX: Flush to database to ensure completion is persisted before advancing
+        // CRITICAL FIX: Flush step completion immediately
         entityManager.flush();
 
         System.out.println("✅ Workflow step 2 marked as completed and flushed to database");
+
+        advanceToNextStep(workflow, presalesUser);
+
+        // CRITICAL FIX: Flush workflow advancement
+        entityManager.flush();
+
+        System.out.println("➡️ Workflow advanced to step " + workflow.getCurrentStep());
 
         User salesUser = getUserById(workflow.getCreatedById());
         notificationService.notifyPresalesCompleted(project, presalesUser, salesUser);
 
         System.out.println("🔔 Notification sent to Sales user about presales completion");
-
-        advanceToNextStep(workflow, presalesUser);
-
-        // CRITICAL FIX: Flush workflow advancement to database
-        entityManager.flush();
-
-        System.out.println("➡️ Workflow advanced to next step and flushed to database");
     }
 
     /**
