@@ -362,17 +362,11 @@ public class WorkflowDialog extends Stage {
                 currentStep = 2;
                 loadCurrentStep();
             } else {
-                // Survey exists but step NOT completed - DO NOT ADVANCE
+                // Survey exists but step NOT completed - OFFER RECOVERY
                 System.out.println("❌ ERROR: Survey file exists but step 1 is NOT completed!");
                 System.out.println("   This means the upload transaction rolled back.");
-                System.out.println("   DELETE the old file and re-upload to complete the step.");
-                showError("Site survey file exists but Step 1 is NOT completed.\n\n" +
-                         "Previous upload failed or was rolled back.\n\n" +
-                         "Please delete this workflow and create a new one,\n" +
-                         "then upload the site survey file again.");
-                // Stay on Step 1 - DO NOT advance
-                currentStep = 1;
-                loadCurrentStep();
+                System.out.println("   Offering manual recovery option...");
+                showRecoveryDialog(survey);
             }
         });
     }
@@ -612,15 +606,11 @@ public class WorkflowDialog extends Stage {
                 currentStep = 3;
                 loadCurrentStep();
             } else {
-                // Sizing exists but step NOT completed - DO NOT ADVANCE
+                // Sizing exists but step NOT completed - OFFER RECOVERY
                 System.out.println("❌ ERROR: Sizing file exists but step 2 is NOT completed!");
                 System.out.println("   This means Presales upload transaction rolled back.");
-                showError("Sizing & Pricing file exists but Step 2 is NOT completed.\n\n" +
-                         "Presales upload failed or was rolled back.\n\n" +
-                         "Please ask Presales to re-upload the file.");
-                // Stay on Step 2
-                currentStep = 2;
-                loadCurrentStep();
+                System.out.println("   Offering manual recovery option...");
+                showRecoveryDialogStep2(sizing);
             }
         });
     }
@@ -1085,5 +1075,217 @@ public class WorkflowDialog extends Stage {
         if (bytes < 1024) return bytes + " B";
         if (bytes < 1024 * 1024) return String.format("%.2f KB", bytes / 1024.0);
         return String.format("%.2f MB", bytes / (1024.0 * 1024.0));
+    }
+
+    /**
+     * NEW: Recovery dialog for inconsistent workflow state
+     * Shown when site survey exists but step is not completed
+     */
+    private void showRecoveryDialog(SiteSurveyData survey) {
+        Alert recoveryAlert = new Alert(Alert.AlertType.WARNING);
+        recoveryAlert.setTitle("Workflow State Recovery");
+        recoveryAlert.setHeaderText("⚠️ Inconsistent Workflow State Detected");
+
+        String message = "The site survey file exists in the database, but Step 1 is not marked as completed.\n\n" +
+                        "This happened because a previous upload transaction was rolled back.\n\n" +
+                        "File: " + survey.getFileName() + "\n" +
+                        "Uploaded by: " + survey.getUploadedBy() + "\n\n" +
+                        "RECOVERY OPTIONS:\n" +
+                        "1. Force Complete Step - Mark Step 1 as completed and advance to Step 2\n" +
+                        "2. Delete & Re-upload - Delete the existing file and upload again\n\n" +
+                        "What would you like to do?";
+
+        recoveryAlert.setContentText(message);
+
+        ButtonType forceCompleteButton = new ButtonType("Force Complete Step", ButtonBar.ButtonData.OK_DONE);
+        ButtonType deleteReuploadButton = new ButtonType("Delete & Re-upload", ButtonBar.ButtonData.NO);
+        ButtonType cancelButton = new ButtonType("Cancel", ButtonBar.ButtonData.CANCEL_CLOSE);
+
+        recoveryAlert.getButtonTypes().setAll(forceCompleteButton, deleteReuploadButton, cancelButton);
+
+        recoveryAlert.showAndWait().ifPresent(response -> {
+            if (response == forceCompleteButton) {
+                handleForceCompleteStep1(survey);
+            } else if (response == deleteReuploadButton) {
+                handleDeleteAndReupload(survey);
+            }
+        });
+    }
+
+    /**
+     * Force complete Step 1 by manually marking it as completed
+     */
+    private void handleForceCompleteStep1(SiteSurveyData survey) {
+        try {
+            System.out.println("🔧 RECOVERY: Force completing Step 1 for workflow " + workflow.getId());
+
+            // Get step 1
+            Optional<WorkflowStepCompletion> step1Opt = stepService.getStep(workflow.getId(), 1);
+            if (step1Opt.isEmpty()) {
+                showError("Cannot find Step 1 in database!");
+                return;
+            }
+
+            WorkflowStepCompletion step1 = step1Opt.get();
+
+            // Manually complete the step
+            stepService.completeStep(step1, currentUser);
+
+            // Manually advance workflow to step 2
+            if (workflow.getCurrentStep() == 1) {
+                workflow.setCurrentStep(2);
+                workflow.markStepCompleted(1);
+                workflowService.getWorkflowById(workflow.getId()).ifPresent(w -> {
+                    w.setCurrentStep(2);
+                    w.markStepCompleted(1);
+                });
+            }
+
+            showSuccess("✅ Step 1 manually completed!\n\nWorkflow advanced to Step 2.");
+
+            // Refresh and reload
+            refreshWorkflow();
+            currentStep = 2;
+            loadCurrentStep();
+
+        } catch (Exception ex) {
+            showError("Failed to force complete step: " + ex.getMessage());
+            ex.printStackTrace();
+        }
+    }
+
+    /**
+     * Delete existing survey and allow re-upload
+     */
+    private void handleDeleteAndReupload(SiteSurveyData survey) {
+        Alert confirmAlert = new Alert(Alert.AlertType.CONFIRMATION);
+        confirmAlert.setTitle("Confirm Delete");
+        confirmAlert.setHeaderText("Delete Site Survey File?");
+        confirmAlert.setContentText("Are you sure you want to delete the existing site survey file?\n\n" +
+                                   "File: " + survey.getFileName() + "\n\n" +
+                                   "You will need to upload it again.");
+
+        confirmAlert.showAndWait().ifPresent(response -> {
+            if (response == ButtonType.OK) {
+                try {
+                    System.out.println("🗑️ RECOVERY: Deleting site survey for workflow " + workflow.getId());
+
+                    // Soft delete the survey
+                    survey.setActive(false);
+                    siteSurveyRepository.save(survey);
+
+                    showSuccess("Site survey deleted successfully.\n\nPlease upload a new file.");
+
+                    // Reload step to show upload options again
+                    refreshWorkflow();
+                    loadCurrentStep();
+
+                } catch (Exception ex) {
+                    showError("Failed to delete survey: " + ex.getMessage());
+                    ex.printStackTrace();
+                }
+            }
+        });
+    }
+
+    /**
+     * Recovery dialog for Step 2 inconsistent state
+     */
+    private void showRecoveryDialogStep2(com.magictech.modules.sales.entity.SizingPricingData sizing) {
+        Alert recoveryAlert = new Alert(Alert.AlertType.WARNING);
+        recoveryAlert.setTitle("Workflow State Recovery - Step 2");
+        recoveryAlert.setHeaderText("⚠️ Inconsistent Workflow State Detected");
+
+        String message = "The sizing/pricing file exists in the database, but Step 2 is not marked as completed.\n\n" +
+                        "This happened because a previous upload transaction was rolled back.\n\n" +
+                        "File: " + sizing.getFileName() + "\n" +
+                        "Uploaded by: " + sizing.getUploadedBy() + "\n\n" +
+                        "RECOVERY OPTIONS:\n" +
+                        "1. Force Complete Step - Mark Step 2 as completed and advance to Step 3\n" +
+                        "2. Delete & Re-upload - Delete the existing file and re-upload\n\n" +
+                        "What would you like to do?";
+
+        recoveryAlert.setContentText(message);
+
+        ButtonType forceCompleteButton = new ButtonType("Force Complete Step", ButtonBar.ButtonData.OK_DONE);
+        ButtonType deleteReuploadButton = new ButtonType("Delete & Re-upload", ButtonBar.ButtonData.NO);
+        ButtonType cancelButton = new ButtonType("Cancel", ButtonBar.ButtonData.CANCEL_CLOSE);
+
+        recoveryAlert.getButtonTypes().setAll(forceCompleteButton, deleteReuploadButton, cancelButton);
+
+        recoveryAlert.showAndWait().ifPresent(response -> {
+            if (response == forceCompleteButton) {
+                handleForceCompleteStep2();
+            } else if (response == deleteReuploadButton) {
+                handleDeleteAndReuploadStep2(sizing);
+            }
+        });
+    }
+
+    /**
+     * Force complete Step 2
+     */
+    private void handleForceCompleteStep2() {
+        try {
+            System.out.println("🔧 RECOVERY: Force completing Step 2 for workflow " + workflow.getId());
+
+            Optional<WorkflowStepCompletion> step2Opt = stepService.getStep(workflow.getId(), 2);
+            if (step2Opt.isEmpty()) {
+                showError("Cannot find Step 2 in database!");
+                return;
+            }
+
+            WorkflowStepCompletion step2 = step2Opt.get();
+            stepService.completeStep(step2, currentUser);
+
+            if (workflow.getCurrentStep() == 2) {
+                workflow.setCurrentStep(3);
+                workflow.markStepCompleted(2);
+                workflowService.getWorkflowById(workflow.getId()).ifPresent(w -> {
+                    w.setCurrentStep(3);
+                    w.markStepCompleted(2);
+                });
+            }
+
+            showSuccess("✅ Step 2 manually completed!\n\nWorkflow advanced to Step 3.");
+            refreshWorkflow();
+            currentStep = 3;
+            loadCurrentStep();
+
+        } catch (Exception ex) {
+            showError("Failed to force complete step: " + ex.getMessage());
+            ex.printStackTrace();
+        }
+    }
+
+    /**
+     * Delete Step 2 sizing/pricing file
+     */
+    private void handleDeleteAndReuploadStep2(com.magictech.modules.sales.entity.SizingPricingData sizing) {
+        Alert confirmAlert = new Alert(Alert.AlertType.CONFIRMATION);
+        confirmAlert.setTitle("Confirm Delete");
+        confirmAlert.setHeaderText("Delete Sizing/Pricing File?");
+        confirmAlert.setContentText("Are you sure you want to delete the existing sizing/pricing file?\n\n" +
+                                   "File: " + sizing.getFileName() + "\n\n" +
+                                   "Presales will need to upload it again.");
+
+        confirmAlert.showAndWait().ifPresent(response -> {
+            if (response == ButtonType.OK) {
+                try {
+                    System.out.println("🗑️ RECOVERY: Deleting sizing/pricing for workflow " + workflow.getId());
+
+                    sizing.setActive(false);
+                    sizingPricingRepository.save(sizing);
+
+                    showSuccess("Sizing/pricing file deleted successfully.\n\nPlease request from Presales again.");
+                    refreshWorkflow();
+                    loadCurrentStep();
+
+                } catch (Exception ex) {
+                    showError("Failed to delete sizing/pricing: " + ex.getMessage());
+                    ex.printStackTrace();
+                }
+            }
+        });
     }
 }
