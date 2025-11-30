@@ -185,6 +185,16 @@ public class ProjectWorkflowService {
         notificationService.notifySiteSurveyCompletedBySales(project, salesUser);
 
         System.out.println("🔔 Notification sent to Projects team about site survey completion");
+
+        // AUTO-REQUEST: Automatically request selection & design from Presales (Step 2)
+        WorkflowStepCompletion step2 = stepService.getStep(workflowId, 2)
+            .orElseThrow(() -> new RuntimeException("Step 2 not found"));
+        stepService.markNeedsExternalAction(step2, "PRESALES");
+        entityManager.flush();
+
+        notificationService.notifyPresalesSelectionDesign(workflowId, project, salesUser);
+
+        System.out.println("✅ Selection & Design automatically requested from Presales team");
     }
 
     /**
@@ -290,6 +300,16 @@ public class ProjectWorkflowService {
 
         System.out.println("🔔 Notification sent to Sales user: " + salesUser.getUsername() +
                          " about site survey completion for project: " + project.getProjectName());
+
+        // AUTO-REQUEST: Automatically request selection & design from Presales (Step 2)
+        WorkflowStepCompletion step2 = stepService.getStep(workflowId, 2)
+            .orElseThrow(() -> new RuntimeException("Step 2 not found"));
+        stepService.markNeedsExternalAction(step2, "PRESALES");
+        entityManager.flush();
+
+        notificationService.notifyPresalesSelectionDesign(workflowId, project, salesUser);
+
+        System.out.println("✅ Selection & Design automatically requested from Presales team");
     }
 
     /**
@@ -413,6 +433,16 @@ public class ProjectWorkflowService {
         notificationService.notifyPresalesCompleted(project, presalesUser, salesUser);
 
         System.out.println("🔔 Notification sent to Sales user about presales completion");
+
+        // AUTO-REQUEST: Automatically request bank guarantee from Finance (Step 3)
+        WorkflowStepCompletion step3 = stepService.getStep(workflowId, 3)
+            .orElseThrow(() -> new RuntimeException("Step 3 not found"));
+        stepService.markNeedsExternalAction(step3, "FINANCE");
+        entityManager.flush();
+
+        notificationService.notifyBankGuaranteeRequest(project, salesUser);
+
+        System.out.println("✅ Bank guarantee automatically requested from Finance team");
     }
 
     /**
