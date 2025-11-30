@@ -40,6 +40,7 @@ public class WorkflowDialog extends Stage {
     private final WorkflowStepService stepService;
     private final SiteSurveyDataRepository siteSurveyRepository;
     private final com.magictech.modules.sales.repository.SizingPricingDataRepository sizingPricingRepository;
+    private final com.magictech.modules.sales.repository.BankGuaranteeDataRepository bankGuaranteeRepository;
     private final Project project;
     private final User currentUser;
     private ProjectWorkflow workflow;
@@ -67,13 +68,15 @@ public class WorkflowDialog extends Stage {
                           ProjectWorkflowService workflowService,
                           WorkflowStepService stepService,
                           SiteSurveyDataRepository siteSurveyRepository,
-                          com.magictech.modules.sales.repository.SizingPricingDataRepository sizingPricingRepository) {
+                          com.magictech.modules.sales.repository.SizingPricingDataRepository sizingPricingRepository,
+                          com.magictech.modules.sales.repository.BankGuaranteeDataRepository bankGuaranteeRepository) {
         this.project = project;
         this.currentUser = currentUser;
         this.workflowService = workflowService;
         this.stepService = stepService;
         this.siteSurveyRepository = siteSurveyRepository;
         this.sizingPricingRepository = sizingPricingRepository;
+        this.bankGuaranteeRepository = bankGuaranteeRepository;
 
         initStyle(StageStyle.UTILITY);
         initModality(Modality.APPLICATION_MODAL);
@@ -815,7 +818,7 @@ public class WorkflowDialog extends Stage {
         File file = fileChooser.showSaveDialog(this);
         if (file != null) {
             try (java.io.FileOutputStream fos = new java.io.FileOutputStream(file)) {
-                fos.write(bankGuarantee.getGuaranteeFile());
+                fos.write(bankGuarantee.getExcelFile());
                 showSuccess("Bank guarantee downloaded successfully!\nSaved to: " + file.getAbsolutePath());
             } catch (Exception ex) {
                 showError("Failed to download bank guarantee: " + ex.getMessage());
@@ -825,15 +828,7 @@ public class WorkflowDialog extends Stage {
     }
 
     private com.magictech.modules.sales.repository.BankGuaranteeDataRepository getBankGuaranteeRepository() {
-        // Access the repository via workflow service or autowire it
-        // For now, we'll use a simple approach
-        try {
-            return com.magictech.core.ui.SceneManager.getInstance()
-                .getApplicationContext()
-                .getBean(com.magictech.modules.sales.repository.BankGuaranteeDataRepository.class);
-        } catch (Exception ex) {
-            throw new RuntimeException("Failed to get BankGuaranteeDataRepository", ex);
-        }
+        return bankGuaranteeRepository;
     }
 
     // STEP 4: Missing Item
