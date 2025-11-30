@@ -350,16 +350,25 @@ public class WorkflowDialog extends Stage {
         // FORCE enable Next button since site survey exists
         nextButton.setDisable(false);
 
-        // OVERRIDE Next button handler to force progression
-        // This ensures Next works even if canMoveToNextStep() has issues
+        // OVERRIDE Next button handler to handle dynamic state changes
         nextButton.setOnAction(e -> {
             System.out.println("🔘 DEBUG: Next button clicked from Step 1 (survey completed)");
-            // If workflow already advanced to Step 2+, sync currentStep
+
+            // CRITICAL FIX: Always refresh workflow state first
+            refreshWorkflow();
+
+            // Re-check step completion after refresh
+            Optional<WorkflowStepCompletion> step1Fresh = stepService.getStep(workflow.getId(), 1);
+            boolean step1CompletedNow = step1Fresh.isPresent() && Boolean.TRUE.equals(step1Fresh.get().getCompleted());
+
+            System.out.println("🔍 DEBUG: After refresh - Step 1 completed: " + step1CompletedNow + ", Workflow at step: " + workflow.getCurrentStep());
+
+            // If workflow advanced to Step 2+, sync UI
             if (workflow.getCurrentStep() >= 2) {
                 System.out.println("✅ DEBUG: Workflow already at step " + workflow.getCurrentStep() + ", syncing...");
                 currentStep = workflow.getCurrentStep();
                 loadCurrentStep();
-            } else if (step1Completed) {
+            } else if (step1CompletedNow) {
                 // Step 1 is completed, move to Step 2
                 System.out.println("✅ DEBUG: Step 1 completed, moving to Step 2");
                 currentStep = 2;
@@ -606,15 +615,25 @@ public class WorkflowDialog extends Stage {
         // FORCE enable Next button since sizing/pricing exists
         nextButton.setDisable(false);
 
-        // OVERRIDE Next button handler to force progression
+        // OVERRIDE Next button handler to handle dynamic state changes
         nextButton.setOnAction(e -> {
             System.out.println("🔘 DEBUG: Next button clicked from Step 2 (sizing completed)");
-            // If workflow already advanced to Step 3+, sync currentStep
+
+            // CRITICAL FIX: Always refresh workflow state first
+            refreshWorkflow();
+
+            // Re-check step completion after refresh
+            Optional<WorkflowStepCompletion> step2Fresh = stepService.getStep(workflow.getId(), 2);
+            boolean step2CompletedNow = step2Fresh.isPresent() && Boolean.TRUE.equals(step2Fresh.get().getCompleted());
+
+            System.out.println("🔍 DEBUG: After refresh - Step 2 completed: " + step2CompletedNow + ", Workflow at step: " + workflow.getCurrentStep());
+
+            // If workflow already advanced to Step 3+, sync UI
             if (workflow.getCurrentStep() >= 3) {
                 System.out.println("✅ DEBUG: Workflow already at step " + workflow.getCurrentStep() + ", syncing...");
                 currentStep = workflow.getCurrentStep();
                 loadCurrentStep();
-            } else if (step2Completed) {
+            } else if (step2CompletedNow) {
                 // Step 2 is completed, move to Step 3
                 System.out.println("✅ DEBUG: Step 2 completed, moving to Step 3");
                 currentStep = 3;
@@ -794,15 +813,32 @@ public class WorkflowDialog extends Stage {
         // FORCE enable Next button since bank guarantee exists
         nextButton.setDisable(false);
 
-        // OVERRIDE Next button handler to force progression
+        // OVERRIDE Next button handler to handle dynamic state changes
         nextButton.setOnAction(e -> {
+            System.out.println("🔘 DEBUG: Next button clicked from Step 3 (bank guarantee completed)");
+
+            // CRITICAL FIX: Always refresh workflow state first
+            refreshWorkflow();
+
+            // Re-check step completion after refresh
+            Optional<WorkflowStepCompletion> step3Fresh = stepService.getStep(workflow.getId(), 3);
+            boolean step3CompletedNow = step3Fresh.isPresent() && Boolean.TRUE.equals(step3Fresh.get().getCompleted());
+
+            System.out.println("🔍 DEBUG: After refresh - Step 3 completed: " + step3CompletedNow + ", Workflow at step: " + workflow.getCurrentStep());
+
+            // If workflow advanced to Step 4+, sync UI
             if (workflow.getCurrentStep() >= 4) {
+                System.out.println("✅ DEBUG: Workflow already at step " + workflow.getCurrentStep() + ", syncing...");
                 currentStep = workflow.getCurrentStep();
                 loadCurrentStep();
-            } else {
-                // Move to Step 4
+            } else if (step3CompletedNow) {
+                // Step 3 is completed, move to Step 4
+                System.out.println("✅ DEBUG: Step 3 completed, moving to Step 4");
                 currentStep = 4;
                 loadCurrentStep();
+            } else {
+                System.out.println("⚠️ WARNING: Bank guarantee exists but step 3 is NOT completed!");
+                showWarning("Step 3 is not yet completed. Please wait for the workflow to update.");
             }
         });
     }
