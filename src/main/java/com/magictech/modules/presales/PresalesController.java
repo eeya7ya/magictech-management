@@ -76,13 +76,13 @@ public class PresalesController extends BaseStorageModuleController {
         this.currentUser = user;
         super.initialize(user, config);
 
-        // CRITICAL FIX: Add workflow requests section AFTER super.initialize() builds the UI
+        // CRITICAL FIX: Add workflow requests TAB instead of inline section
         Platform.runLater(() -> {
             try {
-                addWorkflowRequestsSection();
-                System.out.println("✅ Workflow requests section added to Presales UI");
+                addWorkflowRequestsTab();
+                System.out.println("✅ Workflow requests tab added to Presales UI");
             } catch (Exception ex) {
-                System.err.println("❌ ERROR adding workflow requests section: " + ex.getMessage());
+                System.err.println("❌ ERROR adding workflow requests tab: " + ex.getMessage());
                 ex.printStackTrace();
             }
         });
@@ -104,70 +104,92 @@ public class PresalesController extends BaseStorageModuleController {
     }
 
     /**
-     * Add workflow requests section to the module UI
-     * CRITICAL FIX: Add at TOP of content, make it always visible
+     * Add workflow requests as a separate tab
+     * IMPROVED UX: Users can switch between Storage Items and Workflow Requests
      */
-    private void addWorkflowRequestsSection() {
-        System.out.println("🔧 Adding workflow requests section to Presales UI...");
+    private void addWorkflowRequestsTab() {
+        System.out.println("🔧 Adding workflow requests tab to Presales UI...");
 
-        // Create workflow requests panel
-        VBox workflowPanel = new VBox(15);
-        workflowPanel.setPadding(new Insets(20));
-        workflowPanel.setStyle("-fx-background-color: rgba(6, 182, 212, 0.1); " +
-                              "-fx-background-radius: 10; -fx-border-color: #06b6d4; " +
-                              "-fx-border-radius: 10; -fx-border-width: 2;");
-        workflowPanel.setMaxHeight(400); // Limit height
+        try {
+            BorderPane rootPane = getRootPane();
+            javafx.scene.Node centerNode = rootPane.getCenter();
 
+            // Create TabPane
+            TabPane tabPane = new TabPane();
+            tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
+            tabPane.setStyle("-fx-background-color: transparent;");
+
+            // Tab 1: Storage Items (existing functionality)
+            Tab storageTab = new Tab("📦 Storage Items");
+            storageTab.setContent(centerNode); // Move existing content to tab
+            storageTab.setStyle("-fx-font-size: 14px; -fx-font-weight: bold;");
+
+            // Tab 2: Workflow Requests (new dedicated tab)
+            Tab workflowTab = new Tab("📋 Sizing & Pricing Requests");
+            workflowTab.setContent(createWorkflowRequestsContent());
+            workflowTab.setStyle("-fx-font-size: 14px; -fx-font-weight: bold;");
+
+            tabPane.getTabs().addAll(storageTab, workflowTab);
+
+            // Set workflow tab as selected by default (since it's the main function)
+            tabPane.getSelectionModel().select(workflowTab);
+
+            // Replace center content with TabPane
+            rootPane.setCenter(tabPane);
+            System.out.println("✅ Workflow requests tab added successfully");
+
+            // Initial load
+            loadPendingRequests();
+
+        } catch (Exception e) {
+            System.err.println("❌ ERROR adding workflow requests tab:");
+            e.printStackTrace();
+        }
+    }
+
+    /**
+     * Create the content for the workflow requests tab
+     */
+    private VBox createWorkflowRequestsContent() {
+        VBox workflowPanel = new VBox(20);
+        workflowPanel.setPadding(new Insets(30));
+        workflowPanel.setStyle("-fx-background-color: transparent;");
+
+        // Header
         Label titleLabel = new Label("📋 Pending Sizing & Pricing Requests");
-        titleLabel.setStyle("-fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: #06b6d4;");
+        titleLabel.setStyle("-fx-font-size: 24px; -fx-font-weight: bold; -fx-text-fill: white;");
+
+        Label subtitleLabel = new Label("Review site surveys and upload sizing/pricing Excel files");
+        subtitleLabel.setStyle("-fx-font-size: 14px; -fx-text-fill: rgba(255, 255, 255, 0.7);");
+
+        VBox headerBox = new VBox(8);
+        headerBox.getChildren().addAll(titleLabel, subtitleLabel);
 
         // Requests list
         pendingRequestsList = new ListView<>();
-        pendingRequestsList.setPrefHeight(200);
-        pendingRequestsList.setMaxHeight(300);
+        pendingRequestsList.setPrefHeight(600);
         pendingRequestsList.setCellFactory(lv -> new WorkflowRequestCell());
-        pendingRequestsList.setStyle("-fx-background-color: white; -fx-background-radius: 5;");
+        pendingRequestsList.setStyle(
+                "-fx-background-color: rgba(30, 41, 59, 0.6);" +
+                "-fx-control-inner-background: rgba(15, 23, 42, 0.8);"
+        );
+        VBox.setVgrow(pendingRequestsList, Priority.ALWAYS);
 
         // Refresh button
+        HBox buttonBox = new HBox();
+        buttonBox.setAlignment(Pos.CENTER_RIGHT);
         Button refreshBtn = new Button("🔄 Refresh Requests");
         refreshBtn.setStyle("-fx-background-color: #06b6d4; -fx-text-fill: white; " +
-                          "-fx-padding: 10 20; -fx-font-size: 14px; -fx-font-weight: bold;");
+                          "-fx-padding: 12 24; -fx-font-size: 14px; -fx-font-weight: bold; " +
+                          "-fx-background-radius: 8;");
         refreshBtn.setOnAction(e -> {
             System.out.println("🔄 Refreshing pending requests...");
             loadPendingRequests();
         });
+        buttonBox.getChildren().add(refreshBtn);
 
-        workflowPanel.getChildren().addAll(titleLabel, pendingRequestsList, refreshBtn);
-
-        // CRITICAL FIX: Add to TOP of root pane, not nested VBox
-        try {
-            BorderPane rootPane = getRootPane();
-            System.out.println("   Root pane found: " + rootPane);
-
-            // Get the current center content
-            javafx.scene.Node centerNode = rootPane.getCenter();
-            System.out.println("   Current center node type: " + (centerNode != null ? centerNode.getClass().getSimpleName() : "null"));
-
-            // Create a new VBox to hold both workflow panel AND existing content
-            VBox newCenterContent = new VBox(20);
-            newCenterContent.setPadding(new Insets(20));
-            newCenterContent.getChildren().add(workflowPanel); // Add workflow panel FIRST
-
-            if (centerNode != null) {
-                newCenterContent.getChildren().add(centerNode); // Then add existing content
-            }
-
-            rootPane.setCenter(newCenterContent);
-            System.out.println("✅ Workflow panel added successfully at TOP of content");
-
-        } catch (Exception e) {
-            System.err.println("❌ ERROR adding workflow panel to UI:");
-            e.printStackTrace();
-        }
-
-        // Initial load
-        System.out.println("📊 Loading initial pending requests...");
-        loadPendingRequests();
+        workflowPanel.getChildren().addAll(headerBox, pendingRequestsList, buttonBox);
+        return workflowPanel;
     }
 
     /**
