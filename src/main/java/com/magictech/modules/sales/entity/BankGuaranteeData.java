@@ -22,9 +22,7 @@ public class BankGuaranteeData {
     private Long workflowId;
 
     // Excel file storage
-    @Lob
-    
-    @Column(name = "excel_file", )
+    @Column(name = "excel_file", columnDefinition = "bytea")
     private byte[] excelFile;
 
     @Column(name = "file_name", length = 255)
