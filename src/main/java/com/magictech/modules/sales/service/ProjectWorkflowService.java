@@ -492,7 +492,14 @@ public class ProjectWorkflowService {
         Project project = projectRepository.findById(workflow.getProjectId())
             .orElseThrow(() -> new RuntimeException("Project not found"));
 
-        String parsedData = excelStorageService.parseExcelFile(excelFile);
+        // Parse bank guarantee data (simple parsing like site survey)
+        String parsedData;
+        try {
+            parsedData = excelStorageService.parseExcelFile(excelFile);
+        } catch (Exception e) {
+            System.err.println("Warning: Failed to parse bank guarantee Excel: " + e.getMessage());
+            parsedData = "{}"; // Empty JSON if parsing fails
+        }
 
         BankGuaranteeData guaranteeData = new BankGuaranteeData();
         guaranteeData.setProjectId(workflow.getProjectId());
@@ -506,16 +513,30 @@ public class ProjectWorkflowService {
         guaranteeData.setUploadedById(financeUser.getId());
 
         bankGuaranteeRepository.save(guaranteeData);
+        System.out.println("✅ Bank guarantee data saved for project: " + project.getProjectName());
 
+        // CRITICAL FIX: Flush bank guarantee to database FIRST
+        entityManager.flush();
+
+        // Complete external action and step
         WorkflowStepCompletion step = stepService.getStep(workflowId, 3)
             .orElseThrow(() -> new RuntimeException("Step not found"));
         stepService.completeExternalAction(step, financeUser);
         stepService.completeStep(step, financeUser);
 
+        // Flush step completion
+        entityManager.flush();
+        System.out.println("✅ Workflow step 3 marked as completed and flushed to database");
+
+        // Advance to next step
+        advanceToNextStep(workflow, financeUser);
+        entityManager.flush();
+        System.out.println("➡️ Workflow advanced to step " + workflow.getCurrentStep());
+
+        // Notify sales user
         User salesUser = getUserById(workflow.getCreatedById());
         notificationService.notifyBankGuaranteeCompleted(project, financeUser, salesUser);
-
-        advanceToNextStep(workflow, financeUser);
+        System.out.println("🔔 Notification sent to Sales user about bank guarantee completion");
     }
 
     /**
