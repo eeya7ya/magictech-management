@@ -158,13 +158,33 @@ public class SalesStorageController extends BaseModuleController {
         titleLabel.setStyle("-fx-text-fill: white; -fx-font-size: 22px; -fx-font-weight: bold;");
         HBox.setHgrow(titleLabel, Priority.ALWAYS);
 
+        Button editProjectBtn = createStyledButton("✏️ Edit", "#f59e0b", "#d97706");
+        editProjectBtn.setOnAction(e -> {
+            Project selected = projectsListView.getSelectionModel().getSelectedItem();
+            if (selected != null) {
+                openProjectDetails(selected);
+            } else {
+                showWarning("Please select a project first");
+            }
+        });
+
+        Button deleteProjectBtn = createStyledButton("🗑️ Delete", "#ef4444", "#dc2626");
+        deleteProjectBtn.setOnAction(e -> {
+            Project selected = projectsListView.getSelectionModel().getSelectedItem();
+            if (selected != null) {
+                handleDeleteProject(selected);
+            } else {
+                showWarning("Please select a project first");
+            }
+        });
+
         Button exportProjectsBtn = createStyledButton("📥 Export", "#8b5cf6", "#7c3aed");
         exportProjectsBtn.setOnAction(e -> handleExportProjects());
 
         Button addProjectBtn = createStyledButton("+ New Project", "#3b82f6", "#2563eb");
         addProjectBtn.setOnAction(e -> handleAddProject());
 
-        header.getChildren().addAll(titleLabel, exportProjectsBtn, addProjectBtn);
+        header.getChildren().addAll(titleLabel, editProjectBtn, deleteProjectBtn, exportProjectsBtn, addProjectBtn);
 
         projectsListView = new ListView<>();
         projectsListView.setPrefHeight(500);
@@ -337,17 +357,17 @@ public class SalesStorageController extends BaseModuleController {
         headerBox.setPadding(new Insets(0, 0, 10, 0));
 
         Button backBtn = createStyledButton("← Back to Projects", "#6b7280", "#4b5563");
-        backBtn.setOnAction(e -> navigateToDashboard());
+        backBtn.setOnAction(e -> {
+            // Go back to sales dashboard showing projects list
+            mainContainer.getChildren().clear();
+            mainContainer.getChildren().add(dashboardScreen);
+        });
 
         Label headerLabel = new Label("📋 " + project.getProjectName());
         headerLabel.setStyle("-fx-text-fill: white; -fx-font-size: 28px; -fx-font-weight: bold;");
         HBox.setHgrow(headerLabel, Priority.ALWAYS);
 
-        // Delete Project Button
-        Button deleteProjectBtn = createStyledButton("🗑️ Delete Project", "#ef4444", "#dc2626");
-        deleteProjectBtn.setOnAction(e -> handleDeleteProject(project));
-
-        headerBox.getChildren().addAll(backBtn, headerLabel, deleteProjectBtn);
+        headerBox.getChildren().addAll(backBtn, headerLabel);
 
         TabPane tabPane = new TabPane();
         tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
@@ -2553,7 +2573,8 @@ public class SalesStorageController extends BaseModuleController {
 
                 deleteTask.setOnSucceeded(e -> {
                     showSuccess("✓ Project deleted successfully!");
-                    navigateToDashboard();
+                    // Refresh the projects list instead of navigating away
+                    loadProjects(projectsListView);
                 });
 
                 deleteTask.setOnFailed(e -> {

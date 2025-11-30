@@ -394,8 +394,11 @@ public class WorkflowDialog extends Stage {
                 workflowService.processSiteSurveySales(workflow.getId(), fileData,
                     file.getName(), currentUser);
 
-                showSuccess("Site survey uploaded successfully!");
+                showSuccess("Site survey uploaded successfully! Moving to Step 2...");
                 refreshWorkflow();
+
+                // Automatically progress to Step 2
+                currentStep = 2;
                 loadCurrentStep();
             } catch (Exception ex) {
                 showError("Failed to upload site survey: " + ex.getMessage());
@@ -653,6 +656,35 @@ public class WorkflowDialog extends Stage {
 
     // STEP 3: Bank Guarantee
     private void loadStep3_BankGuarantee() {
+        // CRITICAL FIX: Refresh workflow state and check for bank guarantee data
+        refreshWorkflow();
+
+        // Check if bank guarantee already exists (uploaded by Finance team)
+        Optional<com.magictech.modules.sales.entity.BankGuaranteeData> bankGuaranteeOpt =
+            getBankGuaranteeRepository().findByWorkflowIdAndActiveTrue(workflow.getId());
+
+        if (bankGuaranteeOpt.isPresent()) {
+            // Bank guarantee completed - show download/view UI
+            showBankGuaranteeCompleted(bankGuaranteeOpt.get());
+        } else {
+            // Check if request is pending (waiting for Finance)
+            Optional<WorkflowStepCompletion> step3Opt = stepService.getStep(workflow.getId(), 3);
+            if (step3Opt.isPresent()) {
+                WorkflowStepCompletion step3 = step3Opt.get();
+                if (Boolean.TRUE.equals(step3.getNeedsExternalAction()) &&
+                    Boolean.FALSE.equals(step3.getExternalActionCompleted())) {
+                    // Request is pending - show waiting UI
+                    showBankGuaranteePendingUI(step3);
+                    return;
+                }
+            }
+
+            // Not uploaded yet and no pending request - show original request options
+            showBankGuaranteeRequestOptions();
+        }
+    }
+
+    private void showBankGuaranteeRequestOptions() {
         Label question = new Label("Does project needs Bank Guarantee?");
         question.setFont(Font.font("System", FontWeight.NORMAL, 16));
 
@@ -670,12 +702,138 @@ public class WorkflowDialog extends Stage {
         yesButton.setOnAction(e -> {
             workflowService.requestBankGuarantee(workflow.getId(), currentUser);
             showInfo("Bank guarantee request sent to Finance Team");
+            refreshWorkflow();
+            loadCurrentStep();
         });
 
         HBox buttons = new HBox(10, noButton, yesButton);
         buttons.setAlignment(Pos.CENTER);
 
         stepContainer.getChildren().addAll(question, buttons);
+    }
+
+    private void showBankGuaranteePendingUI(WorkflowStepCompletion step) {
+        VBox pendingBox = new VBox(15);
+        pendingBox.setAlignment(Pos.CENTER_LEFT);
+        pendingBox.setPadding(new Insets(20));
+        pendingBox.setStyle("-fx-background-color: #fef3c7; -fx-border-color: #f59e0b; -fx-border-width: 2; -fx-border-radius: 8; -fx-background-radius: 8;");
+
+        Label statusLabel = new Label("⏳ Waiting for Finance Team");
+        statusLabel.setFont(Font.font("System", FontWeight.BOLD, 18));
+        statusLabel.setTextFill(Color.web("#92400e"));
+
+        Label messageLabel = new Label("You requested bank guarantee from the Finance team.");
+        messageLabel.setFont(Font.font("System", FontWeight.NORMAL, 14));
+        messageLabel.setWrapText(true);
+
+        Label infoLabel = new Label("💰 The Finance team will upload the bank guarantee Excel file soon.");
+        infoLabel.setFont(Font.font("System", FontWeight.NORMAL, 14));
+        infoLabel.setWrapText(true);
+        infoLabel.setTextFill(Color.web("#78350f"));
+
+        Button refreshButton = new Button("🔄 Check Status");
+        refreshButton.setStyle("-fx-background-color: #f59e0b; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20; -fx-font-weight: bold;");
+        refreshButton.setOnAction(e -> {
+            refreshWorkflow();
+            loadCurrentStep();
+        });
+
+        pendingBox.getChildren().addAll(statusLabel, messageLabel, infoLabel, refreshButton);
+        stepContainer.getChildren().add(pendingBox);
+
+        // Disable Next button while waiting
+        nextButton.setDisable(true);
+    }
+
+    private void showBankGuaranteeCompleted(com.magictech.modules.sales.entity.BankGuaranteeData bankGuarantee) {
+        VBox completionBox = new VBox(15);
+        completionBox.setAlignment(Pos.CENTER_LEFT);
+        completionBox.setPadding(new Insets(20));
+        completionBox.setStyle("-fx-background-color: #d1fae5; -fx-border-color: #10b981; -fx-border-width: 2; -fx-border-radius: 8; -fx-background-radius: 8;");
+
+        Label statusLabel = new Label("✅ Bank Guarantee Completed");
+        statusLabel.setFont(Font.font("System", FontWeight.BOLD, 18));
+        statusLabel.setTextFill(Color.web("#065f46"));
+
+        Label fileLabel = new Label("📄 File: " + bankGuarantee.getFileName());
+        fileLabel.setFont(Font.font("System", FontWeight.NORMAL, 14));
+
+        Label uploaderLabel = new Label("👤 Uploaded by: " + bankGuarantee.getUploadedBy() + " (FINANCE team)");
+        uploaderLabel.setFont(Font.font("System", FontWeight.NORMAL, 14));
+
+        Label dateLabel = new Label("📅 Date: " + formatDateTime(bankGuarantee.getUploadedAt()));
+        dateLabel.setFont(Font.font("System", FontWeight.NORMAL, 14));
+
+        Label sizeLabel = new Label("💾 Size: " + formatFileSize(bankGuarantee.getFileSize()));
+        sizeLabel.setFont(Font.font("System", FontWeight.NORMAL, 14));
+
+        // Action button
+        HBox actionButtons = new HBox(10);
+        actionButtons.setAlignment(Pos.CENTER);
+        actionButtons.setPadding(new Insets(10, 0, 0, 0));
+
+        Button downloadButton = new Button("📥 Download Bank Guarantee File");
+        downloadButton.setStyle("-fx-background-color: #eab308; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20; -fx-font-weight: bold;");
+        downloadButton.setOnAction(e -> handleDownloadBankGuarantee(bankGuarantee));
+
+        actionButtons.getChildren().add(downloadButton);
+
+        completionBox.getChildren().addAll(statusLabel, fileLabel, uploaderLabel, dateLabel, sizeLabel, actionButtons);
+
+        // Info message about progression
+        Label progressInfo = new Label("✅ Step 3 completed. Click 'Next →' to proceed to Step 4.");
+        progressInfo.setFont(Font.font("System", FontWeight.BOLD, 14));
+        progressInfo.setTextFill(Color.web("#065f46"));
+        progressInfo.setPadding(new Insets(15, 0, 0, 0));
+
+        stepContainer.getChildren().addAll(completionBox, progressInfo);
+
+        // FORCE enable Next button since bank guarantee exists
+        nextButton.setDisable(false);
+
+        // OVERRIDE Next button handler to force progression
+        nextButton.setOnAction(e -> {
+            if (workflow.getCurrentStep() >= 4) {
+                currentStep = workflow.getCurrentStep();
+                loadCurrentStep();
+            } else {
+                // Move to Step 4
+                currentStep = 4;
+                loadCurrentStep();
+            }
+        });
+    }
+
+    private void handleDownloadBankGuarantee(com.magictech.modules.sales.entity.BankGuaranteeData bankGuarantee) {
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Save Bank Guarantee Excel");
+        fileChooser.setInitialFileName(bankGuarantee.getFileName());
+        fileChooser.getExtensionFilters().add(
+            new FileChooser.ExtensionFilter("Excel Files", "*.xlsx", "*.xls")
+        );
+
+        File file = fileChooser.showSaveDialog(this);
+        if (file != null) {
+            try (java.io.FileOutputStream fos = new java.io.FileOutputStream(file)) {
+                fos.write(bankGuarantee.getGuaranteeFile());
+                showSuccess("Bank guarantee downloaded successfully!\nSaved to: " + file.getAbsolutePath());
+            } catch (Exception ex) {
+                showError("Failed to download bank guarantee: " + ex.getMessage());
+                ex.printStackTrace();
+            }
+        }
+    }
+
+    private com.magictech.modules.sales.repository.BankGuaranteeDataRepository getBankGuaranteeRepository() {
+        // Access the repository via workflow service or autowire it
+        // For now, we'll use a simple approach
+        try {
+            return com.magictech.core.ui.SceneManager.getInstance()
+                .getApplicationContext()
+                .getBean(com.magictech.modules.sales.repository.BankGuaranteeDataRepository.class);
+        } catch (Exception ex) {
+            throw new RuntimeException("Failed to get BankGuaranteeDataRepository", ex);
+        }
     }
 
     // STEP 4: Missing Item

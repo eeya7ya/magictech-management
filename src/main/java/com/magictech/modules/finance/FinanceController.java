@@ -68,7 +68,7 @@ public class FinanceController extends BaseStorageModuleController {
     public void initialize(User user, com.magictech.core.module.ModuleConfig config) {
         this.currentUser = user;
         super.initialize(user, config);
-        Platform.runLater(this::addWorkflowRequestsSection);
+        Platform.runLater(this::addWorkflowRequestsTab);
     }
 
     @Override
@@ -86,39 +86,83 @@ public class FinanceController extends BaseStorageModuleController {
         showToastInfo("Finance: Bulk delete functionality will be implemented here");
     }
 
-    private void addWorkflowRequestsSection() {
-        VBox workflowPanel = new VBox(15);
-        workflowPanel.setPadding(new Insets(20));
-        workflowPanel.setStyle("-fx-background-color: rgba(234, 179, 8, 0.1); " +
-                              "-fx-background-radius: 10; -fx-border-color: #eab308; " +
-                              "-fx-border-radius: 10; -fx-border-width: 2;");
-
-        Label titleLabel = new Label("💰 Pending Bank Guarantee Requests");
-        titleLabel.setStyle("-fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: #eab308;");
-
-        pendingRequestsList = new ListView<>();
-        pendingRequestsList.setPrefHeight(200);
-        pendingRequestsList.setCellFactory(lv -> new WorkflowRequestCell());
-
-        Button refreshBtn = new Button("🔄 Refresh Requests");
-        refreshBtn.setStyle("-fx-background-color: #eab308; -fx-text-fill: white;");
-        refreshBtn.setOnAction(e -> loadPendingRequests());
-
-        workflowPanel.getChildren().addAll(titleLabel, pendingRequestsList, refreshBtn);
+    private void addWorkflowRequestsTab() {
+        System.out.println("🔧 Adding workflow requests tab to Finance UI...");
 
         try {
             BorderPane rootPane = getRootPane();
-            if (rootPane.getCenter() instanceof VBox) {
-                VBox mainContent = (VBox) rootPane.getCenter();
-                if (mainContent.getChildren().size() > 0) {
-                    mainContent.getChildren().add(1, workflowPanel);
-                }
-            }
-        } catch (Exception e) {
-            loadPendingRequests();
-        }
+            javafx.scene.Node centerNode = rootPane.getCenter();
 
-        loadPendingRequests();
+            // Create TabPane
+            TabPane tabPane = new TabPane();
+            tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
+            tabPane.setStyle("-fx-background-color: transparent;");
+
+            // Tab 1: Storage Items (existing functionality)
+            Tab storageTab = new Tab("📦 Storage Items");
+            storageTab.setContent(centerNode);
+            storageTab.setStyle("-fx-font-size: 14px; -fx-font-weight: bold;");
+
+            // Tab 2: Bank Guarantee Requests (new dedicated tab)
+            Tab workflowTab = new Tab("💰 Bank Guarantee Requests");
+            workflowTab.setContent(createWorkflowRequestsContent());
+            workflowTab.setStyle("-fx-font-size: 14px; -fx-font-weight: bold;");
+
+            tabPane.getTabs().addAll(storageTab, workflowTab);
+
+            // Set workflow tab as selected by default
+            tabPane.getSelectionModel().select(workflowTab);
+
+            // Replace center content with TabPane
+            rootPane.setCenter(tabPane);
+            System.out.println("✅ Workflow requests tab added successfully");
+
+            // Initial load
+            loadPendingRequests();
+
+        } catch (Exception e) {
+            System.err.println("❌ ERROR adding workflow requests tab:");
+            e.printStackTrace();
+        }
+    }
+
+    private VBox createWorkflowRequestsContent() {
+        VBox workflowPanel = new VBox(20);
+        workflowPanel.setPadding(new Insets(30));
+        workflowPanel.setStyle("-fx-background-color: transparent;");
+
+        // Header
+        Label titleLabel = new Label("💰 Pending Bank Guarantee Requests");
+        titleLabel.setStyle("-fx-font-size: 24px; -fx-font-weight: bold; -fx-text-fill: white;");
+
+        Label subtitleLabel = new Label("Upload bank guarantee Excel files for pending projects");
+        subtitleLabel.setStyle("-fx-font-size: 14px; -fx-text-fill: rgba(255, 255, 255, 0.7);");
+
+        VBox headerBox = new VBox(8);
+        headerBox.getChildren().addAll(titleLabel, subtitleLabel);
+
+        // Requests list
+        pendingRequestsList = new ListView<>();
+        pendingRequestsList.setPrefHeight(600);
+        pendingRequestsList.setCellFactory(lv -> new WorkflowRequestCell());
+        pendingRequestsList.setStyle(
+                "-fx-background-color: rgba(30, 41, 59, 0.6);" +
+                "-fx-control-inner-background: rgba(15, 23, 42, 0.8);"
+        );
+        VBox.setVgrow(pendingRequestsList, Priority.ALWAYS);
+
+        // Refresh button
+        HBox buttonBox = new HBox();
+        buttonBox.setAlignment(Pos.CENTER_RIGHT);
+        Button refreshBtn = new Button("🔄 Refresh Requests");
+        refreshBtn.setStyle("-fx-background-color: #eab308; -fx-text-fill: white; " +
+                          "-fx-padding: 12 24; -fx-font-size: 14px; -fx-font-weight: bold; " +
+                          "-fx-background-radius: 8;");
+        refreshBtn.setOnAction(e -> loadPendingRequests());
+        buttonBox.getChildren().add(refreshBtn);
+
+        workflowPanel.getChildren().addAll(headerBox, pendingRequestsList, buttonBox);
+        return workflowPanel;
     }
 
     private void loadPendingRequests() {
