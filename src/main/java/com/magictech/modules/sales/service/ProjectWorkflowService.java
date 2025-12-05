@@ -186,15 +186,9 @@ public class ProjectWorkflowService {
 
         System.out.println("🔔 Notification sent to Projects team about site survey completion");
 
-        // AUTO-REQUEST: Automatically request selection & design from Presales (Step 2)
-        WorkflowStepCompletion step2 = stepService.getStep(workflowId, 2)
-            .orElseThrow(() -> new RuntimeException("Step 2 not found"));
-        stepService.markNeedsExternalAction(step2, "PRESALES");
-        entityManager.flush();
-
-        notificationService.notifyPresalesSelectionDesign(workflowId, project, salesUser);
-
-        System.out.println("✅ Selection & Design automatically requested from Presales team");
+        // NOTE: Step 2 (Selection & Design) is now OPTIONAL
+        // User will be prompted to choose whether to request from Presales or skip
+        System.out.println("✅ Step 1 completed. User will now choose whether to request from Presales in Step 2.");
     }
 
     /**
@@ -301,15 +295,9 @@ public class ProjectWorkflowService {
         System.out.println("🔔 Notification sent to Sales user: " + salesUser.getUsername() +
                          " about site survey completion for project: " + project.getProjectName());
 
-        // AUTO-REQUEST: Automatically request selection & design from Presales (Step 2)
-        WorkflowStepCompletion step2 = stepService.getStep(workflowId, 2)
-            .orElseThrow(() -> new RuntimeException("Step 2 not found"));
-        stepService.markNeedsExternalAction(step2, "PRESALES");
-        entityManager.flush();
-
-        notificationService.notifyPresalesSelectionDesign(workflowId, project, salesUser);
-
-        System.out.println("✅ Selection & Design automatically requested from Presales team");
+        // NOTE: Step 2 (Selection & Design) is now OPTIONAL
+        // User will be prompted to choose whether to request from Presales or skip
+        System.out.println("✅ Step 1 completed. User will now choose whether to request from Presales in Step 2.");
     }
 
     /**
@@ -434,15 +422,9 @@ public class ProjectWorkflowService {
 
         System.out.println("🔔 Notification sent to Sales user about presales completion");
 
-        // AUTO-REQUEST: Automatically request bank guarantee from Finance (Step 3)
-        WorkflowStepCompletion step3 = stepService.getStep(workflowId, 3)
-            .orElseThrow(() -> new RuntimeException("Step 3 not found"));
-        stepService.markNeedsExternalAction(step3, "FINANCE");
-        entityManager.flush();
-
-        notificationService.notifyBankGuaranteeRequest(project, salesUser);
-
-        System.out.println("✅ Bank guarantee automatically requested from Finance team");
+        // NOTE: Step 3 (Bank Guarantee) is now OPTIONAL
+        // User will be prompted to choose whether to request bank guarantee or skip
+        System.out.println("✅ Step 2 completed. User will now choose whether to request bank guarantee in Step 3.");
     }
 
     /**

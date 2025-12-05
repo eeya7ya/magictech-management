@@ -223,15 +223,19 @@ public class WorkflowDialog extends Stage {
         nextButton.setOnAction(e -> handleNext());
         nextButton.setDisable(false); // Re-enable by default
 
+        // CRITICAL FIX: Save the current step BEFORE loading step content
+        // Load step methods may call refreshWorkflow() which could change currentStep
+        final int stepToLoad = currentStep;
+
         // Step title
-        Label stepTitle = new Label("Step " + currentStep + ": " + stepTitles[currentStep - 1]);
+        Label stepTitle = new Label("Step " + stepToLoad + ": " + stepTitles[stepToLoad - 1]);
         stepTitle.setFont(Font.font("System", FontWeight.BOLD, 20));
         stepTitle.setTextFill(Color.web("#2c3e50"));
 
         stepContainer.getChildren().add(stepTitle);
 
         // Load step-specific content
-        switch (currentStep) {
+        switch (stepToLoad) {
             case 1 -> loadStep1_SiteSurvey();
             case 2 -> loadStep2_SelectionDesign();
             case 3 -> loadStep3_BankGuarantee();
@@ -241,6 +245,10 @@ public class WorkflowDialog extends Stage {
             case 7 -> loadStep7_AfterSales();
             case 8 -> loadStep8_Completion();
         }
+
+        // CRITICAL FIX: Restore currentStep to the step we're displaying
+        // This ensures the progress bar shows the correct current step
+        currentStep = stepToLoad;
 
         // Update buttons
         backButton.setDisable(currentStep == 1);

@@ -2452,11 +2452,13 @@ public class SalesStorageController extends BaseModuleController {
 
             saveTask.setOnSucceeded(e -> {
                 Project savedProject = saveTask.getValue();
-                showSuccess("✓ Project created! Opening workflow wizard...");
                 loadProjects(projectsListView);
 
-                // Open workflow dialog
-                Platform.runLater(() -> openWorkflowDialog(savedProject));
+                // Show success message first, wait for user to click OK
+                showSuccess("✓ Project created successfully!");
+
+                // Then open workflow dialog after user acknowledges
+                openWorkflowDialog(savedProject);
             });
 
             saveTask.setOnFailed(e -> {

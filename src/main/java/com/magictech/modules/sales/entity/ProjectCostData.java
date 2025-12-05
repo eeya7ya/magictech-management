@@ -23,7 +23,8 @@ public class ProjectCostData {
     private Long workflowId;
 
     // Excel file storage
-    @Column(name = "excel_file", columnDefinition = "bytea")
+    @Lob
+    @Column(name = "excel_file", columnDefinition = "BYTEA")
     private byte[] excelFile;
 
     @Column(name = "file_name", length = 255)
