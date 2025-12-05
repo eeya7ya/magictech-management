@@ -1,6 +1,8 @@
 package com.magictech.modules.sales.entity;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import java.time.LocalDateTime;
 
 /**
@@ -21,9 +23,9 @@ public class BankGuaranteeData {
     @Column(name = "workflow_id", nullable = false)
     private Long workflowId;
 
-    // Excel file storage
-    @Lob
-    @Column(name = "excel_file", columnDefinition = "BYTEA")
+    // Excel file storage - Using @JdbcTypeCode for Hibernate 6.x compatibility with PostgreSQL BYTEA
+    @Column(name = "excel_file")
+    @JdbcTypeCode(SqlTypes.BINARY)
     private byte[] excelFile;
 
     @Column(name = "file_name", length = 255)
