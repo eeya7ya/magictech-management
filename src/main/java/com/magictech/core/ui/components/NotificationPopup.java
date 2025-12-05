@@ -140,10 +140,42 @@ public class NotificationPopup extends Popup {
         if (owner == null || message == null) return;
 
         javafx.application.Platform.runLater(() -> {
-            NotificationPopup popup = new NotificationPopup(message, owner);
-            popup.show(owner);
+            // Find the topmost focused window (handles dialogs being open)
+            Window targetWindow = findTopmostWindow(owner);
+
+            NotificationPopup popup = new NotificationPopup(message, targetWindow);
+
+            // Make popup appear on top of all windows including dialogs
+            popup.setAutoHide(false);
+
+            popup.show(targetWindow);
 
             System.out.println("🎨 Displaying notification popup: " + message.getTitle());
         });
+    }
+
+    /**
+     * Find the topmost window (handles cases where dialogs are open)
+     */
+    private static Window findTopmostWindow(Window primaryWindow) {
+        // Get all windows and find the focused one or the topmost visible one
+        java.util.List<Window> allWindows = Window.getWindows();
+
+        // First, try to find a focused window
+        for (Window window : allWindows) {
+            if (window.isFocused() && window.isShowing()) {
+                return window;
+            }
+        }
+
+        // If no focused window, return the first showing window (usually the topmost)
+        for (int i = allWindows.size() - 1; i >= 0; i--) {
+            Window window = allWindows.get(i);
+            if (window.isShowing()) {
+                return window;
+            }
+        }
+
+        return primaryWindow;
     }
 }
