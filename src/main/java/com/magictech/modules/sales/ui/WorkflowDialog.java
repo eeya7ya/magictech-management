@@ -490,8 +490,21 @@ public class WorkflowDialog extends Stage {
     }
 
     private void handleSiteSurveyProject() {
-        workflowService.requestSiteSurveyFromProject(workflow.getId(), currentUser);
-        showInfo("Site survey request sent to Project Team. Waiting for their response...");
+        try {
+            System.out.println("\n🔘 'Request from Project Team' button clicked");
+            workflowService.requestSiteSurveyFromProject(workflow.getId(), currentUser);
+            System.out.println("✅ Request sent successfully to Project Team");
+
+            // FIX: Refresh and reload to show pending UI (same pattern as step 2)
+            refreshWorkflowDataOnly();
+            loadCurrentStep();
+
+            System.out.println("✅ UI updated - should now show pending state for step 1");
+        } catch (Exception ex) {
+            System.err.println("❌ ERROR requesting site survey from Project:");
+            ex.printStackTrace();
+            showError("Failed to send request: " + ex.getMessage());
+        }
     }
 
     // STEP 2: Selection & Design
@@ -610,10 +623,11 @@ public class WorkflowDialog extends Stage {
                 workflowService.requestSelectionDesignFromPresales(workflow.getId(), currentUser);
                 System.out.println("✅ Request sent successfully");
 
-                System.out.println("   Refreshing workflow...");
-                refreshWorkflow();
+                System.out.println("   Refreshing workflow data (preserving current step)...");
+                // FIX: Use refreshWorkflowDataOnly to stay on step 2
+                refreshWorkflowDataOnly();
 
-                System.out.println("   Reloading UI...");
+                System.out.println("   Reloading step 2 UI...");
                 loadCurrentStep();
 
                 System.out.println("✅ UI updated successfully - should now show pending state");
@@ -1217,6 +1231,17 @@ public class WorkflowDialog extends Stage {
         workflow = workflowService.getWorkflowById(workflow.getId()).orElse(workflow);
         currentStep = workflow.getCurrentStep();
         System.out.println("🔄 DEBUG: Workflow refreshed - Step changed from " + oldStep + " to " + currentStep);
+    }
+
+    /**
+     * Refresh workflow data from database WITHOUT changing currentStep.
+     * Use this when we want to update workflow state but stay on the current step UI.
+     */
+    private void refreshWorkflowDataOnly() {
+        System.out.println("🔄 DEBUG: Refreshing workflow data only (preserving currentStep=" + currentStep + ")");
+        workflow = workflowService.getWorkflowById(workflow.getId()).orElse(workflow);
+        // Don't update currentStep - stay on the step the user is viewing
+        System.out.println("🔄 DEBUG: Workflow data refreshed, staying on step " + currentStep);
     }
 
     private void showSuccess(String message) {
