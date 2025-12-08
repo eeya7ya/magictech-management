@@ -274,8 +274,22 @@ public class WorkflowDialog extends Stage {
             // Site survey completed - show download/view UI
             showSiteSurveyCompleted(surveyOpt.get());
         } else {
-            System.out.println("❌ DEBUG: No site survey found");
-            // Site survey not uploaded yet - show original request options
+            // Check if request is pending (waiting for Project team) - SAME PATTERN AS STEP 2
+            Optional<WorkflowStepCompletion> step1Opt = stepService.getStep(workflow.getId(), 1);
+            if (step1Opt.isPresent()) {
+                WorkflowStepCompletion step1 = step1Opt.get();
+                if (Boolean.TRUE.equals(step1.getNeedsExternalAction()) &&
+                    "PROJECT".equals(step1.getExternalModule()) &&
+                    Boolean.FALSE.equals(step1.getExternalActionCompleted())) {
+                    System.out.println("⏳ DEBUG: Step 1 request pending - waiting for Project team");
+                    // Request is pending - show waiting UI
+                    showSiteSurveyPendingUI(step1);
+                    return;
+                }
+            }
+
+            System.out.println("❌ DEBUG: No site survey found and no pending request");
+            // Site survey not uploaded yet and no pending request - show original request options
             showSiteSurveyRequestOptions();
         }
     }
@@ -297,6 +311,55 @@ public class WorkflowDialog extends Stage {
         buttons.setAlignment(Pos.CENTER);
 
         stepContainer.getChildren().addAll(question, buttons);
+    }
+
+    /**
+     * NEW: Show pending/waiting state for Step 1 when waiting for Project team
+     * Same pattern as Step 2's showSelectionDesignPendingUI
+     */
+    private void showSiteSurveyPendingUI(WorkflowStepCompletion step) {
+        VBox pendingBox = new VBox(15);
+        pendingBox.setAlignment(Pos.CENTER_LEFT);
+        pendingBox.setPadding(new Insets(20));
+        pendingBox.setStyle("-fx-background-color: #fef3c7; -fx-border-color: #f59e0b; -fx-border-width: 2; -fx-border-radius: 8; -fx-background-radius: 8;");
+
+        Label statusLabel = new Label("⏳ Waiting for Project Team");
+        statusLabel.setFont(Font.font("System", FontWeight.BOLD, 18));
+        statusLabel.setTextFill(Color.web("#92400e"));
+
+        Label messageLabel = new Label("You requested a site survey from the Project team.");
+        messageLabel.setFont(Font.font("System", FontWeight.NORMAL, 14));
+        messageLabel.setWrapText(true);
+
+        Label infoLabel = new Label("📋 The Project team has been notified and will upload the site survey Excel file soon.");
+        infoLabel.setFont(Font.font("System", FontWeight.NORMAL, 14));
+        infoLabel.setWrapText(true);
+        infoLabel.setTextFill(Color.web("#78350f"));
+
+        Label dateLabel = new Label("📅 Requested: " + formatDateTime(step.getCreatedAt()));
+        dateLabel.setFont(Font.font("System", FontWeight.NORMAL, 12));
+        dateLabel.setTextFill(Color.web("#78350f"));
+
+        // Refresh button to check if Project team has uploaded
+        Button refreshButton = new Button("🔄 Check Status");
+        refreshButton.setStyle("-fx-background-color: #f59e0b; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20; -fx-font-weight: bold;");
+        refreshButton.setOnAction(e -> {
+            refreshWorkflow();
+            loadCurrentStep();
+        });
+
+        pendingBox.getChildren().addAll(statusLabel, messageLabel, infoLabel, dateLabel, refreshButton);
+
+        Label waitingInfo = new Label("💡 Click 'Check Status' to see if the Project team has uploaded the survey. This will automatically show the completed state once uploaded.");
+        waitingInfo.setFont(Font.font("System", FontWeight.NORMAL, 12));
+        waitingInfo.setTextFill(Color.web("#6b7280"));
+        waitingInfo.setPadding(new Insets(15, 0, 0, 0));
+        waitingInfo.setWrapText(true);
+
+        stepContainer.getChildren().addAll(pendingBox, waitingInfo);
+
+        // Disable Next button while waiting for Project team
+        nextButton.setDisable(true);
     }
 
     private void showSiteSurveyCompleted(SiteSurveyData survey) {

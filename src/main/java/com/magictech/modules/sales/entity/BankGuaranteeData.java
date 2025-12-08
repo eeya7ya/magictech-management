@@ -24,7 +24,8 @@ public class BankGuaranteeData {
     private Long workflowId;
 
     // Excel file storage - Using @JdbcTypeCode for Hibernate 6.x compatibility with PostgreSQL BYTEA
-    @Column(name = "excel_file")
+    @Lob
+    @Column(name = "excel_file", columnDefinition = "BYTEA")
     @JdbcTypeCode(SqlTypes.BINARY)
     private byte[] excelFile;
 
