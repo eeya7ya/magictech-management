@@ -515,7 +515,7 @@ public class ProjectExecutionWizard extends Stage {
         statusTitle.setTextFill(Color.web("#60a5fa"));
 
         // Get schedule data
-        List<ProjectSchedule> schedules = scheduleService.findByProjectId(project.getId());
+        List<ProjectSchedule> schedules = scheduleService.getSchedulesByProject(project.getId());
 
         Label countLabel = new Label("Schedule Entries: " + schedules.size());
         countLabel.setFont(Font.font("System", FontWeight.NORMAL, 13));
@@ -631,7 +631,7 @@ public class ProjectExecutionWizard extends Stage {
         statusTitle.setTextFill(Color.web("#fbbf24"));
 
         // Get task data
-        List<ProjectTask> tasks = taskService.findByProjectId(project.getId());
+        List<ProjectTask> tasks = taskService.getTasksByProject(project.getId());
         long completedTasks = tasks.stream().filter(t -> Boolean.TRUE.equals(t.getIsCompleted())).count();
         double percentage = tasks.isEmpty() ? 0 : (completedTasks * 100.0 / tasks.size());
 
@@ -745,8 +745,8 @@ public class ProjectExecutionWizard extends Stage {
         summaryTitle.setTextFill(Color.web("#4ade80"));
 
         // Get data
-        List<ProjectSchedule> schedules = scheduleService.findByProjectId(project.getId());
-        List<ProjectTask> tasks = taskService.findByProjectId(project.getId());
+        List<ProjectSchedule> schedules = scheduleService.getSchedulesByProject(project.getId());
+        List<ProjectTask> tasks = taskService.getTasksByProject(project.getId());
         long completedTasks = tasks.stream().filter(t -> Boolean.TRUE.equals(t.getIsCompleted())).count();
         double taskPercentage = tasks.isEmpty() ? 0 : (completedTasks * 100.0 / tasks.size());
 
