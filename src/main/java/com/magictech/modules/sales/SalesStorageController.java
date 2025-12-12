@@ -40,7 +40,8 @@ import java.io.File;
 import java.util.List;
 
 @Component
-public class SalesStorageController extends BaseModuleController {
+public class SalesStorageController extends BaseModuleController
+        implements WorkflowDialog.WorkflowDialogCallback {
 
     @Autowired private CustomerService customerService;
     @Autowired private SalesOrderService salesOrderService;
@@ -66,6 +67,11 @@ public class SalesStorageController extends BaseModuleController {
     private Project currentlyDisplayedProject; // Track which project is currently shown
     private java.util.function.Consumer<com.magictech.core.messaging.dto.NotificationMessage> notificationListener;
     // Note: currentUser is inherited from BaseModuleController - do not redeclare!
+
+    // Active workflow dialog reference for Step 4 flow
+    private WorkflowDialog activeWorkflowDialog;
+    private Long activeStep4WorkflowId;
+    private TabPane currentProjectTabPane; // Reference to current project's tab pane
 
     @Override
     public void refresh() {
@@ -1232,10 +1238,20 @@ public class SalesStorageController extends BaseModuleController {
                                           com.magictech.modules.sales.entity.ProjectWorkflow workflow) {
         try {
             WorkflowDialog dialog = new WorkflowDialog(project, currentUser, workflowService, stepService, siteSurveyRepository, sizingPricingRepository, bankGuaranteeRepository);
-            dialog.showAndWait();
 
-            // Refresh the project details after dialog closes
-            openProjectDetails(project);
+            // Set callback for Step 4 navigation
+            dialog.setCallback(this);
+            activeWorkflowDialog = dialog;
+
+            // Use show() instead of showAndWait() for non-blocking display
+            dialog.show();
+
+            // Add close handler to refresh project details
+            dialog.setOnHidden(e -> {
+                activeWorkflowDialog = null;
+                activeStep4WorkflowId = null;
+                openProjectDetails(project);
+            });
         } catch (Exception ex) {
             ex.printStackTrace();
             showError("Failed to open workflow dialog: " + ex.getMessage());
@@ -2490,14 +2506,284 @@ public class SalesStorageController extends BaseModuleController {
                 sizingPricingRepository,
                 bankGuaranteeRepository
             );
-            workflowDialog.showAndWait();
 
-            // Refresh projects list after workflow dialog closes
-            loadProjects(projectsListView);
+            // Set callback for Step 4 navigation
+            workflowDialog.setCallback(this);
+            activeWorkflowDialog = workflowDialog;
+
+            // Use show() instead of showAndWait() for non-blocking display
+            workflowDialog.show();
+
+            // Add close handler to refresh list and clear reference
+            workflowDialog.setOnHidden(e -> {
+                activeWorkflowDialog = null;
+                activeStep4WorkflowId = null;
+                loadProjects(projectsListView);
+            });
         } catch (Exception ex) {
             ex.printStackTrace();
             showError("Failed to open workflow: " + ex.getMessage());
         }
+    }
+
+    // ==================== WorkflowDialogCallback Implementation ====================
+
+    /**
+     * Called when user clicks "Yes - Add Elements" in Step 4
+     * Navigates to the project elements tab for the specified project
+     */
+    @Override
+    public void onNavigateToProjectElements(Project project, Long workflowId) {
+        System.out.println("📦 Callback: Navigate to Project Elements for " + project.getProjectName());
+        System.out.println("   Workflow ID: " + workflowId);
+
+        // Store the workflow ID for Step 4 completion
+        activeStep4WorkflowId = workflowId;
+
+        // Navigate to project details and select elements tab
+        javafx.application.Platform.runLater(() -> {
+            // Open project details with elements tab selected
+            openProjectDetailsForStep4(project);
+        });
+    }
+
+    /**
+     * Open project details view with Project Elements tab selected for Step 4
+     */
+    private void openProjectDetailsForStep4(Project project) {
+        currentlyDisplayedProject = project;
+
+        VBox projectDetailScreen = new VBox(20);
+        projectDetailScreen.setPadding(new Insets(30));
+        projectDetailScreen.setStyle("-fx-background-color: transparent;");
+
+        // Header
+        HBox header = new HBox(20);
+        header.setAlignment(Pos.CENTER_LEFT);
+
+        Button backBtn = createStyledButton("← Back", "#6b7280", "#4b5563");
+        backBtn.setOnAction(e -> {
+            // Clear Step 4 context when going back
+            if (activeStep4WorkflowId != null) {
+                showWarning("Step 4 is still in progress. Complete adding elements or restore the workflow dialog.");
+            }
+            mainContainer.getChildren().setAll(dashboardScreen);
+        });
+
+        Label titleLabel = new Label("📋 " + project.getProjectName() + " (Step 4: Adding Elements)");
+        titleLabel.setStyle("-fx-text-fill: white; -fx-font-size: 28px; -fx-font-weight: bold;");
+
+        header.getChildren().addAll(backBtn, titleLabel);
+
+        // Tab pane for project details
+        TabPane tabPane = new TabPane();
+        tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
+        tabPane.setStyle("-fx-background-color: transparent;");
+        VBox.setVgrow(tabPane, Priority.ALWAYS);
+
+        // Store reference for later use
+        currentProjectTabPane = tabPane;
+
+        // Workflow Tab
+        Tab workflowTab = new Tab("📊 Workflow");
+        workflowTab.setContent(createWorkflowWizardTab(project));
+        styleTab(workflowTab, "#8b5cf6");
+
+        // Project Elements Tab (with Step 4 context)
+        Tab elementsTab = new Tab("📦 Project Elements (Step 4)");
+        elementsTab.setContent(createProjectElementsTabWithStep4(project));
+        styleTab(elementsTab, "#10b981"); // Green theme to highlight
+
+        // Contract PDF Tab
+        Tab contractsTab = new Tab("📄 Contract PDF");
+        contractsTab.setContent(createSimplePDFTab(project));
+        styleTab(contractsTab, "#7c3aed");
+
+        tabPane.getTabs().addAll(workflowTab, elementsTab, contractsTab);
+
+        // Select the Elements tab by default for Step 4
+        tabPane.getSelectionModel().select(elementsTab);
+
+        projectDetailScreen.getChildren().addAll(header, tabPane);
+
+        mainContainer.getChildren().setAll(projectDetailScreen);
+    }
+
+    /**
+     * Create Project Elements tab with Step 4 completion button
+     */
+    private VBox createProjectElementsTabWithStep4(Project project) {
+        VBox content = new VBox(15);
+        content.setPadding(new Insets(20));
+        content.setStyle("-fx-background-color: rgba(15, 23, 42, 0.6);");
+        VBox.setVgrow(content, Priority.ALWAYS);
+
+        // Step 4 Context Banner
+        HBox step4Banner = new HBox(15);
+        step4Banner.setAlignment(Pos.CENTER);
+        step4Banner.setPadding(new Insets(15));
+        step4Banner.setStyle(
+            "-fx-background-color: linear-gradient(to right, #10b981, #059669);" +
+            "-fx-background-radius: 8;"
+        );
+
+        Label step4Label = new Label("📋 Step 4: Add missing elements from storage, then click 'Complete Step 4' when done");
+        step4Label.setStyle("-fx-text-fill: white; -fx-font-size: 14px; -fx-font-weight: bold;");
+
+        Button completeStep4Button = new Button("✓ Complete Step 4");
+        completeStep4Button.setStyle(
+            "-fx-background-color: #ffffff;" +
+            "-fx-text-fill: #059669;" +
+            "-fx-font-size: 14px;" +
+            "-fx-font-weight: bold;" +
+            "-fx-padding: 10 20;" +
+            "-fx-background-radius: 6;"
+        );
+        completeStep4Button.setOnAction(e -> handleCompleteStep4());
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        step4Banner.getChildren().addAll(step4Label, spacer, completeStep4Button);
+
+        // Create TabPane for Cost Breakdown and Elements
+        TabPane subTabPane = new TabPane();
+        subTabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
+        VBox.setVgrow(subTabPane, Priority.ALWAYS);
+
+        // TAB 1: Cost Breakdown
+        Tab costTab = new Tab("💰 Cost Breakdown");
+        VBox costContent = new VBox(20);
+        costContent.setPadding(new Insets(30));
+        costContent.setStyle("-fx-background-color: rgba(15, 23, 42, 0.6);");
+
+        com.magictech.modules.sales.ui.CostBreakdownPanel breakdownPanel =
+            new com.magictech.modules.sales.ui.CostBreakdownPanel();
+        breakdownPanel.setId("costBreakdownPanel");
+
+        try {
+            java.util.Optional<com.magictech.modules.sales.entity.ProjectCostBreakdown> existing =
+                costBreakdownService.getBreakdownByProject(project.getId());
+            if (existing.isPresent()) {
+                breakdownPanel.loadBreakdown(existing.get());
+            }
+        } catch (Exception ex) {
+            System.err.println("Error loading cost breakdown: " + ex.getMessage());
+        }
+
+        breakdownPanel.setOnSave(breakdown -> {
+            try {
+                breakdown.setProjectId(project.getId());
+                String username = (currentUser != null) ? currentUser.getUsername() : "unknown";
+                costBreakdownService.saveBreakdown(breakdown, username);
+                showSuccess("Cost breakdown saved successfully!");
+            } catch (Exception ex) {
+                showError("Failed to save breakdown: " + ex.getMessage());
+            }
+        });
+
+        costContent.getChildren().add(breakdownPanel);
+        costTab.setContent(costContent);
+        styleTab(costTab, "#eab308");
+
+        // TAB 2: Project Elements
+        Tab elementsTab = new Tab("📦 Project Elements");
+        VBox elementsContent = new VBox(20);
+        elementsContent.setPadding(new Insets(30));
+        elementsContent.setStyle("-fx-background-color: rgba(15, 23, 42, 0.6);");
+        VBox.setVgrow(elementsContent, Priority.ALWAYS);
+
+        HBox header = new HBox(15);
+        header.setAlignment(Pos.CENTER_LEFT);
+
+        Label title = new Label("📦 Add Elements from Storage");
+        title.setStyle("-fx-text-fill: white; -fx-font-size: 24px; -fx-font-weight: bold;");
+        HBox.setHgrow(title, Priority.ALWAYS);
+
+        Button addButton = createStyledButton("+ Add Element", "#10b981", "#059669");
+        addButton.setOnAction(e -> handleAddElementToProject(project, elementsContent));
+
+        Button refreshButton = createStyledButton("🔄 Refresh", "#a78bfa", "#7c3aed");
+        refreshButton.setOnAction(e -> {
+            loadProjectElements(project, elementsContent);
+            refreshCostBreakdown(project, costContent);
+        });
+
+        header.getChildren().addAll(title, addButton, refreshButton);
+
+        ScrollPane scrollPane = new ScrollPane();
+        scrollPane.setFitToWidth(true);
+        scrollPane.setStyle(
+            "-fx-background: transparent;" +
+            "-fx-background-color: transparent;" +
+            "-fx-border-color: transparent;"
+        );
+        VBox.setVgrow(scrollPane, Priority.ALWAYS);
+
+        FlowPane elementsGrid = new FlowPane();
+        elementsGrid.setId("elementsGrid");
+        elementsGrid.setHgap(20);
+        elementsGrid.setVgap(20);
+        elementsGrid.setPadding(new Insets(10));
+        elementsGrid.setStyle("-fx-background-color: transparent;");
+
+        scrollPane.setContent(elementsGrid);
+
+        elementsContent.getChildren().addAll(header, scrollPane);
+        elementsTab.setContent(elementsContent);
+        styleTab(elementsTab, "#10b981");
+
+        subTabPane.getTabs().addAll(costTab, elementsTab);
+        subTabPane.getSelectionModel().select(elementsTab); // Select elements tab
+
+        content.getChildren().addAll(step4Banner, subTabPane);
+
+        // Load existing elements
+        loadProjectElements(project, elementsContent);
+        refreshCostBreakdown(project, costContent);
+
+        return content;
+    }
+
+    /**
+     * Handle completion of Step 4 after elements have been added
+     */
+    private void handleCompleteStep4() {
+        System.out.println("✅ handleCompleteStep4 called");
+        System.out.println("   Active workflow ID: " + activeStep4WorkflowId);
+
+        if (activeWorkflowDialog == null || activeStep4WorkflowId == null) {
+            showWarning("No active Step 4 workflow. Please use the workflow dialog to start Step 4.");
+            return;
+        }
+
+        // Confirm with user
+        Alert confirmAlert = new Alert(Alert.AlertType.CONFIRMATION);
+        confirmAlert.setTitle("Complete Step 4");
+        confirmAlert.setHeaderText("Complete Step 4: Missing Item Check");
+        confirmAlert.setContentText(
+            "Are you sure you want to complete Step 4?\n\n" +
+            "This will:\n" +
+            "• Mark Step 4 as completed\n" +
+            "• Notify Presales team about the element changes\n" +
+            "• Advance workflow to Step 5"
+        );
+
+        confirmAlert.showAndWait().ifPresent(response -> {
+            if (response == ButtonType.OK) {
+                // Complete Step 4 through the workflow dialog
+                activeWorkflowDialog.completeStep4WithElements();
+
+                // Clear the Step 4 context
+                activeStep4WorkflowId = null;
+
+                // Return to dashboard
+                mainContainer.getChildren().setAll(dashboardScreen);
+                loadProjects(projectsListView);
+
+                showSuccess("Step 4 completed! Presales team has been notified.");
+            }
+        });
     }
 
     /**
