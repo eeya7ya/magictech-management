@@ -3322,7 +3322,7 @@ public class ProjectsStorageController extends BaseModuleController {
     public void openExecutionWizardForProject(Project project, Long salesWorkflowId) {
         // Select the project first
         this.selectedProject = project;
-        showProjectWorkspace(project);
+        openProjectWorkspace(project);
 
         // Then open the wizard
         Platform.runLater(() -> {
