@@ -63,6 +63,12 @@ public class ProjectWorkflowService {
     @Autowired
     private jakarta.persistence.EntityManager entityManager;
 
+    @Autowired
+    private com.magictech.core.messaging.service.NotificationService coreNotificationService;
+
+    @Autowired
+    private com.magictech.modules.projects.repository.ProjectElementRepository projectElementRepository;
+
     /**
      * Create new workflow for a project
      */
@@ -536,6 +542,74 @@ public class ProjectWorkflowService {
         stepService.completeStep(step, salesUser);
 
         advanceToNextStep(workflow, salesUser);
+    }
+
+    /**
+     * STEP 4: Complete step with elements added from storage
+     * Called when Sales adds elements to the project and clicks "Complete Step 4"
+     * Notifies Presales about the element changes
+     */
+    public void completeStep4WithElements(Long workflowId, User salesUser) {
+        System.out.println("📦 STEP 4: Completing with elements added by " + salesUser.getUsername());
+
+        ProjectWorkflow workflow = getWorkflowById(workflowId)
+            .orElseThrow(() -> new RuntimeException("Workflow not found"));
+
+        validateStepCanStart(workflow, 4);
+
+        Project project = projectRepository.findById(workflow.getProjectId())
+            .orElseThrow(() -> new RuntimeException("Project not found"));
+
+        // Get the elements that were added to this project
+        java.util.List<com.magictech.modules.projects.entity.ProjectElement> elements =
+            projectElementRepository.findByProjectIdAndActiveTrue(project.getId());
+
+        int elementCount = elements.size();
+        System.out.println("   Project: " + project.getProjectName());
+        System.out.println("   Elements count: " + elementCount);
+
+        // Mark step 4 as completed
+        WorkflowStepCompletion step = stepService.getStep(workflowId, 4)
+            .orElseThrow(() -> new RuntimeException("Step not found"));
+        stepService.addNotes(step, "Elements added by " + salesUser.getUsername() +
+            " - Total elements: " + elementCount);
+        stepService.completeStep(step, salesUser);
+
+        // Send notification to Presales about the element changes
+        notifyPresalesAboutElementChanges(project, salesUser, elementCount);
+
+        // Advance to next step
+        advanceToNextStep(workflow, salesUser);
+
+        System.out.println("✅ STEP 4: Completed and advanced to Step 5");
+    }
+
+    /**
+     * Send notification to Presales team about element changes made by Sales
+     */
+    private void notifyPresalesAboutElementChanges(Project project, User salesUser, int elementCount) {
+        System.out.println("📢 Sending notification to Presales about element changes");
+
+        com.magictech.core.messaging.dto.NotificationMessage message =
+            new com.magictech.core.messaging.dto.NotificationMessage.Builder()
+                .title("Project Elements Updated")
+                .message(String.format(
+                    "Sales team member %s has updated elements for project '%s'. " +
+                    "Total elements: %d. Please review the changes.",
+                    salesUser.getUsername(), project.getProjectName(), elementCount))
+                .type(com.magictech.core.messaging.constants.NotificationConstants.TYPE_INFO)
+                .module(com.magictech.core.messaging.constants.NotificationConstants.MODULE_SALES)
+                .targetModule(com.magictech.core.messaging.constants.NotificationConstants.MODULE_PRESALES)
+                .entityType(com.magictech.core.messaging.constants.NotificationConstants.ENTITY_PROJECT)
+                .entityId(project.getId())
+                .priority(com.magictech.core.messaging.constants.NotificationConstants.PRIORITY_HIGH)
+                .createdBy(salesUser.getUsername())
+                .build();
+
+        // Use the core notification service to publish
+        coreNotificationService.publishNotification(message);
+
+        System.out.println("✅ Notification sent to Presales team");
     }
 
     /**

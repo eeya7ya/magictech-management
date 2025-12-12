@@ -11,6 +11,7 @@ import com.magictech.modules.sales.service.ProjectWorkflowService;
 import com.magictech.modules.sales.service.WorkflowStepService;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.geometry.Rectangle2D;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
@@ -19,6 +20,7 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.FileChooser;
 import javafx.stage.Modality;
+import javafx.stage.Screen;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 
@@ -29,12 +31,35 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Consumer;
 
 /**
  * Main workflow dialog for 8-step project lifecycle
  * Shown as popup when creating "Sell as New Project"
+ *
+ * Features:
+ * - Minimize/Maximize/Close window controls
+ * - Auto-advance after step completion
+ * - Step 4: Navigate to project elements tab for adding items from storage
  */
 public class WorkflowDialog extends Stage {
+
+    /**
+     * Callback interface for workflow dialog events
+     */
+    public interface WorkflowDialogCallback {
+        /**
+         * Called when user clicks "Add Elements" in Step 4
+         * @param project The project to add elements to
+         * @param workflowId The workflow ID for tracking
+         */
+        void onNavigateToProjectElements(Project project, Long workflowId);
+
+        /**
+         * Called when workflow dialog is restored from minimized state
+         */
+        default void onWorkflowRestored() {}
+    }
 
     private final ProjectWorkflowService workflowService;
     private final WorkflowStepService stepService;
@@ -45,12 +70,22 @@ public class WorkflowDialog extends Stage {
     private final User currentUser;
     private ProjectWorkflow workflow;
 
+    // Callback for communicating with parent controller
+    private WorkflowDialogCallback callback;
+
     private VBox mainContainer;
     private HBox progressBar;
     private VBox stepContainer;
     private Button nextButton;
     private Button backButton;
     private Button closeButton;
+
+    // Minimized state tracking
+    private boolean isMinimized = false;
+    private VBox minimizedBar;
+    private Scene fullScene;
+    private Scene minimizedScene;
+    private double savedX, savedY, savedWidth, savedHeight;
 
     private int currentStep = 1;
     private final String[] stepTitles = {
@@ -78,13 +113,46 @@ public class WorkflowDialog extends Stage {
         this.sizingPricingRepository = sizingPricingRepository;
         this.bankGuaranteeRepository = bankGuaranteeRepository;
 
-        initStyle(StageStyle.UTILITY);
-        initModality(Modality.APPLICATION_MODAL);
+        // Use DECORATED style for window controls (minimize, maximize, close)
+        initStyle(StageStyle.DECORATED);
+        // Non-modal so user can interact with main window when minimized
+        initModality(Modality.NONE);
         setTitle("Project Workflow - " + project.getProjectName());
+        setResizable(true);
 
         createWorkflow();
         buildUI();
+        buildMinimizedBar();
         loadCurrentStep();
+    }
+
+    /**
+     * Set the callback for workflow dialog events
+     * @param callback The callback implementation
+     */
+    public void setCallback(WorkflowDialogCallback callback) {
+        this.callback = callback;
+    }
+
+    /**
+     * Get the project associated with this workflow dialog
+     */
+    public Project getProject() {
+        return project;
+    }
+
+    /**
+     * Get the workflow ID
+     */
+    public Long getWorkflowId() {
+        return workflow != null ? workflow.getId() : null;
+    }
+
+    /**
+     * Get the current step number
+     */
+    public int getCurrentStepNumber() {
+        return currentStep;
     }
 
     private void createWorkflow() {
@@ -207,12 +275,153 @@ public class WorkflowDialog extends Stage {
         nextButton.setStyle("-fx-background-color: #3498db; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20;");
         nextButton.setOnAction(e -> handleNext());
 
+        // Minimize button - allows user to minimize dialog and work on main screen
+        Button minimizeButton = new Button("▬ Minimize");
+        minimizeButton.setStyle("-fx-background-color: #f39c12; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20;");
+        minimizeButton.setOnAction(e -> minimizeToBar());
+
         closeButton = new Button("Close");
         closeButton.setStyle("-fx-background-color: #e74c3c; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20;");
         closeButton.setOnAction(e -> close());
 
-        buttonBox.getChildren().addAll(backButton, nextButton, closeButton);
+        buttonBox.getChildren().addAll(backButton, nextButton, minimizeButton, closeButton);
         return buttonBox;
+    }
+
+    /**
+     * Build the minimized bar that appears at bottom of screen
+     */
+    private void buildMinimizedBar() {
+        minimizedBar = new VBox();
+        minimizedBar.setStyle(
+            "-fx-background-color: linear-gradient(to right, #2c3e50, #3498db);" +
+            "-fx-padding: 10 20;" +
+            "-fx-background-radius: 8 8 0 0;"
+        );
+        minimizedBar.setAlignment(Pos.CENTER);
+
+        HBox content = new HBox(15);
+        content.setAlignment(Pos.CENTER_LEFT);
+
+        Label iconLabel = new Label("📋");
+        iconLabel.setFont(Font.font(18));
+
+        Label titleLabel = new Label("Workflow: " + project.getProjectName() + " (Step " + currentStep + ")");
+        titleLabel.setStyle("-fx-text-fill: white; -fx-font-size: 14px; -fx-font-weight: bold;");
+        titleLabel.setId("minimizedTitle");
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        Button restoreButton = new Button("▢ Restore");
+        restoreButton.setStyle(
+            "-fx-background-color: #27ae60;" +
+            "-fx-text-fill: white;" +
+            "-fx-font-size: 12px;" +
+            "-fx-padding: 5 15;" +
+            "-fx-background-radius: 4;"
+        );
+        restoreButton.setOnAction(e -> restoreFromBar());
+
+        Button closeBtn = new Button("✕");
+        closeBtn.setStyle(
+            "-fx-background-color: #e74c3c;" +
+            "-fx-text-fill: white;" +
+            "-fx-font-size: 12px;" +
+            "-fx-padding: 5 10;" +
+            "-fx-background-radius: 4;"
+        );
+        closeBtn.setOnAction(e -> close());
+
+        content.getChildren().addAll(iconLabel, titleLabel, spacer, restoreButton, closeBtn);
+        minimizedBar.getChildren().add(content);
+
+        minimizedScene = new Scene(minimizedBar, 500, 50);
+    }
+
+    /**
+     * Minimize the dialog to a bar at the bottom of the screen
+     */
+    public void minimizeToBar() {
+        if (isMinimized) return;
+
+        System.out.println("📉 Minimizing workflow dialog to bar");
+
+        // Save current position and size
+        savedX = getX();
+        savedY = getY();
+        savedWidth = getWidth();
+        savedHeight = getHeight();
+
+        // Update minimized bar title with current step
+        Label titleLabel = (Label) minimizedBar.lookup("#minimizedTitle");
+        if (titleLabel != null) {
+            titleLabel.setText("Workflow: " + project.getProjectName() + " (Step " + currentStep + ")");
+        }
+
+        // Get screen bounds
+        Rectangle2D screenBounds = Screen.getPrimary().getVisualBounds();
+
+        // Switch to minimized scene
+        fullScene = getScene();
+        setScene(minimizedScene);
+
+        // Position at bottom center of screen
+        setWidth(500);
+        setHeight(50);
+        setX((screenBounds.getWidth() - 500) / 2);
+        setY(screenBounds.getHeight() - 60);
+
+        isMinimized = true;
+        setAlwaysOnTop(true);
+    }
+
+    /**
+     * Restore the dialog from minimized state
+     */
+    public void restoreFromBar() {
+        if (!isMinimized) return;
+
+        System.out.println("📈 Restoring workflow dialog from bar");
+
+        // Switch back to full scene
+        setScene(fullScene);
+
+        // Restore position and size
+        setWidth(savedWidth > 0 ? savedWidth : 800);
+        setHeight(savedHeight > 0 ? savedHeight : 600);
+        setX(savedX > 0 ? savedX : 100);
+        setY(savedY > 0 ? savedY : 100);
+
+        isMinimized = false;
+        setAlwaysOnTop(false);
+
+        // Refresh workflow state
+        refreshWorkflow();
+        loadCurrentStep();
+
+        // Notify callback
+        if (callback != null) {
+            callback.onWorkflowRestored();
+        }
+    }
+
+    /**
+     * Check if the dialog is currently minimized
+     */
+    public boolean isDialogMinimized() {
+        return isMinimized;
+    }
+
+    /**
+     * Advance to next step and update UI - called after step completion
+     */
+    private void advanceToNextStepAndUpdateUI() {
+        System.out.println("🚀 AUTO-ADVANCE: Syncing UI with database state");
+        refreshWorkflow();
+        currentStep = workflow.getCurrentStep();
+        System.out.println("   Current step after refresh: " + currentStep);
+        loadCurrentStep();
     }
 
     private void loadCurrentStep() {
@@ -938,31 +1147,120 @@ public class WorkflowDialog extends Stage {
         return bankGuaranteeRepository;
     }
 
-    // STEP 4: Missing Item
+    // STEP 4: Missing Item Check
+    // This step allows Sales to add elements from storage database to the project
     private void loadStep4_MissingItem() {
-        Label question = new Label("Is there any missing item?");
-        question.setFont(Font.font("System", FontWeight.NORMAL, 16));
+        VBox contentBox = new VBox(15);
+        contentBox.setAlignment(Pos.CENTER_LEFT);
+        contentBox.setPadding(new Insets(10));
 
+        Label question = new Label("Is there any missing item?");
+        question.setFont(Font.font("System", FontWeight.BOLD, 18));
+        question.setTextFill(Color.web("#2c3e50"));
+
+        Label infoLabel = new Label(
+            "If items are missing from the project, click 'Yes - Add Elements' to:\n" +
+            "• Open the Project Elements tab\n" +
+            "• Add items from the storage database\n" +
+            "• Notify Presales about the changes"
+        );
+        infoLabel.setFont(Font.font("System", FontWeight.NORMAL, 14));
+        infoLabel.setWrapText(true);
+        infoLabel.setTextFill(Color.web("#7f8c8d"));
+
+        // No missing items - complete step and advance
         Button noButton = new Button("No");
-        noButton.setStyle("-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20;");
+        noButton.setStyle("-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20; -fx-font-weight: bold;");
         noButton.setOnAction(e -> {
             workflowService.markNoMissingItems(workflow.getId(), currentUser);
-            showSuccess("Marked as no missing items");
-            refreshWorkflow();
-            loadCurrentStep();
+            showSuccess("Marked as no missing items. Advancing to Step 5...");
+            // Auto-advance to next step
+            advanceToNextStepAndUpdateUI();
         });
 
-        Button yesButton = new Button("Yes - Submit Item Details");
-        yesButton.setStyle("-fx-background-color: #e74c3c; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20;");
-        yesButton.setOnAction(e -> showMissingItemDialog());
+        // Yes - Navigate to Project Elements tab to add items from storage
+        Button yesButton = new Button("Yes - Add Elements");
+        yesButton.setStyle("-fx-background-color: #3498db; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20; -fx-font-weight: bold;");
+        yesButton.setOnAction(e -> handleNavigateToProjectElements());
 
-        HBox buttons = new HBox(10, noButton, yesButton);
+        HBox buttons = new HBox(15, noButton, yesButton);
         buttons.setAlignment(Pos.CENTER);
+        buttons.setPadding(new Insets(20, 0, 0, 0));
 
-        stepContainer.getChildren().addAll(question, buttons);
+        // Info box about workflow
+        VBox infoBox = new VBox(8);
+        infoBox.setStyle("-fx-background-color: #e3f2fd; -fx-border-color: #2196f3; -fx-border-width: 1; -fx-border-radius: 6; -fx-background-radius: 6; -fx-padding: 15;");
+
+        Label infoTitle = new Label("📋 Step 4 Workflow:");
+        infoTitle.setFont(Font.font("System", FontWeight.BOLD, 14));
+        infoTitle.setTextFill(Color.web("#1565c0"));
+
+        Label infoContent = new Label(
+            "1. Click 'Yes - Add Elements' to minimize this dialog\n" +
+            "2. Navigate to Project Elements tab\n" +
+            "3. Add items from storage database to the project\n" +
+            "4. Click 'Complete Step 4' button when done\n" +
+            "5. Presales team will be notified of the changes"
+        );
+        infoContent.setFont(Font.font("System", FontWeight.NORMAL, 12));
+        infoContent.setTextFill(Color.web("#1976d2"));
+        infoContent.setWrapText(true);
+
+        infoBox.getChildren().addAll(infoTitle, infoContent);
+
+        contentBox.getChildren().addAll(question, infoLabel, buttons, infoBox);
+        stepContainer.getChildren().add(contentBox);
     }
 
-    private void showMissingItemDialog() {
+    /**
+     * Handle navigation to Project Elements tab for adding items from storage
+     * This minimizes the workflow dialog and notifies the parent controller
+     */
+    private void handleNavigateToProjectElements() {
+        System.out.println("📦 Step 4: User clicked 'Yes - Add Elements'");
+        System.out.println("   Project: " + project.getProjectName());
+        System.out.println("   Workflow ID: " + workflow.getId());
+
+        if (callback != null) {
+            // Minimize the dialog
+            minimizeToBar();
+
+            // Notify parent controller to navigate to project elements tab
+            callback.onNavigateToProjectElements(project, workflow.getId());
+
+            showInfo(
+                "Workflow minimized. Navigate to Project Elements tab to add items.\n\n" +
+                "Click 'Complete Step 4' when you're done adding elements."
+            );
+        } else {
+            // Fallback if no callback is set - show legacy dialog
+            System.out.println("⚠️ WARNING: No callback set, showing legacy dialog");
+            showLegacyMissingItemDialog();
+        }
+    }
+
+    /**
+     * Complete Step 4 after elements have been added
+     * Called by SalesStorageController when user clicks "Complete Step 4" button
+     */
+    public void completeStep4WithElements() {
+        System.out.println("✅ Completing Step 4 with elements added");
+
+        // Mark step 4 as completed in the workflow service
+        workflowService.completeStep4WithElements(workflow.getId(), currentUser);
+
+        // Restore dialog and advance to next step
+        restoreFromBar();
+        showSuccess("Step 4 completed! Elements have been added. Presales team notified.");
+
+        // Auto-advance to Step 5
+        advanceToNextStepAndUpdateUI();
+    }
+
+    /**
+     * Legacy dialog for missing items - used as fallback if callback not set
+     */
+    private void showLegacyMissingItemDialog() {
         Dialog<MissingItemRequest> dialog = new Dialog<>();
         dialog.setTitle("Submit Missing Item Request");
         dialog.setHeaderText("Enter missing item details");
@@ -1001,7 +1299,11 @@ public class WorkflowDialog extends Stage {
                 MissingItemRequest request = new MissingItemRequest();
                 request.setItemName(itemNameField.getText());
                 request.setItemDescription(descriptionArea.getText());
-                request.setQuantityNeeded(Integer.parseInt(quantityField.getText()));
+                try {
+                    request.setQuantityNeeded(Integer.parseInt(quantityField.getText()));
+                } catch (NumberFormatException ex) {
+                    request.setQuantityNeeded(1);
+                }
                 request.setItemSpecifications(specsArea.getText());
                 request.setUrgencyLevel(urgencyBox.getValue());
                 return request;
