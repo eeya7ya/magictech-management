@@ -1,6 +1,7 @@
 package com.magictech.modules.sales.ui;
 
 import com.magictech.core.auth.User;
+import com.magictech.core.ui.components.RoadmapProgressBar;
 import com.magictech.modules.projects.entity.Project;
 import com.magictech.modules.sales.entity.MissingItemRequest;
 import com.magictech.modules.sales.entity.ProjectWorkflow;
@@ -74,7 +75,7 @@ public class WorkflowDialog extends Stage {
     private WorkflowDialogCallback callback;
 
     private VBox mainContainer;
-    private HBox progressBar;
+    private RoadmapProgressBar progressBar;
     private VBox stepContainer;
     private Button nextButton;
     private Button backButton;
@@ -169,29 +170,43 @@ public class WorkflowDialog extends Stage {
 
     private void buildUI() {
         mainContainer = new VBox(20);
-        mainContainer.setPadding(new Insets(20));
-        mainContainer.setStyle("-fx-background-color: #f5f5f5;");
-        mainContainer.setPrefWidth(800);
-        mainContainer.setPrefHeight(600);
+        mainContainer.setPadding(new Insets(25));
+        mainContainer.setStyle("-fx-background-color: linear-gradient(to bottom, #0f172a, #1e293b);");
+        mainContainer.setPrefWidth(900);
+        mainContainer.setPrefHeight(700);
 
-        // Header
+        // Header with modern styling
+        VBox header = new VBox(8);
+        header.setAlignment(Pos.CENTER);
+
+        Label iconLabel = new Label("📋");
+        iconLabel.setFont(Font.font(40));
+
         Label headerLabel = new Label("Project Workflow");
-        headerLabel.setFont(Font.font("System", FontWeight.BOLD, 24));
-        headerLabel.setTextFill(Color.web("#2c3e50"));
+        headerLabel.setFont(Font.font("System", FontWeight.BOLD, 28));
+        headerLabel.setTextFill(Color.WHITE);
 
         Label projectLabel = new Label("Project: " + project.getProjectName());
         projectLabel.setFont(Font.font("System", FontWeight.NORMAL, 14));
-        projectLabel.setTextFill(Color.web("#7f8c8d"));
+        projectLabel.setTextFill(Color.web("#94a3b8"));
 
-        VBox header = new VBox(5, headerLabel, projectLabel);
-        header.setAlignment(Pos.CENTER);
+        header.getChildren().addAll(iconLabel, headerLabel, projectLabel);
 
-        // Progress bar
-        progressBar = createProgressBar();
+        // Modern roadmap-style progress bar
+        progressBar = new RoadmapProgressBar(java.util.Arrays.asList(stepTitles));
+        progressBar.setCurrentStep(currentStep);
 
-        // Step container
+        // Step container with modern styling
         stepContainer = new VBox(15);
-        stepContainer.setStyle("-fx-background-color: white; -fx-background-radius: 10; -fx-padding: 20;");
+        stepContainer.setStyle(
+            "-fx-background-color: rgba(30, 41, 59, 0.8);" +
+            "-fx-background-radius: 12;" +
+            "-fx-border-radius: 12;" +
+            "-fx-border-color: rgba(100, 116, 139, 0.3);" +
+            "-fx-border-width: 1;" +
+            "-fx-padding: 25;"
+        );
+        VBox.setVgrow(stepContainer, Priority.ALWAYS);
 
         // Buttons
         HBox buttonBox = createButtonBox();
@@ -263,26 +278,63 @@ public class WorkflowDialog extends Stage {
     }
 
     private HBox createButtonBox() {
-        HBox buttonBox = new HBox(10);
+        HBox buttonBox = new HBox(15);
         buttonBox.setAlignment(Pos.CENTER_RIGHT);
-        buttonBox.setPadding(new Insets(10));
+        buttonBox.setPadding(new Insets(15, 0, 0, 0));
 
         backButton = new Button("← Back");
-        backButton.setStyle("-fx-background-color: #95a5a6; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20;");
+        backButton.setStyle(
+            "-fx-background-color: #475569;" +
+            "-fx-text-fill: white;" +
+            "-fx-font-size: 14px;" +
+            "-fx-font-weight: bold;" +
+            "-fx-padding: 12 25;" +
+            "-fx-background-radius: 8;" +
+            "-fx-cursor: hand;"
+        );
         backButton.setOnAction(e -> handleBack());
 
         nextButton = new Button("Next →");
-        nextButton.setStyle("-fx-background-color: #3498db; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20;");
+        nextButton.setStyle(
+            "-fx-background-color: linear-gradient(to right, #3b82f6, #2563eb);" +
+            "-fx-text-fill: white;" +
+            "-fx-font-size: 14px;" +
+            "-fx-font-weight: bold;" +
+            "-fx-padding: 12 25;" +
+            "-fx-background-radius: 8;" +
+            "-fx-cursor: hand;"
+        );
         nextButton.setOnAction(e -> handleNext());
 
         // Minimize button - allows user to minimize dialog and work on main screen
         Button minimizeButton = new Button("▬ Minimize");
-        minimizeButton.setStyle("-fx-background-color: #f39c12; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20;");
+        minimizeButton.setStyle(
+            "-fx-background-color: #f59e0b;" +
+            "-fx-text-fill: white;" +
+            "-fx-font-size: 14px;" +
+            "-fx-font-weight: bold;" +
+            "-fx-padding: 12 25;" +
+            "-fx-background-radius: 8;" +
+            "-fx-cursor: hand;"
+        );
         minimizeButton.setOnAction(e -> minimizeToBar());
 
         closeButton = new Button("Close");
-        closeButton.setStyle("-fx-background-color: #e74c3c; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20;");
-        closeButton.setOnAction(e -> close());
+        closeButton.setStyle(
+            "-fx-background-color: #ef4444;" +
+            "-fx-text-fill: white;" +
+            "-fx-font-size: 14px;" +
+            "-fx-font-weight: bold;" +
+            "-fx-padding: 12 25;" +
+            "-fx-background-radius: 8;" +
+            "-fx-cursor: hand;"
+        );
+        closeButton.setOnAction(e -> {
+            if (progressBar != null) {
+                progressBar.cleanup();
+            }
+            close();
+        });
 
         buttonBox.getChildren().addAll(backButton, nextButton, minimizeButton, closeButton);
         return buttonBox;
@@ -436,10 +488,10 @@ public class WorkflowDialog extends Stage {
         // Load step methods may call refreshWorkflow() which could change currentStep
         final int stepToLoad = currentStep;
 
-        // Step title
+        // Step title with modern styling
         Label stepTitle = new Label("Step " + stepToLoad + ": " + stepTitles[stepToLoad - 1]);
-        stepTitle.setFont(Font.font("System", FontWeight.BOLD, 20));
-        stepTitle.setTextFill(Color.web("#2c3e50"));
+        stepTitle.setFont(Font.font("System", FontWeight.BOLD, 22));
+        stepTitle.setTextFill(Color.WHITE);
 
         stepContainer.getChildren().add(stepTitle);
 
@@ -462,10 +514,20 @@ public class WorkflowDialog extends Stage {
         // Update buttons
         backButton.setDisable(currentStep == 1);
 
-        // Update progress bar
-        progressBar.getChildren().clear();
-        progressBar = createProgressBar();
-        mainContainer.getChildren().set(1, progressBar);
+        // Update roadmap progress bar - set current step and completion states
+        progressBar.setCurrentStep(currentStep);
+        updateProgressBarCompletionStates();
+    }
+
+    /**
+     * Update the roadmap progress bar with completion states from database
+     */
+    private void updateProgressBarCompletionStates() {
+        for (int i = 1; i <= 8; i++) {
+            Optional<WorkflowStepCompletion> stepOpt = stepService.getStep(workflow.getId(), i);
+            boolean completed = stepOpt.isPresent() && Boolean.TRUE.equals(stepOpt.get().getCompleted());
+            progressBar.setStepCompleted(i, completed);
+        }
     }
 
     // STEP 1: Site Survey
