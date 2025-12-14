@@ -38,6 +38,25 @@ public class BankGuaranteeData {
     @Column(name = "mime_type", length = 100)
     private String mimeType;
 
+    // ZIP file storage - Alternative to Excel for bundling multiple files
+    @Lob
+    @Column(name = "zip_file", columnDefinition = "BYTEA")
+    @JdbcTypeCode(SqlTypes.BINARY)
+    private byte[] zipFile;
+
+    @Column(name = "zip_file_name", length = 255)
+    private String zipFileName;
+
+    @Column(name = "zip_file_size")
+    private Long zipFileSize;
+
+    @Column(name = "zip_mime_type", length = 100)
+    private String zipMimeType;
+
+    // File type indicator: EXCEL, ZIP, or BOTH
+    @Column(name = "file_type", length = 20)
+    private String fileType;
+
     // Parsed data (JSON format for flexibility)
     @Column(name = "parsed_data", columnDefinition = "TEXT")
     private String parsedData;
@@ -206,5 +225,59 @@ public class BankGuaranteeData {
 
     public void setActive(Boolean active) {
         this.active = active;
+    }
+
+    // ZIP file getters and setters
+    public byte[] getZipFile() {
+        return zipFile;
+    }
+
+    public void setZipFile(byte[] zipFile) {
+        this.zipFile = zipFile;
+    }
+
+    public String getZipFileName() {
+        return zipFileName;
+    }
+
+    public void setZipFileName(String zipFileName) {
+        this.zipFileName = zipFileName;
+    }
+
+    public Long getZipFileSize() {
+        return zipFileSize;
+    }
+
+    public void setZipFileSize(Long zipFileSize) {
+        this.zipFileSize = zipFileSize;
+    }
+
+    public String getZipMimeType() {
+        return zipMimeType;
+    }
+
+    public void setZipMimeType(String zipMimeType) {
+        this.zipMimeType = zipMimeType;
+    }
+
+    public String getFileType() {
+        return fileType;
+    }
+
+    public void setFileType(String fileType) {
+        this.fileType = fileType;
+    }
+
+    // Helper methods
+    public boolean hasExcelFile() {
+        return excelFile != null && excelFile.length > 0;
+    }
+
+    public boolean hasZipFile() {
+        return zipFile != null && zipFile.length > 0;
+    }
+
+    public boolean hasAnyFile() {
+        return hasExcelFile() || hasZipFile();
     }
 }

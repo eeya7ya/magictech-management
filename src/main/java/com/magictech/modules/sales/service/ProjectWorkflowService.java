@@ -198,6 +198,68 @@ public class ProjectWorkflowService {
     }
 
     /**
+     * STEP 1: Process Site Survey with ZIP file - Sales does it himself
+     * Alternative to Excel upload - stores ZIP archive instead
+     */
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
+    public void processSiteSurveySalesWithZip(Long workflowId, byte[] zipFile, String fileName,
+                                              User salesUser) throws Exception {
+        ProjectWorkflow workflow = getWorkflowById(workflowId)
+            .orElseThrow(() -> new RuntimeException("Workflow not found"));
+
+        validateStepCanStart(workflow, 1);
+
+        Project project = projectRepository.findById(workflow.getProjectId())
+            .orElseThrow(() -> new RuntimeException("Project not found"));
+
+        // Validate ZIP file
+        if (!fileName.toLowerCase().endsWith(".zip")) {
+            throw new IllegalArgumentException("Invalid file. Please upload a valid .zip file.");
+        }
+
+        SiteSurveyData surveyData = new SiteSurveyData();
+        surveyData.setProjectId(workflow.getProjectId());
+        surveyData.setWorkflowId(workflowId);
+        // Store as ZIP instead of Excel
+        surveyData.setZipFile(zipFile);
+        surveyData.setZipFileName(fileName);
+        surveyData.setZipFileSize((long) zipFile.length);
+        surveyData.setZipMimeType("application/zip");
+        surveyData.setFileType("ZIP");
+        surveyData.setSurveyDoneBy("SALES");
+        surveyData.setSurveyDoneByUser(salesUser.getUsername());
+        surveyData.setSurveyDoneByUserId(salesUser.getId());
+        surveyData.setUploadedBy(salesUser.getUsername());
+        surveyData.setUploadedById(salesUser.getId());
+
+        siteSurveyRepository.save(surveyData);
+
+        System.out.println("✅ Site survey ZIP data saved for project: " + project.getProjectName());
+
+        entityManager.flush();
+
+        // Complete step
+        WorkflowStepCompletion step = stepService.getStep(workflowId, 1)
+            .orElseThrow(() -> new RuntimeException("Step not found"));
+
+        stepService.completeStep(step, salesUser);
+        entityManager.flush();
+
+        System.out.println("✅ Workflow step 1 marked as completed (ZIP upload)");
+
+        // Move to next step
+        advanceToNextStep(workflow, salesUser);
+        entityManager.flush();
+
+        System.out.println("➡️ Workflow advanced to step " + workflow.getCurrentStep());
+
+        // Notify Projects team
+        notificationService.notifySiteSurveyCompletedBySales(project, salesUser);
+
+        System.out.println("✅ Step 1 completed with ZIP file upload.");
+    }
+
+    /**
      * STEP 1: Request site survey from Project team
      */
     public void requestSiteSurveyFromProject(Long workflowId, User salesUser) {
@@ -770,6 +832,45 @@ public class ProjectWorkflowService {
         stepService.completeStep(step, salesUser);
 
         advanceToNextStep(workflow, salesUser);
+    }
+
+    /**
+     * STEP 6: Confirm project finished and upload project cost as ZIP file
+     */
+    public void confirmProjectFinishedWithZip(Long workflowId, byte[] zipFile, String fileName,
+                                              User salesUser) throws Exception {
+        ProjectWorkflow workflow = getWorkflowById(workflowId)
+            .orElseThrow(() -> new RuntimeException("Workflow not found"));
+
+        validateStepCanStart(workflow, 6);
+
+        // Validate ZIP file
+        if (!fileName.toLowerCase().endsWith(".zip")) {
+            throw new IllegalArgumentException("Invalid file. Please upload a valid .zip file.");
+        }
+
+        ProjectCostData costData = new ProjectCostData();
+        costData.setProjectId(workflow.getProjectId());
+        costData.setWorkflowId(workflowId);
+        // Store as ZIP instead of Excel
+        costData.setZipFile(zipFile);
+        costData.setZipFileName(fileName);
+        costData.setZipFileSize((long) zipFile.length);
+        costData.setZipMimeType("application/zip");
+        costData.setFileType("ZIP");
+        costData.setUploadedBy(salesUser.getUsername());
+        costData.setUploadedById(salesUser.getId());
+        costData.setProjectReceivedConfirmation(true);
+
+        projectCostRepository.save(costData);
+
+        WorkflowStepCompletion step = stepService.getStep(workflowId, 6)
+            .orElseThrow(() -> new RuntimeException("Step not found"));
+        stepService.completeStep(step, salesUser);
+
+        advanceToNextStep(workflow, salesUser);
+
+        System.out.println("✅ Step 6 completed with ZIP file upload.");
     }
 
     /**
