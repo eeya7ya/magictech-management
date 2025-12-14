@@ -23,7 +23,7 @@ public class SiteSurveyData {
 
     // Excel file storage
     @Lob
-    @Column(name = "excel_file")
+    @Column(name = "excel_file", columnDefinition = "BYTEA")
     private byte[] excelFile;
 
     @Column(name = "file_name", length = 255)
@@ -37,7 +37,7 @@ public class SiteSurveyData {
 
     // ZIP file storage - Alternative to Excel for bundling multiple files/images
     @Lob
-    @Column(name = "zip_file")
+    @Column(name = "zip_file", columnDefinition = "BYTEA")
     private byte[] zipFile;
 
     @Column(name = "zip_file_name", length = 255)
