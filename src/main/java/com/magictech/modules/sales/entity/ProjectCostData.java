@@ -24,7 +24,7 @@ public class ProjectCostData {
 
     // Excel file storage
     @Lob
-    @Column(name = "excel_file")
+    @Column(name = "excel_file", columnDefinition = "BYTEA")
     private byte[] excelFile;
 
     @Column(name = "file_name", length = 255)
@@ -38,7 +38,7 @@ public class ProjectCostData {
 
     // ZIP file storage - Alternative to Excel for bundling multiple files
     @Lob
-    @Column(name = "zip_file")
+    @Column(name = "zip_file", columnDefinition = "BYTEA")
     private byte[] zipFile;
 
     @Column(name = "zip_file_name", length = 255)
