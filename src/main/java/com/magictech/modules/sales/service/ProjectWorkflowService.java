@@ -1116,20 +1116,16 @@ public class ProjectWorkflowService {
                 : String.format("Project '%s' has been completed by the Projects team (%s) but with issues: %s",
                                projectName, projectUser.getUsername(), explanation);
 
-            // Use core notification service with NotificationMessage builder
-            com.magictech.core.messaging.dto.NotificationMessage notificationMessage =
-                new com.magictech.core.messaging.dto.NotificationMessage.Builder()
-                    .type(success ? "SUCCESS" : "WARNING")
-                    .module("PROJECTS")
-                    .action("PROJECT_EXECUTION_COMPLETED")
-                    .entityType("WORKFLOW")
-                    .entityId(workflow.getId())
-                    .title(title)
-                    .message(message)
-                    .targetModule("SALES")
-                    .priority("HIGH")
-                    .build();
-            coreNotificationService.publishNotification(notificationMessage);
+            // Use core notification service
+            coreNotificationService.sendNotification(
+                title,
+                message,
+                success ? "SUCCESS" : "WARNING",
+                "SALES",
+                "PROJECT_EXECUTION_COMPLETED",
+                "WORKFLOW",
+                workflow.getId()
+            );
 
             System.out.println("📨 Notification sent to Sales: " + title);
         } catch (Exception ex) {
