@@ -69,19 +69,6 @@ public class WorkflowStepCompletion {
     @Column(name = "danger_alarm_sent")
     private Boolean dangerAlarmSent = false;
 
-    // Project execution completion (Step 6 - from Projects team)
-    @Column(name = "project_completion_notes", columnDefinition = "TEXT")
-    private String projectCompletionNotes;
-
-    @Column(name = "has_issues")
-    private Boolean hasIssues = false;
-
-    @Column(name = "external_action_completed_at")
-    private LocalDateTime externalActionCompletedAt;
-
-    @Column(name = "external_action_completed_by", length = 100)
-    private String externalActionCompletedBy;
-
     // General notes for this step
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
@@ -290,38 +277,5 @@ public class WorkflowStepCompletion {
 
     public void setActive(Boolean active) {
         this.active = active;
-    }
-
-    // Project execution completion getters/setters
-    public String getProjectCompletionNotes() {
-        return projectCompletionNotes;
-    }
-
-    public void setProjectCompletionNotes(String projectCompletionNotes) {
-        this.projectCompletionNotes = projectCompletionNotes;
-    }
-
-    public Boolean getHasIssues() {
-        return hasIssues;
-    }
-
-    public void setHasIssues(Boolean hasIssues) {
-        this.hasIssues = hasIssues;
-    }
-
-    public LocalDateTime getExternalActionCompletedAt() {
-        return externalActionCompletedAt;
-    }
-
-    public void setExternalActionCompletedAt(LocalDateTime externalActionCompletedAt) {
-        this.externalActionCompletedAt = externalActionCompletedAt;
-    }
-
-    public String getExternalActionCompletedBy() {
-        return externalActionCompletedBy;
-    }
-
-    public void setExternalActionCompletedBy(String externalActionCompletedBy) {
-        this.externalActionCompletedBy = externalActionCompletedBy;
     }
 }

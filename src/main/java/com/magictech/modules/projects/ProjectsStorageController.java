@@ -5,8 +5,6 @@ import com.magictech.core.module.BaseModuleController;
 import com.magictech.modules.projects.entity.*;
 import com.magictech.modules.projects.service.*;
 import com.magictech.modules.projects.model.*;
-import com.magictech.modules.projects.ui.ProjectExecutionWizard;
-import com.magictech.modules.sales.service.ProjectWorkflowService;
 import com.magictech.modules.storage.entity.StorageItem;
 import com.magictech.modules.storage.service.StorageService;
 import javafx.application.Platform;
@@ -69,12 +67,6 @@ public class ProjectsStorageController extends BaseModuleController {
 
     @Autowired
     private com.magictech.modules.sales.service.SiteSurveyExcelService siteSurveyExcelService;
-
-    @Autowired
-    private ProjectWorkflowService projectWorkflowService;
-
-    // Active Project Execution Wizard
-    private ProjectExecutionWizard activeExecutionWizard;
 
     // UI Components
     private com.magictech.core.ui.components.DashboardBackgroundPane backgroundPane;
@@ -418,18 +410,7 @@ public class ProjectsStorageController extends BaseModuleController {
         siteSurveyTabContent = createSiteSurveyTab();
         siteSurveyTab.setContent(siteSurveyTabContent);
 
-        // Project Execution Wizard Tab
-        Tab executionWizardTab = new Tab("🚀 Execution Wizard");
-        executionWizardTab.setStyle(
-                "-fx-background-color: rgba(239, 68, 68, 0.9);" +
-                        "-fx-text-fill: white;" +
-                        "-fx-font-size: 16px;" +
-                        "-fx-font-weight: bold;" +
-                        "-fx-padding: 10 20;"
-        );
-        executionWizardTab.setContent(createExecutionWizardTab());
-
-        tabs.getTabs().addAll(scheduleTab, tasksTab, elementsTab, siteSurveyTab, executionWizardTab);
+        tabs.getTabs().addAll(scheduleTab, tasksTab, elementsTab, siteSurveyTab);
 
         tabs.setStyle(
                 "-fx-background-color: transparent;" +
@@ -3122,219 +3103,6 @@ public class ProjectsStorageController extends BaseModuleController {
             backToProjectSelection();
         }
 
-        // Cleanup execution wizard
-        if (activeExecutionWizard != null) {
-            activeExecutionWizard.cleanup();
-            activeExecutionWizard.close();
-            activeExecutionWizard = null;
-        }
-
         System.out.println("✓ ProjectsStorageController cleanup completed");
-    }
-
-    // ==================== PROJECT EXECUTION WIZARD TAB ====================
-
-    /**
-     * Create the Execution Wizard tab content
-     */
-    private VBox createExecutionWizardTab() {
-        VBox content = new VBox(25);
-        content.setPadding(new Insets(40));
-        content.setAlignment(Pos.CENTER);
-        content.setStyle("-fx-background-color: transparent;");
-
-        // Icon and title
-        Label iconLabel = new Label("🚀");
-        iconLabel.setFont(new Font(64));
-
-        Label title = new Label("Project Execution Wizard");
-        title.setStyle("-fx-text-fill: white; -fx-font-size: 28px; -fx-font-weight: bold;");
-
-        Label description = new Label(
-            "The Project Execution Wizard helps you track the execution phase of a project.\n" +
-            "It includes three steps:\n\n" +
-            "1. Time Scheduling - Set up project timeline\n" +
-            "2. Task Achievements - Track task completion\n" +
-            "3. Project Achievements - Final completion confirmation\n\n" +
-            "The wizard is triggered when Sales accepts a tender and assigns the project to your team."
-        );
-        description.setStyle("-fx-text-fill: rgba(255, 255, 255, 0.8); -fx-font-size: 14px;");
-        description.setWrapText(true);
-        description.setMaxWidth(500);
-
-        // Open wizard button
-        Button openWizardBtn = new Button("🚀 Open Execution Wizard");
-        openWizardBtn.setStyle(
-            "-fx-background-color: linear-gradient(to right, #ef4444, #dc2626);" +
-            "-fx-text-fill: white;" +
-            "-fx-font-size: 18px;" +
-            "-fx-font-weight: bold;" +
-            "-fx-padding: 15 40;" +
-            "-fx-background-radius: 10;" +
-            "-fx-cursor: hand;"
-        );
-        openWizardBtn.setOnAction(e -> openProjectExecutionWizard());
-
-        // Status indicator
-        VBox statusBox = new VBox(10);
-        statusBox.setStyle(
-            "-fx-background-color: rgba(30, 41, 59, 0.8);" +
-            "-fx-border-color: rgba(239, 68, 68, 0.3);" +
-            "-fx-border-width: 2;" +
-            "-fx-border-radius: 10;" +
-            "-fx-background-radius: 10;" +
-            "-fx-padding: 20;"
-        );
-        statusBox.setMaxWidth(500);
-        statusBox.setAlignment(Pos.CENTER_LEFT);
-
-        Label statusTitle = new Label("📊 Wizard Status");
-        statusTitle.setStyle("-fx-text-fill: #ef4444; -fx-font-size: 16px; -fx-font-weight: bold;");
-
-        Label statusLabel = new Label("No active execution wizard. Click the button above to start.");
-        statusLabel.setId("executionWizardStatus");
-        statusLabel.setStyle("-fx-text-fill: rgba(255, 255, 255, 0.7); -fx-font-size: 13px;");
-        statusLabel.setWrapText(true);
-
-        statusBox.getChildren().addAll(statusTitle, statusLabel);
-
-        content.getChildren().addAll(iconLabel, title, description, openWizardBtn, statusBox);
-        return content;
-    }
-
-    /**
-     * Open the Project Execution Wizard for the selected project
-     */
-    private void openProjectExecutionWizard() {
-        if (selectedProject == null) {
-            showWarning("Please select a project first.");
-            return;
-        }
-
-        // Check if wizard is already open
-        if (activeExecutionWizard != null && activeExecutionWizard.isShowing()) {
-            if (activeExecutionWizard.isDialogMinimized()) {
-                activeExecutionWizard.restoreFromBar();
-            } else {
-                activeExecutionWizard.requestFocus();
-            }
-            return;
-        }
-
-        // Check for workflow ID (from Sales)
-        Long salesWorkflowId = null;
-        var workflowOpt = projectWorkflowService.getWorkflowByProjectId(selectedProject.getId());
-        if (workflowOpt.isPresent()) {
-            salesWorkflowId = workflowOpt.get().getId();
-        }
-
-        // Create the wizard
-        activeExecutionWizard = new ProjectExecutionWizard(
-            selectedProject,
-            salesWorkflowId,
-            currentUser,
-            projectWorkflowService,
-            scheduleService,
-            taskService
-        );
-
-        // Set callback for wizard events
-        activeExecutionWizard.setCallback(new ProjectExecutionWizard.ProjectWizardCallback() {
-            @Override
-            public void onNavigateToSchedule(Project project) {
-                Platform.runLater(() -> {
-                    // Switch to Schedule tab
-                    if (tabPane != null) {
-                        tabPane.getSelectionModel().select(0); // Schedule tab
-                    }
-                });
-            }
-
-            @Override
-            public void onNavigateToTasks(Project project) {
-                Platform.runLater(() -> {
-                    // Switch to Tasks tab
-                    if (tabPane != null) {
-                        tabPane.getSelectionModel().select(1); // Tasks tab
-                    }
-                });
-            }
-
-            @Override
-            public void onProjectCompleted(Project project, Long workflowId, boolean success, String explanation) {
-                Platform.runLater(() -> {
-                    // Notify Sales workflow to advance
-                    if (workflowId != null) {
-                        try {
-                            if (success) {
-                                projectWorkflowService.markProjectExecutionCompleted(workflowId, currentUser);
-                            } else {
-                                projectWorkflowService.markProjectExecutionCompletedWithIssues(
-                                    workflowId, explanation, currentUser);
-                            }
-                            showSuccess("Sales workflow updated. Project execution " +
-                                (success ? "completed successfully!" : "recorded with explanation."));
-                        } catch (Exception ex) {
-                            showError("Failed to update Sales workflow: " + ex.getMessage());
-                        }
-                    }
-
-                    // Update status label
-                    updateExecutionWizardStatus(success);
-                    activeExecutionWizard = null;
-                });
-            }
-
-            @Override
-            public void onWizardRestored() {
-                // Wizard restored from minimized state - refresh data if needed
-                refresh();
-            }
-        });
-
-        activeExecutionWizard.show();
-    }
-
-    /**
-     * Update the execution wizard status label
-     */
-    private void updateExecutionWizardStatus(boolean completedSuccessfully) {
-        // Find the status label and update it
-        if (tabPane != null && tabPane.getTabs().size() > 4) {
-            VBox wizardTab = (VBox) tabPane.getTabs().get(4).getContent();
-            Label statusLabel = (Label) wizardTab.lookup("#executionWizardStatus");
-            if (statusLabel != null) {
-                if (completedSuccessfully) {
-                    statusLabel.setText("✓ Project execution completed successfully!");
-                    statusLabel.setStyle("-fx-text-fill: #22c55e; -fx-font-size: 13px; -fx-font-weight: bold;");
-                } else {
-                    statusLabel.setText("⚠ Project execution completed with issues. See explanation in workflow.");
-                    statusLabel.setStyle("-fx-text-fill: #f59e0b; -fx-font-size: 13px; -fx-font-weight: bold;");
-                }
-            }
-        }
-    }
-
-    /**
-     * Open execution wizard from external trigger (e.g., from notification)
-     * Called when Sales accepts tender and project execution should begin
-     */
-    public void openExecutionWizardForProject(Project project, Long salesWorkflowId) {
-        // Select the project first
-        this.selectedProject = project;
-        showProjectWorkspace(project);
-
-        // Then open the wizard
-        Platform.runLater(() -> {
-            // Switch to execution wizard tab
-            if (tabPane != null && tabPane.getTabs().size() > 4) {
-                tabPane.getSelectionModel().select(4);
-            }
-
-            // Slight delay to ensure UI is ready
-            javafx.animation.PauseTransition pause = new javafx.animation.PauseTransition(javafx.util.Duration.millis(300));
-            pause.setOnFinished(e -> openProjectExecutionWizard());
-            pause.play();
-        });
     }
 }
