@@ -634,7 +634,7 @@ public class WorkflowDialog extends Stage {
     }
 
     private void showSiteSurveyCompleted(SiteSurveyData survey) {
-        // NEW FUNCTIONALITY - Show completion status with download options
+        // NEW FUNCTIONALITY - Show completion status with download options for Excel OR ZIP
         VBox completionBox = new VBox(15);
         completionBox.setAlignment(Pos.CENTER_LEFT);
         completionBox.setPadding(new Insets(20));
@@ -644,8 +644,29 @@ public class WorkflowDialog extends Stage {
         statusLabel.setFont(Font.font("System", FontWeight.BOLD, 18));
         statusLabel.setTextFill(Color.web("#065f46"));
 
-        Label fileLabel = new Label("📄 File: " + survey.getFileName());
-        fileLabel.setFont(Font.font("System", FontWeight.NORMAL, 14));
+        // Determine file type and show appropriate info
+        boolean hasExcel = survey.hasExcelFile();
+        boolean hasZip = survey.hasZipFile();
+        String fileType = hasZip ? (hasExcel ? "Excel + ZIP" : "ZIP") : "Excel";
+
+        Label fileTypeLabel = new Label("📁 File Type: " + fileType);
+        fileTypeLabel.setFont(Font.font("System", FontWeight.BOLD, 14));
+        fileTypeLabel.setTextFill(Color.web("#065f46"));
+
+        // Show Excel file info if present
+        VBox fileInfoBox = new VBox(5);
+        if (hasExcel) {
+            Label excelLabel = new Label("📊 Excel: " + survey.getFileName() + " (" + formatFileSize(survey.getFileSize()) + ")");
+            excelLabel.setFont(Font.font("System", FontWeight.NORMAL, 14));
+            fileInfoBox.getChildren().add(excelLabel);
+        }
+
+        // Show ZIP file info if present
+        if (hasZip) {
+            Label zipLabel = new Label("📦 ZIP: " + survey.getZipFileName() + " (" + formatFileSize(survey.getZipFileSize()) + ")");
+            zipLabel.setFont(Font.font("System", FontWeight.NORMAL, 14));
+            fileInfoBox.getChildren().add(zipLabel);
+        }
 
         String uploaderTeam = "SALES".equals(survey.getSurveyDoneBy()) ? "SALES team" : "PROJECT team";
         Label uploaderLabel = new Label("👤 Uploaded by: " + survey.getSurveyDoneByUser() + " (" + uploaderTeam + ")");
@@ -654,25 +675,31 @@ public class WorkflowDialog extends Stage {
         Label dateLabel = new Label("📅 Date: " + formatDateTime(survey.getUploadedAt()));
         dateLabel.setFont(Font.font("System", FontWeight.NORMAL, 14));
 
-        Label sizeLabel = new Label("💾 Size: " + formatFileSize(survey.getFileSize()));
-        sizeLabel.setFont(Font.font("System", FontWeight.NORMAL, 14));
-
         // Action buttons
         HBox actionButtons = new HBox(10);
         actionButtons.setAlignment(Pos.CENTER);
         actionButtons.setPadding(new Insets(10, 0, 0, 0));
 
-        Button downloadButton = new Button("📥 Download Excel File");
-        downloadButton.setStyle("-fx-background-color: #8b5cf6; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20; -fx-font-weight: bold;");
-        downloadButton.setOnAction(e -> handleDownloadSiteSurvey(survey));
+        if (hasExcel) {
+            Button downloadExcelBtn = new Button("📥 Download Excel");
+            downloadExcelBtn.setStyle("-fx-background-color: #8b5cf6; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20; -fx-font-weight: bold;");
+            downloadExcelBtn.setOnAction(e -> handleDownloadSiteSurveyExcel(survey));
+            actionButtons.getChildren().add(downloadExcelBtn);
+        }
+
+        if (hasZip) {
+            Button downloadZipBtn = new Button("📦 Download ZIP");
+            downloadZipBtn.setStyle("-fx-background-color: #f59e0b; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20; -fx-font-weight: bold;");
+            downloadZipBtn.setOnAction(e -> handleDownloadSiteSurveyZip(survey));
+            actionButtons.getChildren().add(downloadZipBtn);
+        }
 
         Button viewButton = new Button("👁️ View Survey Data");
         viewButton.setStyle("-fx-background-color: #3b82f6; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20; -fx-font-weight: bold;");
         viewButton.setOnAction(e -> handleViewSiteSurvey(survey));
+        actionButtons.getChildren().add(viewButton);
 
-        actionButtons.getChildren().addAll(downloadButton, viewButton);
-
-        completionBox.getChildren().addAll(statusLabel, fileLabel, uploaderLabel, dateLabel, sizeLabel, actionButtons);
+        completionBox.getChildren().addAll(statusLabel, fileTypeLabel, fileInfoBox, uploaderLabel, dateLabel, actionButtons);
 
         // Info message about progression
         Label progressInfo = new Label("✅ Step 1 completed. Click 'Next →' to proceed to Step 2.");
@@ -734,19 +761,31 @@ public class WorkflowDialog extends Stage {
     }
 
     private void handleSiteSurveySales() {
-        // Show file chooser for Excel upload
+        // Show file chooser for Excel OR ZIP upload
         FileChooser fileChooser = new FileChooser();
-        fileChooser.setTitle("Upload Site Survey Excel");
-        fileChooser.getExtensionFilters().add(
-            new FileChooser.ExtensionFilter("Excel Files", "*.xlsx", "*.xls")
+        fileChooser.setTitle("Upload Site Survey (Excel or ZIP)");
+        fileChooser.getExtensionFilters().addAll(
+            new FileChooser.ExtensionFilter("All Supported Files", "*.xlsx", "*.xls", "*.zip"),
+            new FileChooser.ExtensionFilter("Excel Files", "*.xlsx", "*.xls"),
+            new FileChooser.ExtensionFilter("ZIP Archives", "*.zip")
         );
 
         File file = fileChooser.showOpenDialog(this);
         if (file != null) {
             try {
                 byte[] fileData = Files.readAllBytes(file.toPath());
-                workflowService.processSiteSurveySales(workflow.getId(), fileData,
-                    file.getName(), currentUser);
+                String fileName = file.getName();
+                boolean isZip = fileName.toLowerCase().endsWith(".zip");
+
+                if (isZip) {
+                    // Upload as ZIP file
+                    workflowService.processSiteSurveySalesWithZip(workflow.getId(), fileData,
+                        fileName, currentUser);
+                } else {
+                    // Upload as Excel file
+                    workflowService.processSiteSurveySales(workflow.getId(), fileData,
+                        fileName, currentUser);
+                }
 
                 showSuccess("Site survey uploaded successfully! Moving to Step 2...");
                 refreshWorkflow();
@@ -1437,17 +1476,27 @@ public class WorkflowDialog extends Stage {
 
     private void handleProjectCostUpload() {
         FileChooser fileChooser = new FileChooser();
-        fileChooser.setTitle("Upload Project Cost Excel");
-        fileChooser.getExtensionFilters().add(
-            new FileChooser.ExtensionFilter("Excel Files", "*.xlsx", "*.xls")
+        fileChooser.setTitle("Upload Project Cost (Excel or ZIP)");
+        fileChooser.getExtensionFilters().addAll(
+            new FileChooser.ExtensionFilter("All Supported Files", "*.xlsx", "*.xls", "*.zip"),
+            new FileChooser.ExtensionFilter("Excel Files", "*.xlsx", "*.xls"),
+            new FileChooser.ExtensionFilter("ZIP Archives", "*.zip")
         );
 
         File file = fileChooser.showOpenDialog(this);
         if (file != null) {
             try {
                 byte[] fileData = Files.readAllBytes(file.toPath());
-                workflowService.confirmProjectFinished(workflow.getId(), fileData,
-                    file.getName(), currentUser);
+                String fileName = file.getName();
+                boolean isZip = fileName.toLowerCase().endsWith(".zip");
+
+                if (isZip) {
+                    workflowService.confirmProjectFinishedWithZip(workflow.getId(), fileData,
+                        fileName, currentUser);
+                } else {
+                    workflowService.confirmProjectFinished(workflow.getId(), fileData,
+                        fileName, currentUser);
+                }
 
                 showSuccess("Project cost uploaded successfully!");
                 refreshWorkflow();
@@ -1618,6 +1667,17 @@ public class WorkflowDialog extends Stage {
     // NEW METHODS FOR SITE SURVEY DOWNLOAD AND VIEW
 
     private void handleDownloadSiteSurvey(SiteSurveyData survey) {
+        // Legacy method - redirects to appropriate download based on file type
+        if (survey.hasExcelFile()) {
+            handleDownloadSiteSurveyExcel(survey);
+        } else if (survey.hasZipFile()) {
+            handleDownloadSiteSurveyZip(survey);
+        } else {
+            showError("No file available for download");
+        }
+    }
+
+    private void handleDownloadSiteSurveyExcel(SiteSurveyData survey) {
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Save Site Survey Excel");
         fileChooser.setInitialFileName(survey.getFileName());
@@ -1629,9 +1689,29 @@ public class WorkflowDialog extends Stage {
         if (file != null) {
             try (FileOutputStream fos = new FileOutputStream(file)) {
                 fos.write(survey.getExcelFile());
-                showSuccess("Site survey downloaded successfully!\nSaved to: " + file.getAbsolutePath());
+                showSuccess("Excel file downloaded successfully!\nSaved to: " + file.getAbsolutePath());
             } catch (Exception ex) {
-                showError("Failed to download site survey: " + ex.getMessage());
+                showError("Failed to download Excel file: " + ex.getMessage());
+                ex.printStackTrace();
+            }
+        }
+    }
+
+    private void handleDownloadSiteSurveyZip(SiteSurveyData survey) {
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Save Site Survey ZIP Archive");
+        fileChooser.setInitialFileName(survey.getZipFileName());
+        fileChooser.getExtensionFilters().add(
+            new FileChooser.ExtensionFilter("ZIP Archives", "*.zip")
+        );
+
+        File file = fileChooser.showSaveDialog(this);
+        if (file != null) {
+            try (FileOutputStream fos = new FileOutputStream(file)) {
+                fos.write(survey.getZipFile());
+                showSuccess("ZIP archive downloaded successfully!\nSaved to: " + file.getAbsolutePath());
+            } catch (Exception ex) {
+                showError("Failed to download ZIP archive: " + ex.getMessage());
                 ex.printStackTrace();
             }
         }
