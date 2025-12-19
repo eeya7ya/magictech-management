@@ -83,4 +83,12 @@ public class ProjectTaskService {
     public long getPendingTaskCount(Long projectId) {
         return repository.countByProjectIdAndIsCompletedAndActiveTrue(projectId, false);
     }
+
+    /**
+     * Find all tasks for a project (alias for getTasksByProject)
+     * Used by ProjectExecutionWizard
+     */
+    public List<ProjectTask> findByProjectId(Long projectId) {
+        return getTasksByProject(projectId);
+    }
 }
