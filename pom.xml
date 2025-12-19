@@ -20,11 +20,44 @@
     <name>MagicTechnology Management System</name>
 
     <properties>
+        <!-- Encoding -->
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+
+        <!-- Java Version -->
+        <java.version>21</java.version>
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
+        <maven.compiler.release>21</maven.compiler.release>
+
+        <!-- JavaFX -->
         <javafx.version>21.0.1</javafx.version>
+        <javafx.maven.plugin.version>0.0.8</javafx.maven.plugin.version>
+
+        <!-- UI Libraries -->
         <ikonli.version>12.3.1</ikonli.version>
+        <atlantafx.version>2.0.1</atlantafx.version>
+        <controlsfx.version>11.2.1</controlsfx.version>
+
+        <!-- Document Processing -->
+        <pdfbox.version>2.0.29</pdfbox.version>
+        <itext.version>7.2.5</itext.version>
+        <poi.version>5.2.5</poi.version>
+
+        <!-- Database -->
+        <sqlite.version>3.44.1.0</sqlite.version>
+
+        <!-- Utilities -->
+        <json.version>20231013</json.version>
+
+        <!-- Maven Plugins -->
+        <maven.compiler.plugin.version>3.11.0</maven.compiler.plugin.version>
+        <maven.surefire.plugin.version>3.0.0</maven.surefire.plugin.version>
+        <maven.resources.plugin.version>3.3.1</maven.resources.plugin.version>
+        <maven.jar.plugin.version>3.3.0</maven.jar.plugin.version>
+
+        <!-- Skip Tests by Default (can be overridden) -->
+        <skipTests>false</skipTests>
     </properties>
 
     <dependencies>
@@ -50,40 +83,40 @@
         <dependency>
             <groupId>org.apache.pdfbox</groupId>
             <artifactId>pdfbox</artifactId>
-            <version>2.0.29</version>
+            <version>${pdfbox.version}</version>
         </dependency>
 
         <!-- Apache PDFBox Tools for rendering -->
         <dependency>
             <groupId>org.apache.pdfbox</groupId>
             <artifactId>pdfbox-tools</artifactId>
-            <version>2.0.29</version>
+            <version>${pdfbox.version}</version>
         </dependency>
 
         <!-- iText 7 for PDF creation and advanced features -->
         <dependency>
             <groupId>com.itextpdf</groupId>
             <artifactId>kernel</artifactId>
-            <version>7.2.5</version>
+            <version>${itext.version}</version>
         </dependency>
 
         <dependency>
             <groupId>com.itextpdf</groupId>
             <artifactId>layout</artifactId>
-            <version>7.2.5</version>
+            <version>${itext.version}</version>
         </dependency>
 
         <dependency>
             <groupId>com.itextpdf</groupId>
             <artifactId>io</artifactId>
-            <version>7.2.5</version>
+            <version>${itext.version}</version>
         </dependency>
 
         <!-- AtlantaFX - Modern UI Library -->
         <dependency>
             <groupId>io.github.mkpaz</groupId>
             <artifactId>atlantafx-base</artifactId>
-            <version>2.0.1</version>
+            <version>${atlantafx.version}</version>
         </dependency>
 
         <!-- Ikonli - Icon Library for JavaFX -->
@@ -112,7 +145,7 @@
         <dependency>
             <groupId>org.controlsfx</groupId>
             <artifactId>controlsfx</artifactId>
-            <version>11.2.1</version>
+            <version>${controlsfx.version}</version>
         </dependency>
 
         <!-- Spring Boot Dependencies -->
@@ -158,7 +191,7 @@
         <dependency>
             <groupId>org.xerial</groupId>
             <artifactId>sqlite-jdbc</artifactId>
-            <version>3.44.1.0</version>
+            <version>${sqlite.version}</version>
         </dependency>
 
         <!-- HikariCP (Connection Pooling) -->
@@ -171,14 +204,14 @@
         <dependency>
             <groupId>org.json</groupId>
             <artifactId>json</artifactId>
-            <version>20231013</version>
+            <version>${json.version}</version>
         </dependency>
 
         <!-- Apache POI for Excel files -->
         <dependency>
             <groupId>org.apache.poi</groupId>
             <artifactId>poi-ooxml</artifactId>
-            <version>5.2.5</version>
+            <version>${poi.version}</version>
         </dependency>
 
         <!-- Lombok -->
@@ -198,22 +231,80 @@
     </dependencies>
 
     <build>
+        <finalName>${project.artifactId}-${project.version}</finalName>
+
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+                <includes>
+                    <include>**/*.properties</include>
+                    <include>**/*.yml</include>
+                    <include>**/*.yaml</include>
+                </includes>
+            </resource>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>false</filtering>
+                <excludes>
+                    <exclude>**/*.properties</exclude>
+                    <exclude>**/*.yml</exclude>
+                    <exclude>**/*.yaml</exclude>
+                </excludes>
+            </resource>
+        </resources>
+
         <plugins>
+            <!-- Maven Compiler Plugin -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.11.0</version>
+                <version>${maven.compiler.plugin.version}</version>
                 <configuration>
-                    <source>21</source>
-                    <target>21</target>
+                    <source>${java.version}</source>
+                    <target>${java.version}</target>
+                    <release>${maven.compiler.release}</release>
+                    <encoding>${project.build.sourceEncoding}</encoding>
+                    <showWarnings>true</showWarnings>
+                    <showDeprecation>true</showDeprecation>
+                    <compilerArgs>
+                        <arg>-parameters</arg>
+                    </compilerArgs>
                 </configuration>
             </plugin>
 
+            <!-- Maven Resources Plugin -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-resources-plugin</artifactId>
+                <version>${maven.resources.plugin.version}</version>
+                <configuration>
+                    <encoding>${project.build.sourceEncoding}</encoding>
+                    <propertiesEncoding>${project.build.sourceEncoding}</propertiesEncoding>
+                </configuration>
+            </plugin>
+
+            <!-- Maven Surefire Plugin (Unit Tests) -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>${maven.surefire.plugin.version}</version>
+                <configuration>
+                    <skipTests>${skipTests}</skipTests>
+                    <includes>
+                        <include>**/*Test.java</include>
+                        <include>**/*Tests.java</include>
+                    </includes>
+                </configuration>
+            </plugin>
+
+            <!-- Spring Boot Maven Plugin -->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
                     <mainClass>com.magictech.MainApp</mainClass>
+                    <layout>JAR</layout>
                     <excludes>
                         <exclude>
                             <groupId>org.projectlombok</groupId>
@@ -221,16 +312,99 @@
                         </exclude>
                     </excludes>
                 </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>repackage</goal>
+                            <goal>build-info</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
 
+            <!-- JavaFX Maven Plugin -->
             <plugin>
                 <groupId>org.openjfx</groupId>
                 <artifactId>javafx-maven-plugin</artifactId>
-                <version>0.0.8</version>
+                <version>${javafx.maven.plugin.version}</version>
                 <configuration>
                     <mainClass>com.magictech.MainApp</mainClass>
+                    <compress>2</compress>
+                    <noHeaderFiles>true</noHeaderFiles>
+                    <stripDebug>true</stripDebug>
+                    <noManPages>true</noManPages>
+                    <launcher>magictech-launcher</launcher>
+                    <jlinkImageName>magictech-management</jlinkImageName>
+                    <jlinkZipName>magictech-management</jlinkZipName>
+                </configuration>
+            </plugin>
+
+            <!-- Maven JAR Plugin -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>${maven.jar.plugin.version}</version>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <addClasspath>true</addClasspath>
+                            <mainClass>com.magictech.MainApp</mainClass>
+                            <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
+                            <addDefaultSpecificationEntries>true</addDefaultSpecificationEntries>
+                        </manifest>
+                        <manifestEntries>
+                            <Built-By>MagicTech Team</Built-By>
+                            <Build-Time>${maven.build.timestamp}</Build-Time>
+                        </manifestEntries>
+                    </archive>
                 </configuration>
             </plugin>
         </plugins>
     </build>
+
+    <!-- Maven Build Profiles -->
+    <profiles>
+        <!-- Development Profile -->
+        <profile>
+            <id>dev</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+            <properties>
+                <spring.profiles.active>dev</spring.profiles.active>
+                <skipTests>false</skipTests>
+            </properties>
+        </profile>
+
+        <!-- Production Profile -->
+        <profile>
+            <id>prod</id>
+            <properties>
+                <spring.profiles.active>prod</spring.profiles.active>
+                <skipTests>false</skipTests>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-compiler-plugin</artifactId>
+                        <configuration>
+                            <debug>false</debug>
+                            <optimize>true</optimize>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <!-- Fast Build Profile (Skip Tests) -->
+        <profile>
+            <id>fast</id>
+            <properties>
+                <skipTests>true</skipTests>
+                <maven.javadoc.skip>true</maven.javadoc.skip>
+                <maven.source.skip>true</maven.source.skip>
+            </properties>
+        </profile>
+    </profiles>
 </project>
