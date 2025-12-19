@@ -49,6 +49,8 @@
 
         <!-- Utilities -->
         <json.version>20231013</json.version>
+        <commons.compress.version>1.26.0</commons.compress.version>
+        <commons.collections4.version>4.4</commons.collections4.version>
 
         <!-- Maven Plugins -->
         <maven.compiler.plugin.version>3.11.0</maven.compiler.plugin.version>
@@ -208,10 +210,32 @@
         </dependency>
 
         <!-- Apache POI for Excel files -->
+        <!-- Base POI library (required for all POI operations) -->
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi</artifactId>
+            <version>${poi.version}</version>
+        </dependency>
+
+        <!-- POI OOXML (for .xlsx files - includes schemas as transitive dependency) -->
         <dependency>
             <groupId>org.apache.poi</groupId>
             <artifactId>poi-ooxml</artifactId>
             <version>${poi.version}</version>
+        </dependency>
+
+        <!-- Commons Compress (required by POI for parsing) -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-compress</artifactId>
+            <version>${commons.compress.version}</version>
+        </dependency>
+
+        <!-- Commons Collections4 (required by POI) -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-collections4</artifactId>
+            <version>${commons.collections4.version}</version>
         </dependency>
 
         <!-- Lombok -->

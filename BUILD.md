@@ -244,6 +244,11 @@ All dependency versions are managed in `<properties>`:
     <pdfbox.version>2.0.29</pdfbox.version>
     <itext.version>7.2.5</itext.version>
     <poi.version>5.2.5</poi.version>
+
+    <!-- Utilities -->
+    <json.version>20231013</json.version>
+    <commons.compress.version>1.26.0</commons.compress.version>
+    <commons.collections4.version>4.4</commons.collections4.version>
 </properties>
 ```
 
