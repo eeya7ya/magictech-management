@@ -55,4 +55,12 @@ public class ProjectScheduleService {
     public List<ProjectSchedule> getProjectSchedules(Long projectId) {
         return getSchedulesByProject(projectId);
     }
+
+    /**
+     * Find all schedules for a project (alias for getSchedulesByProject)
+     * Used by ProjectExecutionWizard
+     */
+    public List<ProjectSchedule> findByProjectId(Long projectId) {
+        return getSchedulesByProject(projectId);
+    }
 }

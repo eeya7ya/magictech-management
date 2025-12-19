@@ -360,4 +360,32 @@ public class NotificationService {
             return false; // If error, assume no duplicate and allow creating new notification
         }
     }
+
+    /**
+     * Convenience method to send a notification with all parameters.
+     * Wraps the builder pattern for simpler one-line calls.
+     *
+     * @param title Notification title
+     * @param message Notification message
+     * @param type Notification type (INFO, SUCCESS, WARNING, ERROR)
+     * @param targetModule Target module (SALES, PROJECTS, etc.)
+     * @param action Action type (PROJECT_EXECUTION_COMPLETED, etc.)
+     * @param entityType Entity type (WORKFLOW, PROJECT, etc.)
+     * @param entityId Entity ID
+     */
+    public void sendNotification(String title, String message, String type, String targetModule,
+                                 String action, String entityType, Long entityId) {
+        NotificationMessage notificationMessage = new NotificationMessage.Builder()
+            .title(title)
+            .message(message)
+            .type(type)
+            .targetModule(targetModule)
+            .action(action)
+            .entityType(entityType)
+            .entityId(entityId)
+            .priority(NotificationConstants.PRIORITY_HIGH)
+            .build();
+
+        publishNotification(notificationMessage);
+    }
 }
