@@ -1018,4 +1018,118 @@ public class ProjectWorkflowService {
         return userRepository.findById(userId)
             .orElseThrow(() -> new RuntimeException("User not found with ID: " + userId));
     }
+
+    // ==================== PROJECT EXECUTION (Step 6) ====================
+
+    /**
+     * Mark project execution as completed successfully by the Projects team
+     * This advances the Sales workflow from Step 6 to Step 7
+     * @param workflowId The workflow ID
+     * @param projectUser The Projects team user who completed the execution
+     */
+    public void markProjectExecutionCompleted(Long workflowId, User projectUser) {
+        System.out.println("🏁 Marking project execution as COMPLETED for workflow " + workflowId);
+
+        ProjectWorkflow workflow = getWorkflowById(workflowId)
+            .orElseThrow(() -> new RuntimeException("Workflow not found: " + workflowId));
+
+        // Get Step 6
+        WorkflowStepCompletion step6 = stepService.getStep(workflowId, 6)
+            .orElseThrow(() -> new RuntimeException("Step 6 not found"));
+
+        // Mark external action completed
+        step6.setExternalActionCompleted(true);
+        step6.setExternalActionCompletedAt(LocalDateTime.now());
+        step6.setExternalActionCompletedBy(projectUser.getUsername());
+        step6.setProjectCompletionNotes("Project execution completed successfully by Projects team");
+
+        // Complete the step
+        stepService.completeStep(step6, projectUser);
+
+        // Advance to step 7
+        workflow.setCurrentStep(7);
+        workflow.markStepCompleted(6);
+        workflow.setLastUpdatedBy(projectUser.getUsername());
+        workflowRepository.save(workflow);
+
+        // Notify Sales team
+        notifyProjectExecutionCompleted(workflow, projectUser, true, null);
+
+        System.out.println("✅ Project execution completed. Workflow advanced to Step 7.");
+    }
+
+    /**
+     * Mark project execution as completed with issues/explanation
+     * This advances the Sales workflow but records the issues
+     * @param workflowId The workflow ID
+     * @param explanation The explanation/issues reported
+     * @param projectUser The Projects team user
+     */
+    public void markProjectExecutionCompletedWithIssues(Long workflowId, String explanation, User projectUser) {
+        System.out.println("⚠️ Marking project execution as COMPLETED WITH ISSUES for workflow " + workflowId);
+
+        ProjectWorkflow workflow = getWorkflowById(workflowId)
+            .orElseThrow(() -> new RuntimeException("Workflow not found: " + workflowId));
+
+        // Get Step 6
+        WorkflowStepCompletion step6 = stepService.getStep(workflowId, 6)
+            .orElseThrow(() -> new RuntimeException("Step 6 not found"));
+
+        // Mark external action completed with notes
+        step6.setExternalActionCompleted(true);
+        step6.setExternalActionCompletedAt(LocalDateTime.now());
+        step6.setExternalActionCompletedBy(projectUser.getUsername());
+        step6.setProjectCompletionNotes("Project completed with issues: " + explanation);
+        step6.setHasIssues(true);
+
+        // Complete the step
+        stepService.completeStep(step6, projectUser);
+
+        // Advance to step 7
+        workflow.setCurrentStep(7);
+        workflow.markStepCompleted(6);
+        workflow.setLastUpdatedBy(projectUser.getUsername());
+        workflowRepository.save(workflow);
+
+        // Notify Sales team about the issues
+        notifyProjectExecutionCompleted(workflow, projectUser, false, explanation);
+
+        System.out.println("✅ Project execution completed with issues. Workflow advanced to Step 7.");
+    }
+
+    /**
+     * Notify Sales team that project execution is completed
+     */
+    private void notifyProjectExecutionCompleted(ProjectWorkflow workflow, User projectUser,
+                                                  boolean success, String explanation) {
+        try {
+            Project project = projectRepository.findById(workflow.getProjectId()).orElse(null);
+            String projectName = project != null ? project.getProjectName() : "Unknown Project";
+
+            String title = success
+                ? "Project Execution Completed"
+                : "Project Execution Completed with Issues";
+
+            String message = success
+                ? String.format("Project '%s' has been successfully completed by the Projects team (%s). " +
+                               "Please proceed with After-Sales check.", projectName, projectUser.getUsername())
+                : String.format("Project '%s' has been completed by the Projects team (%s) but with issues: %s",
+                               projectName, projectUser.getUsername(), explanation);
+
+            // Use core notification service
+            coreNotificationService.sendNotification(
+                title,
+                message,
+                success ? "SUCCESS" : "WARNING",
+                "SALES",
+                "PROJECT_EXECUTION_COMPLETED",
+                "WORKFLOW",
+                workflow.getId()
+            );
+
+            System.out.println("📨 Notification sent to Sales: " + title);
+        } catch (Exception ex) {
+            System.err.println("Failed to send notification: " + ex.getMessage());
+        }
+    }
 }
