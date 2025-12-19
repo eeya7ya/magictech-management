@@ -4,7 +4,7 @@
 -- Drop the table if it exists
 DROP TABLE IF EXISTS site_survey_data CASCADE;
 
--- Recreate with correct schema
+-- Recreate with correct schema including ZIP file support
 CREATE TABLE site_survey_data (
     id BIGSERIAL PRIMARY KEY,
     project_id BIGINT NOT NULL,
@@ -13,6 +13,11 @@ CREATE TABLE site_survey_data (
     file_name VARCHAR(255),
     file_size BIGINT,
     mime_type VARCHAR(100),
+    zip_file BYTEA,
+    zip_file_name VARCHAR(255),
+    zip_file_size BIGINT,
+    zip_mime_type VARCHAR(100),
+    file_type VARCHAR(20),
     parsed_data TEXT,
     survey_done_by VARCHAR(50),
     survey_done_by_user VARCHAR(100),
