@@ -129,51 +129,69 @@ public class SiteSurveyExcelService {
     }
 
     /**
-     * Parse a single cell - simplified (no column metadata)
-     * Similar to storage management approach - just extract the value
+     * Parse a single cell with full metadata
      */
     private ObjectNode parseCell(Cell cell) {
         ObjectNode cellNode = objectMapper.createObjectNode();
 
-        // Extract value based on type (no column numbers, letters, or addresses)
-        CellType cellType = cell.getCellType();
+        // Cell position metadata
+        cellNode.put("columnIndex", cell.getColumnIndex());
+        cellNode.put("columnLetter", CellReference.convertNumToColString(cell.getColumnIndex()));
+        cellNode.put("cellAddress", new CellAddress(cell).formatAsString());
 
+        // Cell type
+        CellType cellType = cell.getCellType();
+        cellNode.put("type", cellType.name());
+
+        // Cell value based on type
         switch (cellType) {
             case STRING:
                 cellNode.put("value", cell.getStringCellValue());
+                cellNode.put("valueType", "string");
                 break;
 
             case NUMERIC:
                 if (DateUtil.isCellDateFormatted(cell)) {
                     Date date = cell.getDateCellValue();
                     cellNode.put("value", date.toString());
+                    cellNode.put("valueType", "date");
+                    cellNode.put("rawNumericValue", cell.getNumericCellValue());
                 } else {
                     double numValue = cell.getNumericCellValue();
-                    // Check if it's a whole number to avoid unnecessary decimals
+                    cellNode.put("valueType", "numeric");
+                    cellNode.put("rawNumericValue", numValue);
+
+                    // Formatted value
                     if (numValue == (long) numValue) {
                         cellNode.put("value", (long) numValue);
                     } else {
-                        cellNode.put("value", numValue);
+                        cellNode.put("value", decimalFormat.format(numValue));
                     }
                 }
                 break;
 
             case BOOLEAN:
                 cellNode.put("value", cell.getBooleanCellValue());
+                cellNode.put("valueType", "boolean");
                 break;
 
             case FORMULA:
-                // For formulas, try to get the cached result
+                cellNode.put("formula", cell.getCellFormula());
+                cellNode.put("valueType", "formula");
+
+                // Try to get the cached result
                 try {
                     CellType cachedType = cell.getCachedFormulaResultType();
+                    cellNode.put("cachedResultType", cachedType.name());
 
                     switch (cachedType) {
                         case NUMERIC:
                             double numResult = cell.getNumericCellValue();
+                            cellNode.put("rawNumericValue", numResult);
                             if (numResult == (long) numResult) {
                                 cellNode.put("value", (long) numResult);
                             } else {
-                                cellNode.put("value", numResult);
+                                cellNode.put("value", decimalFormat.format(numResult));
                             }
                             break;
                         case STRING:
@@ -187,27 +205,46 @@ public class SiteSurveyExcelService {
                     }
                 } catch (Exception e) {
                     cellNode.put("value", "");
+                    cellNode.put("formulaError", e.getMessage());
                 }
                 break;
 
             case BLANK:
                 cellNode.put("value", "");
+                cellNode.put("valueType", "blank");
                 break;
 
             case ERROR:
                 cellNode.put("value", "ERROR");
+                cellNode.put("valueType", "error");
+                cellNode.put("errorCode", cell.getErrorCellValue());
                 break;
 
             default:
                 cellNode.put("value", "");
+                cellNode.put("valueType", "unknown");
+        }
+
+        // Cell styling (optional - for future use)
+        if (cell.getCellStyle() != null) {
+            CellStyle style = cell.getCellStyle();
+            cellNode.put("alignment", style.getAlignment().name());
+
+            // Background color (if available)
+            if (cell.getCellStyle() instanceof XSSFCellStyle) {
+                XSSFCellStyle xssfStyle = (XSSFCellStyle) cell.getCellStyle();
+                XSSFColor bgColor = xssfStyle.getFillForegroundColorColor();
+                if (bgColor != null) {
+                    cellNode.put("backgroundColor", bgColor.getARGBHex());
+                }
+            }
         }
 
         return cellNode;
     }
 
     /**
-     * Parse images from XSSF sheet - simplified
-     * Similar to storage approach - just extract the image data without detailed positioning
+     * Parse images from XSSF sheet with full positioning metadata
      */
     private ArrayNode parseImages(XSSFSheet sheet) {
         ArrayNode imagesArray = objectMapper.createArrayNode();
@@ -231,9 +268,56 @@ public class SiteSurveyExcelService {
                     imageNode.put("mimeType", pictureData.getMimeType());
                     imageNode.put("extension", pictureData.suggestFileExtension());
 
+                    // Image position and anchor information
+                    XSSFClientAnchor anchor = (XSSFClientAnchor) picture.getClientAnchor();
+                    if (anchor != null) {
+                        ObjectNode positionNode = objectMapper.createObjectNode();
+
+                        // Top-left cell position
+                        positionNode.put("fromRow", anchor.getRow1());
+                        positionNode.put("fromColumn", anchor.getCol1());
+                        positionNode.put("fromColumnLetter", CellReference.convertNumToColString(anchor.getCol1()));
+                        positionNode.put("fromCell", CellReference.convertNumToColString(anchor.getCol1()) + (anchor.getRow1() + 1));
+
+                        // Bottom-right cell position
+                        positionNode.put("toRow", anchor.getRow2());
+                        positionNode.put("toColumn", anchor.getCol2());
+                        positionNode.put("toColumnLetter", CellReference.convertNumToColString(anchor.getCol2()));
+                        positionNode.put("toCell", CellReference.convertNumToColString(anchor.getCol2()) + (anchor.getRow2() + 1));
+
+                        // Pixel offsets within cells
+                        positionNode.put("dx1", anchor.getDx1());
+                        positionNode.put("dy1", anchor.getDy1());
+                        positionNode.put("dx2", anchor.getDx2());
+                        positionNode.put("dy2", anchor.getDy2());
+
+                        imageNode.set("position", positionNode);
+
+                        // Human-readable position
+                        String positionStr = String.format("From %s to %s",
+                            CellReference.convertNumToColString(anchor.getCol1()) + (anchor.getRow1() + 1),
+                            CellReference.convertNumToColString(anchor.getCol2()) + (anchor.getRow2() + 1)
+                        );
+                        imageNode.put("positionDescription", positionStr);
+                    }
+
                     // Encode image as Base64 for JSON storage
                     String base64Image = Base64.getEncoder().encodeToString(imageBytes);
                     imageNode.put("base64Data", base64Image);
+
+                    // Add image dimensions if available
+                    try {
+                        java.awt.Dimension dimension = picture.getImageDimension();
+                        if (dimension != null) {
+                            ObjectNode dimensionsNode = objectMapper.createObjectNode();
+                            dimensionsNode.put("width", dimension.width);
+                            dimensionsNode.put("height", dimension.height);
+                            imageNode.set("dimensions", dimensionsNode);
+                        }
+                    } catch (Exception e) {
+                        // Image dimensions not available
+                        imageNode.put("dimensionsError", e.getMessage());
+                    }
 
                     imagesArray.add(imageNode);
                 }
