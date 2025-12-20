@@ -71,6 +71,9 @@ public class ProjectsStorageController extends BaseModuleController {
     private com.magictech.modules.sales.service.SiteSurveyExcelService siteSurveyExcelService;
 
     @Autowired
+    private com.magictech.modules.sales.service.ZipExcelExtractorService zipExcelExtractorService;
+
+    @Autowired
     private ProjectWorkflowService projectWorkflowService;
 
     // Active Project Execution Wizard
@@ -2768,9 +2771,11 @@ public class ProjectsStorageController extends BaseModuleController {
         }
 
         javafx.stage.FileChooser fileChooser = new javafx.stage.FileChooser();
-        fileChooser.setTitle("Select Site Survey Excel File");
-        fileChooser.getExtensionFilters().add(
-                new javafx.stage.FileChooser.ExtensionFilter("Excel Files", "*.xlsx", "*.xls")
+        fileChooser.setTitle("Select Site Survey File (Excel or ZIP)");
+        fileChooser.getExtensionFilters().addAll(
+                new javafx.stage.FileChooser.ExtensionFilter("All Supported Files", "*.xlsx", "*.xls", "*.zip"),
+                new javafx.stage.FileChooser.ExtensionFilter("Excel Files", "*.xlsx", "*.xls"),
+                new javafx.stage.FileChooser.ExtensionFilter("ZIP Files", "*.zip")
         );
 
         java.io.File selectedFile = fileChooser.showOpenDialog(siteSurveyUploadBox.getScene().getWindow());
@@ -2781,14 +2786,32 @@ public class ProjectsStorageController extends BaseModuleController {
             protected Void call() throws Exception {
                 // Read file
                 byte[] fileBytes = java.nio.file.Files.readAllBytes(selectedFile.toPath());
+                String fileName = selectedFile.getName().toLowerCase();
 
-                // Validate
-                if (!siteSurveyExcelService.isValidExcelFile(fileBytes, selectedFile.getName())) {
-                    throw new Exception("Invalid Excel file");
+                // Determine file type
+                boolean isZipFile = fileName.endsWith(".zip");
+                boolean isExcelFile = fileName.endsWith(".xlsx") || fileName.endsWith(".xls");
+
+                // Validate file
+                if (isZipFile) {
+                    if (!zipExcelExtractorService.isValidZipFile(fileBytes, selectedFile.getName())) {
+                        throw new Exception("Invalid ZIP file");
+                    }
+                } else if (isExcelFile) {
+                    if (!siteSurveyExcelService.isValidExcelFile(fileBytes, selectedFile.getName())) {
+                        throw new Exception("Invalid Excel file");
+                    }
+                } else {
+                    throw new Exception("Unsupported file type. Please upload an Excel (.xlsx, .xls) or ZIP file.");
                 }
 
-                // Parse Excel
-                String parsedData = siteSurveyExcelService.parseExcelToJson(fileBytes, selectedFile.getName());
+                // Parse file - ZIP files extract and parse all Excel files inside
+                String parsedData;
+                if (isZipFile) {
+                    parsedData = zipExcelExtractorService.extractAndParseZipFile(fileBytes, selectedFile.getName());
+                } else {
+                    parsedData = siteSurveyExcelService.parseExcelToJson(fileBytes, selectedFile.getName());
+                }
 
                 // Get site survey request
                 Optional<SiteSurveyRequest> requestOpt =
@@ -2805,11 +2828,24 @@ public class ProjectsStorageController extends BaseModuleController {
                         new com.magictech.modules.sales.entity.SiteSurveyData();
                 surveyData.setProjectId(selectedProject.getId());
                 surveyData.setWorkflowId(request.getId()); // Using request ID as workflow ID
-                surveyData.setExcelFile(fileBytes);
-                surveyData.setFileName(selectedFile.getName());
-                surveyData.setFileSize((long) fileBytes.length);
-                surveyData.setMimeType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-                surveyData.setFileType("EXCEL");  // CRITICAL FIX: Set file type
+
+                // Store file based on type
+                if (isZipFile) {
+                    // Store as ZIP file
+                    surveyData.setZipFile(fileBytes);
+                    surveyData.setZipFileName(selectedFile.getName());
+                    surveyData.setZipFileSize((long) fileBytes.length);
+                    surveyData.setZipMimeType("application/zip");
+                    surveyData.setFileType("ZIP");
+                } else {
+                    // Store as Excel file
+                    surveyData.setExcelFile(fileBytes);
+                    surveyData.setFileName(selectedFile.getName());
+                    surveyData.setFileSize((long) fileBytes.length);
+                    surveyData.setMimeType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+                    surveyData.setFileType("EXCEL");
+                }
+
                 surveyData.setParsedData(parsedData);
                 surveyData.setSurveyDoneBy("PROJECT");
                 surveyData.setSurveyDoneByUser(currentUser.getUsername());
@@ -2892,10 +2928,24 @@ public class ProjectsStorageController extends BaseModuleController {
         content.setPadding(new Insets(20));
         content.setStyle("-fx-background-color: #1e293b;");
 
+        // Determine file type and display appropriate info
+        String fileType = data.getFileType() != null ? data.getFileType() : "EXCEL";
+        String fileName;
+        long fileSize;
+
+        if ("ZIP".equals(fileType)) {
+            fileName = data.getZipFileName();
+            fileSize = data.getZipFileSize() != null ? data.getZipFileSize() : 0;
+        } else {
+            fileName = data.getFileName();
+            fileSize = data.getFileSize() != null ? data.getFileSize() : 0;
+        }
+
         Label fileInfo = new Label(String.format(
-                "File: %s\nSize: %d KB\nUploaded: %s\nUploaded by: %s",
-                data.getFileName(),
-                data.getFileSize() / 1024,
+                "📁 File Type: %s\n📄 File: %s\n📊 Size: %d KB\n📅 Uploaded: %s\n👤 Uploaded by: %s",
+                fileType,
+                fileName != null ? fileName : "N/A",
+                fileSize / 1024,
                 data.getUploadedAt().format(DateTimeFormatter.ofPattern("MMM dd, yyyy HH:mm")),
                 data.getUploadedBy()
         ));
@@ -2985,6 +3035,7 @@ public class ProjectsStorageController extends BaseModuleController {
                 surveyData.setFileName("Test_SiteSurvey.xlsx");
                 surveyData.setFileSize((long) excelBytes.length);
                 surveyData.setMimeType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+                surveyData.setFileType("EXCEL");  // CRITICAL: Set file type
                 surveyData.setParsedData(parsedData);
                 surveyData.setSurveyDoneBy("PROJECT");
                 surveyData.setSurveyDoneByUser(currentUser.getUsername());

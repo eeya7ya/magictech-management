@@ -21,8 +21,8 @@ public class SizingPricingData {
     @Column(name = "workflow_id", nullable = false)
     private Long workflowId;
 
-    // Excel file storage
-    @Lob
+    // Excel file storage - Using BYTEA directly without @Lob to avoid OID issues in Hibernate 6
+    @Basic(fetch = FetchType.LAZY)
     @Column(name = "excel_file", columnDefinition = "BYTEA")
     private byte[] excelFile;
 
@@ -36,7 +36,7 @@ public class SizingPricingData {
     private String mimeType;
 
     // ZIP file storage - Alternative to Excel for bundling multiple files
-    @Lob
+    @Basic(fetch = FetchType.LAZY)
     @Column(name = "zip_file", columnDefinition = "BYTEA")
     private byte[] zipFile;
 

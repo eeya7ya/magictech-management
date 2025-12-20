@@ -45,17 +45,57 @@ public class DatabaseSchemaFixer {
         try {
             logger.info("Checking {} table schema...", tableName);
 
-            // Check if table exists and has zip_file column
-            String checkSql = "SELECT column_name FROM information_schema.columns " +
+            // Check if table exists
+            String checkTableSql = "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = ?)";
+            Boolean tableExists = jdbcTemplate.queryForObject(checkTableSql, Boolean.class, tableName);
+
+            if (Boolean.FALSE.equals(tableExists)) {
+                logger.warn("{} table does not exist, creating...", tableName);
+                recreateFunction.run();
+                return;
+            }
+
+            // Check if table has zip_file column
+            String checkZipSql = "SELECT column_name FROM information_schema.columns " +
                             "WHERE table_name = ? AND column_name = 'zip_file'";
 
+            boolean hasZipColumn = false;
             try {
-                jdbcTemplate.queryForObject(checkSql, String.class, tableName);
-                logger.info("{} table has zip_file column - schema is correct", tableName);
+                jdbcTemplate.queryForObject(checkZipSql, String.class, tableName);
+                hasZipColumn = true;
             } catch (Exception e) {
-                // zip_file column doesn't exist - need to recreate table
-                logger.warn("{} table is missing zip_file column, recreating table...", tableName);
+                // zip_file column doesn't exist
+            }
+
+            // Check if excel_file column has the correct type (bytea, not oid)
+            // Hibernate 6 with @Lob can create OID columns instead of BYTEA
+            String checkTypeSql = "SELECT data_type FROM information_schema.columns " +
+                            "WHERE table_name = ? AND column_name = 'excel_file'";
+
+            String excelFileType = null;
+            try {
+                excelFileType = jdbcTemplate.queryForObject(checkTypeSql, String.class, tableName);
+            } catch (Exception e) {
+                // excel_file column doesn't exist
+            }
+
+            // Recreate table if:
+            // 1. Missing zip_file column, or
+            // 2. excel_file is OID (bigint/oid) instead of BYTEA
+            boolean needsRecreation = !hasZipColumn ||
+                                      (excelFileType != null && !"bytea".equalsIgnoreCase(excelFileType));
+
+            if (needsRecreation) {
+                if (!hasZipColumn) {
+                    logger.warn("{} table is missing zip_file column", tableName);
+                }
+                if (excelFileType != null && !"bytea".equalsIgnoreCase(excelFileType)) {
+                    logger.warn("{} table has incorrect excel_file type: {} (expected BYTEA)", tableName, excelFileType);
+                }
+                logger.warn("Recreating {} table with correct schema...", tableName);
                 recreateFunction.run();
+            } else {
+                logger.info("{} table schema is correct", tableName);
             }
         } catch (Exception e) {
             logger.error("Error checking {} table schema", tableName, e);
