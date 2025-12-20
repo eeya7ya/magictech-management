@@ -116,6 +116,12 @@ public class ProjectsStorageController extends BaseModuleController {
     private Button siteSurveyViewButton;
     private Button siteSurveyExportButton;
 
+    // Execution Wizard UI Components
+    private Button openExecutionWizardBtn;
+    private VBox executionWizardStatusBox;
+    private Label executionWizardStatusTitle;
+    private Label executionWizardStatusLabel;
+
     // Note: currentUser is inherited from BaseModuleController as protected field
 
     @Override
@@ -2408,6 +2414,9 @@ public class ProjectsStorageController extends BaseModuleController {
         loadElementsData();
         loadSiteSurveyData(); // ✅ Load site survey data when opening project
 
+        // ✅ Update execution wizard availability based on tender acceptance status
+        updateExecutionWizardAvailability();
+
         mainContainer.getChildren().remove(projectSelectionScreen);
         projectWorkspaceScreen.setVisible(true);
 
@@ -2421,6 +2430,8 @@ public class ProjectsStorageController extends BaseModuleController {
         if (!mainContainer.getChildren().contains(projectSelectionScreen)) {
             mainContainer.getChildren().add(0, projectSelectionScreen);
         }
+        // Reset execution wizard availability status
+        updateExecutionWizardAvailability();
     }
 
     private void navigateToDashboard() {
@@ -3231,8 +3242,8 @@ public class ProjectsStorageController extends BaseModuleController {
         description.setMaxWidth(500);
 
         // Open wizard button
-        Button openWizardBtn = new Button("🚀 Open Execution Wizard");
-        openWizardBtn.setStyle(
+        openExecutionWizardBtn = new Button("🚀 Open Execution Wizard");
+        openExecutionWizardBtn.setStyle(
             "-fx-background-color: linear-gradient(to right, #ef4444, #dc2626);" +
             "-fx-text-fill: white;" +
             "-fx-font-size: 18px;" +
@@ -3241,11 +3252,13 @@ public class ProjectsStorageController extends BaseModuleController {
             "-fx-background-radius: 10;" +
             "-fx-cursor: hand;"
         );
-        openWizardBtn.setOnAction(e -> openProjectExecutionWizard());
+        openExecutionWizardBtn.setOnAction(e -> openProjectExecutionWizard());
+        // Initially disabled until a project with accepted tender is selected
+        openExecutionWizardBtn.setDisable(true);
 
         // Status indicator
-        VBox statusBox = new VBox(10);
-        statusBox.setStyle(
+        executionWizardStatusBox = new VBox(10);
+        executionWizardStatusBox.setStyle(
             "-fx-background-color: rgba(30, 41, 59, 0.8);" +
             "-fx-border-color: rgba(239, 68, 68, 0.3);" +
             "-fx-border-width: 2;" +
@@ -3253,20 +3266,20 @@ public class ProjectsStorageController extends BaseModuleController {
             "-fx-background-radius: 10;" +
             "-fx-padding: 20;"
         );
-        statusBox.setMaxWidth(500);
-        statusBox.setAlignment(Pos.CENTER_LEFT);
+        executionWizardStatusBox.setMaxWidth(500);
+        executionWizardStatusBox.setAlignment(Pos.CENTER_LEFT);
 
-        Label statusTitle = new Label("📊 Wizard Status");
-        statusTitle.setStyle("-fx-text-fill: #ef4444; -fx-font-size: 16px; -fx-font-weight: bold;");
+        executionWizardStatusTitle = new Label("📊 Wizard Status");
+        executionWizardStatusTitle.setStyle("-fx-text-fill: #ef4444; -fx-font-size: 16px; -fx-font-weight: bold;");
 
-        Label statusLabel = new Label("No active execution wizard. Click the button above to start.");
-        statusLabel.setId("executionWizardStatus");
-        statusLabel.setStyle("-fx-text-fill: rgba(255, 255, 255, 0.7); -fx-font-size: 13px;");
-        statusLabel.setWrapText(true);
+        executionWizardStatusLabel = new Label("Select a project to check wizard availability.");
+        executionWizardStatusLabel.setId("executionWizardStatus");
+        executionWizardStatusLabel.setStyle("-fx-text-fill: rgba(255, 255, 255, 0.7); -fx-font-size: 13px;");
+        executionWizardStatusLabel.setWrapText(true);
 
-        statusBox.getChildren().addAll(statusTitle, statusLabel);
+        executionWizardStatusBox.getChildren().addAll(executionWizardStatusTitle, executionWizardStatusLabel);
 
-        content.getChildren().addAll(iconLabel, title, description, openWizardBtn, statusBox);
+        content.getChildren().addAll(iconLabel, title, description, openExecutionWizardBtn, executionWizardStatusBox);
         return content;
     }
 
@@ -3276,6 +3289,13 @@ public class ProjectsStorageController extends BaseModuleController {
     private void openProjectExecutionWizard() {
         if (selectedProject == null) {
             showWarning("Please select a project first.");
+            return;
+        }
+
+        // Safety check: Verify tender has been accepted before opening wizard
+        if (!isTenderAccepted()) {
+            showWarning("Cannot open Execution Wizard: The tender must be accepted in the Sales module first.\n\n" +
+                       "Please wait for Step 5 (Tender Acceptance) to be completed in the Sales workflow.");
             return;
         }
 
@@ -3404,5 +3424,173 @@ public class ProjectsStorageController extends BaseModuleController {
             pause.setOnFinished(e -> openProjectExecutionWizard());
             pause.play();
         });
+    }
+
+    /**
+     * Check if the tender has been accepted for the selected project.
+     * The tender is accepted when Step 5 of the Sales workflow is completed.
+     * @return true if tender is accepted, false otherwise
+     */
+    private boolean isTenderAccepted() {
+        if (selectedProject == null) {
+            return false;
+        }
+
+        try {
+            var workflowOpt = projectWorkflowService.getWorkflowByProjectId(selectedProject.getId());
+            if (workflowOpt.isPresent()) {
+                var workflow = workflowOpt.get();
+                // Step 5 is Tender Acceptance
+                return workflow.isStepCompleted(5);
+            }
+        } catch (Exception e) {
+            System.out.println("Error checking tender acceptance: " + e.getMessage());
+        }
+
+        return false;
+    }
+
+    /**
+     * Update the execution wizard availability based on tender acceptance status.
+     * This method should be called whenever a project is selected.
+     */
+    private void updateExecutionWizardAvailability() {
+        if (openExecutionWizardBtn == null || executionWizardStatusLabel == null) {
+            return;
+        }
+
+        if (selectedProject == null) {
+            // No project selected
+            openExecutionWizardBtn.setDisable(true);
+            openExecutionWizardBtn.setStyle(
+                "-fx-background-color: linear-gradient(to right, #6b7280, #4b5563);" +
+                "-fx-text-fill: rgba(255, 255, 255, 0.5);" +
+                "-fx-font-size: 18px;" +
+                "-fx-font-weight: bold;" +
+                "-fx-padding: 15 40;" +
+                "-fx-background-radius: 10;" +
+                "-fx-cursor: default;"
+            );
+            executionWizardStatusTitle.setStyle("-fx-text-fill: #6b7280; -fx-font-size: 16px; -fx-font-weight: bold;");
+            executionWizardStatusLabel.setText("Select a project to check wizard availability.");
+            executionWizardStatusLabel.setStyle("-fx-text-fill: rgba(255, 255, 255, 0.7); -fx-font-size: 13px;");
+            executionWizardStatusBox.setStyle(
+                "-fx-background-color: rgba(30, 41, 59, 0.8);" +
+                "-fx-border-color: rgba(107, 114, 128, 0.3);" +
+                "-fx-border-width: 2;" +
+                "-fx-border-radius: 10;" +
+                "-fx-background-radius: 10;" +
+                "-fx-padding: 20;"
+            );
+            return;
+        }
+
+        // Check if workflow exists and tender is accepted
+        try {
+            var workflowOpt = projectWorkflowService.getWorkflowByProjectId(selectedProject.getId());
+
+            if (workflowOpt.isEmpty()) {
+                // No workflow associated with this project
+                openExecutionWizardBtn.setDisable(true);
+                openExecutionWizardBtn.setStyle(
+                    "-fx-background-color: linear-gradient(to right, #6b7280, #4b5563);" +
+                    "-fx-text-fill: rgba(255, 255, 255, 0.5);" +
+                    "-fx-font-size: 18px;" +
+                    "-fx-font-weight: bold;" +
+                    "-fx-padding: 15 40;" +
+                    "-fx-background-radius: 10;" +
+                    "-fx-cursor: default;"
+                );
+                executionWizardStatusTitle.setText("⚠ No Workflow");
+                executionWizardStatusTitle.setStyle("-fx-text-fill: #f59e0b; -fx-font-size: 16px; -fx-font-weight: bold;");
+                executionWizardStatusLabel.setText("This project has no Sales workflow associated. The wizard requires a tender to be accepted in the Sales module first.");
+                executionWizardStatusLabel.setStyle("-fx-text-fill: rgba(255, 255, 255, 0.7); -fx-font-size: 13px;");
+                executionWizardStatusBox.setStyle(
+                    "-fx-background-color: rgba(30, 41, 59, 0.8);" +
+                    "-fx-border-color: rgba(245, 158, 11, 0.3);" +
+                    "-fx-border-width: 2;" +
+                    "-fx-border-radius: 10;" +
+                    "-fx-background-radius: 10;" +
+                    "-fx-padding: 20;"
+                );
+                return;
+            }
+
+            var workflow = workflowOpt.get();
+            boolean tenderAccepted = workflow.isStepCompleted(5);
+
+            if (tenderAccepted) {
+                // Tender accepted - enable wizard
+                openExecutionWizardBtn.setDisable(false);
+                openExecutionWizardBtn.setStyle(
+                    "-fx-background-color: linear-gradient(to right, #ef4444, #dc2626);" +
+                    "-fx-text-fill: white;" +
+                    "-fx-font-size: 18px;" +
+                    "-fx-font-weight: bold;" +
+                    "-fx-padding: 15 40;" +
+                    "-fx-background-radius: 10;" +
+                    "-fx-cursor: hand;"
+                );
+                executionWizardStatusTitle.setText("✓ Ready to Execute");
+                executionWizardStatusTitle.setStyle("-fx-text-fill: #22c55e; -fx-font-size: 16px; -fx-font-weight: bold;");
+                executionWizardStatusLabel.setText("Tender has been accepted by Sales. You can now open the Execution Wizard to track project progress.");
+                executionWizardStatusLabel.setStyle("-fx-text-fill: rgba(255, 255, 255, 0.7); -fx-font-size: 13px;");
+                executionWizardStatusBox.setStyle(
+                    "-fx-background-color: rgba(30, 41, 59, 0.8);" +
+                    "-fx-border-color: rgba(34, 197, 94, 0.3);" +
+                    "-fx-border-width: 2;" +
+                    "-fx-border-radius: 10;" +
+                    "-fx-background-radius: 10;" +
+                    "-fx-padding: 20;"
+                );
+            } else {
+                // Tender not yet accepted - disable wizard
+                openExecutionWizardBtn.setDisable(true);
+                openExecutionWizardBtn.setStyle(
+                    "-fx-background-color: linear-gradient(to right, #6b7280, #4b5563);" +
+                    "-fx-text-fill: rgba(255, 255, 255, 0.5);" +
+                    "-fx-font-size: 18px;" +
+                    "-fx-font-weight: bold;" +
+                    "-fx-padding: 15 40;" +
+                    "-fx-background-radius: 10;" +
+                    "-fx-cursor: default;"
+                );
+
+                // Determine which step we're waiting on
+                int currentStep = workflow.getCurrentStep() != null ? workflow.getCurrentStep() : 1;
+                String waitingMessage = getWaitingStepMessage(currentStep);
+
+                executionWizardStatusTitle.setText("⏳ Waiting for Tender Acceptance");
+                executionWizardStatusTitle.setStyle("-fx-text-fill: #f59e0b; -fx-font-size: 16px; -fx-font-weight: bold;");
+                executionWizardStatusLabel.setText("The tender must be accepted in the Sales module (Step 5) before you can start project execution.\n\n" + waitingMessage);
+                executionWizardStatusLabel.setStyle("-fx-text-fill: rgba(255, 255, 255, 0.7); -fx-font-size: 13px;");
+                executionWizardStatusBox.setStyle(
+                    "-fx-background-color: rgba(30, 41, 59, 0.8);" +
+                    "-fx-border-color: rgba(245, 158, 11, 0.3);" +
+                    "-fx-border-width: 2;" +
+                    "-fx-border-radius: 10;" +
+                    "-fx-background-radius: 10;" +
+                    "-fx-padding: 20;"
+                );
+            }
+        } catch (Exception e) {
+            System.out.println("Error updating wizard availability: " + e.getMessage());
+            openExecutionWizardBtn.setDisable(true);
+            executionWizardStatusLabel.setText("Error checking workflow status: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Get a user-friendly message about which workflow step is currently pending.
+     */
+    private String getWaitingStepMessage(int currentStep) {
+        return switch (currentStep) {
+            case 1 -> "Current Status: Step 1 - Site Survey (Waiting for site survey upload)";
+            case 2 -> "Current Status: Step 2 - Selection & Design (Waiting for Presales sizing/pricing)";
+            case 3 -> "Current Status: Step 3 - Bank Guarantee (Waiting for Finance bank guarantee)";
+            case 4 -> "Current Status: Step 4 - Missing Item Request (Processing missing items)";
+            case 5 -> "Current Status: Step 5 - Tender Acceptance (Waiting for Sales to accept tender)";
+            default -> "Current Status: Workflow in progress (Step " + currentStep + ")";
+        };
     }
 }
