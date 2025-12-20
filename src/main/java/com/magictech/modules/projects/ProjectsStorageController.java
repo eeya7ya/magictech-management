@@ -2809,6 +2809,7 @@ public class ProjectsStorageController extends BaseModuleController {
                 surveyData.setFileName(selectedFile.getName());
                 surveyData.setFileSize((long) fileBytes.length);
                 surveyData.setMimeType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+                surveyData.setFileType("EXCEL");  // CRITICAL FIX: Set file type
                 surveyData.setParsedData(parsedData);
                 surveyData.setSurveyDoneBy("PROJECT");
                 surveyData.setSurveyDoneByUser(currentUser.getUsername());
