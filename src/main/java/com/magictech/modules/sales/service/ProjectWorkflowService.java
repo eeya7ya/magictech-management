@@ -37,6 +37,9 @@ public class ProjectWorkflowService {
     private SiteSurveyExcelService siteSurveyExcelService;
 
     @Autowired
+    private ZipExcelExtractorService zipExcelExtractorService;
+
+    @Autowired
     private SiteSurveyDataRepository siteSurveyRepository;
 
     @Autowired
@@ -150,6 +153,7 @@ public class ProjectWorkflowService {
         surveyData.setFileName(fileName);
         surveyData.setFileSize((long) excelFile.length);
         surveyData.setMimeType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        surveyData.setFileType("EXCEL");  // CRITICAL FIX: Store file type
         surveyData.setParsedData(parsedData);
         surveyData.setSurveyDoneBy("SALES");
         surveyData.setSurveyDoneByUser(salesUser.getUsername());
@@ -217,6 +221,19 @@ public class ProjectWorkflowService {
             throw new IllegalArgumentException("Invalid file. Please upload a valid .zip file.");
         }
 
+        // CRITICAL FIX: Extract and parse all Excel files from ZIP
+        System.out.println("📦 Extracting and parsing Excel files from ZIP: " + fileName);
+        String parsedData;
+        try {
+            parsedData = zipExcelExtractorService.extractAndParseZipFile(zipFile, fileName);
+            System.out.println("✅ Successfully parsed ZIP file - extracted Excel sheets");
+        } catch (Exception e) {
+            System.err.println("❌ Failed to parse ZIP file: " + e.getMessage());
+            e.printStackTrace();
+            // Fallback to empty JSON if parsing fails
+            parsedData = "{\"error\": \"Failed to extract ZIP: " + e.getMessage() + "\"}";
+        }
+
         SiteSurveyData surveyData = new SiteSurveyData();
         surveyData.setProjectId(workflow.getProjectId());
         surveyData.setWorkflowId(workflowId);
@@ -226,6 +243,7 @@ public class ProjectWorkflowService {
         surveyData.setZipFileSize((long) zipFile.length);
         surveyData.setZipMimeType("application/zip");
         surveyData.setFileType("ZIP");
+        surveyData.setParsedData(parsedData);  // CRITICAL FIX: Store parsed data from ZIP
         surveyData.setSurveyDoneBy("SALES");
         surveyData.setSurveyDoneByUser(salesUser.getUsername());
         surveyData.setSurveyDoneByUserId(salesUser.getId());
@@ -318,6 +336,7 @@ public class ProjectWorkflowService {
         surveyData.setFileName(fileName);
         surveyData.setFileSize((long) excelFile.length);
         surveyData.setMimeType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        surveyData.setFileType("EXCEL");  // CRITICAL FIX: Store file type
         surveyData.setParsedData(parsedData);
         surveyData.setSurveyDoneBy("PROJECT");
         surveyData.setSurveyDoneByUser(projectUser.getUsername());
@@ -457,6 +476,7 @@ public class ProjectWorkflowService {
         sizingData.setFileName(fileName);
         sizingData.setFileSize((long) excelFile.length);
         sizingData.setMimeType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        sizingData.setFileType("EXCEL");  // CRITICAL FIX: Store file type
         sizingData.setParsedData(parsedData);
         sizingData.setUploadedBy(presalesUser.getUsername());
         sizingData.setUploadedById(presalesUser.getId());
@@ -558,6 +578,7 @@ public class ProjectWorkflowService {
         guaranteeData.setFileName(fileName);
         guaranteeData.setFileSize((long) excelFile.length);
         guaranteeData.setMimeType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        guaranteeData.setFileType("EXCEL");  // CRITICAL FIX: Store file type
         guaranteeData.setParsedData(parsedData);
         guaranteeData.setUploadedBy(financeUser.getUsername());
         guaranteeData.setUploadedById(financeUser.getId());
@@ -820,6 +841,7 @@ public class ProjectWorkflowService {
         costData.setFileName(fileName);
         costData.setFileSize((long) excelFile.length);
         costData.setMimeType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        costData.setFileType("EXCEL");  // CRITICAL FIX: Store file type
         costData.setParsedData(parsedData);
         costData.setUploadedBy(salesUser.getUsername());
         costData.setUploadedById(salesUser.getId());
@@ -849,6 +871,19 @@ public class ProjectWorkflowService {
             throw new IllegalArgumentException("Invalid file. Please upload a valid .zip file.");
         }
 
+        // CRITICAL FIX: Extract and parse all Excel files from ZIP
+        System.out.println("📦 Extracting and parsing Excel files from ZIP: " + fileName);
+        String parsedData;
+        try {
+            parsedData = zipExcelExtractorService.extractAndParseZipFile(zipFile, fileName);
+            System.out.println("✅ Successfully parsed ZIP file - extracted Excel sheets");
+        } catch (Exception e) {
+            System.err.println("❌ Failed to parse ZIP file: " + e.getMessage());
+            e.printStackTrace();
+            // Fallback to empty JSON if parsing fails
+            parsedData = "{\"error\": \"Failed to extract ZIP: " + e.getMessage() + "\"}";
+        }
+
         ProjectCostData costData = new ProjectCostData();
         costData.setProjectId(workflow.getProjectId());
         costData.setWorkflowId(workflowId);
@@ -858,6 +893,7 @@ public class ProjectWorkflowService {
         costData.setZipFileSize((long) zipFile.length);
         costData.setZipMimeType("application/zip");
         costData.setFileType("ZIP");
+        costData.setParsedData(parsedData);  // CRITICAL FIX: Store parsed data from ZIP
         costData.setUploadedBy(salesUser.getUsername());
         costData.setUploadedById(salesUser.getId());
         costData.setProjectReceivedConfirmation(true);
