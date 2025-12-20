@@ -388,6 +388,55 @@ public class ProjectWorkflowService {
     }
 
     /**
+     * STEP 1: Complete site survey from Project team (file already saved)
+     * Called when Projects module has already saved the SiteSurveyData
+     * This method just completes the workflow step and advances to Step 2
+     */
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
+    public void completeSiteSurveyFromProject(Long workflowId, User projectUser) {
+        System.out.println("🔄 completeSiteSurveyFromProject called for workflow: " + workflowId);
+
+        ProjectWorkflow workflow = getWorkflowById(workflowId)
+            .orElseThrow(() -> new RuntimeException("Workflow not found"));
+
+        Project project = projectRepository.findById(workflow.getProjectId())
+            .orElseThrow(() -> new RuntimeException("Project not found"));
+
+        // Mark external action as completed and complete Step 1
+        WorkflowStepCompletion step = stepService.getStep(workflowId, 1)
+            .orElseThrow(() -> new RuntimeException("Step 1 not found"));
+
+        System.out.println("🔧 DEBUG: Before completeStep (PROJECT) - Step 1 completed status: " + step.getCompleted());
+
+        stepService.completeExternalAction(step, projectUser);
+        stepService.completeStep(step, projectUser);
+
+        System.out.println("🔧 DEBUG: After completeStep (PROJECT) - Step 1 completed status: " + step.getCompleted());
+
+        // Flush step completion immediately
+        entityManager.flush();
+
+        System.out.println("✅ Workflow step 1 marked as completed and flushed to database");
+
+        // Move to next step
+        advanceToNextStep(workflow, projectUser);
+
+        // Flush workflow advancement
+        entityManager.flush();
+
+        System.out.println("➡️ Workflow advanced to step " + workflow.getCurrentStep());
+
+        // Notify sales user
+        User salesUser = getUserById(workflow.getCreatedById());
+        notificationService.notifySiteSurveyCompleted(project, projectUser, salesUser);
+
+        System.out.println("🔔 Notification sent to Sales user: " + salesUser.getUsername() +
+                         " about site survey completion for project: " + project.getProjectName());
+
+        System.out.println("✅ Step 1 completed via completeSiteSurveyFromProject. Workflow now at Step " + workflow.getCurrentStep());
+    }
+
+    /**
      * STEP 2: Mark selection & design as not needed
      */
     public void markSelectionDesignNotNeeded(Long workflowId, User salesUser) {

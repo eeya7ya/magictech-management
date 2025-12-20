@@ -2823,11 +2823,22 @@ public class ProjectsStorageController extends BaseModuleController {
 
                 SiteSurveyRequest request = requestOpt.get();
 
-                // Create SiteSurveyData
+                // CRITICAL FIX: Get the actual ProjectWorkflow by project ID
+                Optional<com.magictech.modules.sales.entity.ProjectWorkflow> workflowOpt =
+                        projectWorkflowService.getWorkflowByProjectId(selectedProject.getId());
+
+                if (!workflowOpt.isPresent()) {
+                    throw new Exception("No active workflow found for this project. The workflow may not have been created yet.");
+                }
+
+                com.magictech.modules.sales.entity.ProjectWorkflow workflow = workflowOpt.get();
+                System.out.println("✅ Found workflow ID: " + workflow.getId() + " for project: " + selectedProject.getProjectName());
+
+                // Create SiteSurveyData with CORRECT workflow ID
                 com.magictech.modules.sales.entity.SiteSurveyData surveyData =
                         new com.magictech.modules.sales.entity.SiteSurveyData();
                 surveyData.setProjectId(selectedProject.getId());
-                surveyData.setWorkflowId(request.getId()); // Using request ID as workflow ID
+                surveyData.setWorkflowId(workflow.getId()); // FIXED: Use actual workflow ID, not request ID
 
                 // Store file based on type
                 if (isZipFile) {
@@ -2854,8 +2865,9 @@ public class ProjectsStorageController extends BaseModuleController {
                 surveyData.setUploadedById(currentUser.getId());
 
                 surveyData = siteSurveyDataRepository.save(surveyData);
+                System.out.println("✅ Site survey data saved with ID: " + surveyData.getId());
 
-                // Complete the request
+                // Complete the site survey request (for Projects module tracking)
                 siteSurveyRequestService.completeRequest(
                         request.getId(),
                         surveyData.getId(),
@@ -2863,12 +2875,16 @@ public class ProjectsStorageController extends BaseModuleController {
                         currentUser.getId()
                 );
 
+                // CRITICAL FIX: Complete Step 1 in the workflow and advance to Step 2
+                projectWorkflowService.completeSiteSurveyFromProject(workflow.getId(), currentUser);
+                System.out.println("✅ Workflow Step 1 completed and advanced to Step 2");
+
                 return null;
             }
         };
 
         uploadTask.setOnSucceeded(event -> {
-            showSuccess("Site survey uploaded successfully!");
+            showSuccess("Site survey uploaded successfully! Sales team has been notified.");
             loadSiteSurveyData();
         });
 
