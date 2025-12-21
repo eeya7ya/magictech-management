@@ -1,6 +1,7 @@
 package com.magictech.core.auth;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.Email;
 import java.time.LocalDateTime;
 
 @Entity
@@ -21,6 +22,7 @@ public class User {
     @Column(nullable = false, length = 20)
     private UserRole role;
 
+    @Email(message = "Please provide a valid email address")
     @Column(unique = true, length = 100)
     private String email;
 

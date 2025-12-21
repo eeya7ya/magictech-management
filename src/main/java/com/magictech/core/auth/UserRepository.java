@@ -55,4 +55,19 @@ public interface UserRepository extends JpaRepository<User, Long> {
      */
     @Query("SELECT u FROM User u WHERE u.role = 'MASTER' AND u.active = true")
     List<User> findActiveMasterUsers();
+
+    /**
+     * Find user by email (case-insensitive)
+     */
+    Optional<User> findByEmailIgnoreCase(String email);
+
+    /**
+     * Check if email exists (case-insensitive)
+     */
+    boolean existsByEmailIgnoreCase(String email);
+
+    /**
+     * Find all users with email set
+     */
+    List<User> findByEmailIsNotNullAndActiveTrue();
 }
