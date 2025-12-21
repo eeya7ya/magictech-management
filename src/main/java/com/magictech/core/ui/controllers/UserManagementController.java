@@ -3,6 +3,7 @@ package com.magictech.core.ui.controllers;
 import com.magictech.core.auth.AuthenticationService;
 import com.magictech.core.auth.User;
 import com.magictech.core.auth.UserRole;
+import com.magictech.core.email.EmailService;
 import javafx.application.Platform;
 import javafx.beans.property.*;
 import javafx.collections.FXCollections;
@@ -80,6 +81,9 @@ public class UserManagementController {
 
     @Autowired
     private AuthenticationService authService;
+
+    @Autowired
+    private EmailService emailService;
 
     // UI Components
     private TableView<UserViewModel> userTable;
@@ -592,12 +596,14 @@ public class UserManagementController {
             if (buttonType == ButtonType.OK) {
                 TextField usernameField = (TextField) grid.lookup("#usernameField");
                 PasswordField passwordField = (PasswordField) grid.lookup("#passwordField");
+                TextField emailField = (TextField) grid.lookup("#emailField");
                 @SuppressWarnings("unchecked")
                 ComboBox<UserRole> roleCombo = (ComboBox<UserRole>) grid.lookup("#roleCombo");
 
                 return new UserFormData(
                         usernameField.getText(),
                         passwordField.getText(),
+                        emailField.getText(),
                         roleCombo.getValue()
                 );
             }
@@ -628,6 +634,7 @@ public class UserManagementController {
         dialog.setResultConverter(buttonType -> {
             if (buttonType == ButtonType.OK) {
                 PasswordField passwordField = (PasswordField) grid.lookup("#passwordField");
+                TextField emailField = (TextField) grid.lookup("#emailField");
                 @SuppressWarnings("unchecked")
                 ComboBox<UserRole> roleCombo = (ComboBox<UserRole>) grid.lookup("#roleCombo");
 
@@ -635,6 +642,7 @@ public class UserManagementController {
                 return new UserFormData(
                         userVM.getUsername(),
                         newPassword.isEmpty() ? null : newPassword,
+                        emailField.getText(),
                         roleCombo.getValue()
                 );
             }
@@ -683,6 +691,55 @@ public class UserManagementController {
         grid.add(passwordField, 1, row);
         row++;
 
+        // Email field with test button
+        Label emailLabel = new Label("Email:");
+        emailLabel.setStyle("-fx-text-fill: white; -fx-font-weight: 600;");
+
+        HBox emailBox = new HBox(10);
+        emailBox.setAlignment(Pos.CENTER_LEFT);
+
+        TextField emailField = new TextField();
+        emailField.setId("emailField");
+        emailField.setPromptText("Enter email address");
+        emailField.setStyle(Styles.INPUT_FIELD);
+        emailField.setPrefWidth(180);
+
+        if (existingUser != null && existingUser.getEmail() != null) {
+            emailField.setText(existingUser.getEmail());
+        }
+
+        // Test Email Button
+        Button testEmailBtn = new Button("Test Email");
+        testEmailBtn.setId("testEmailBtn");
+        testEmailBtn.setStyle("-fx-background-color: #059669; -fx-text-fill: white; " +
+                "-fx-font-size: 11px; -fx-padding: 5 10; -fx-background-radius: 6; -fx-cursor: hand;");
+        testEmailBtn.setOnAction(e -> {
+            String email = emailField.getText().trim();
+            if (email.isEmpty()) {
+                showAlert(Alert.AlertType.WARNING, "Validation", "Please enter an email address first");
+                return;
+            }
+            if (!isValidEmail(email)) {
+                showAlert(Alert.AlertType.WARNING, "Validation", "Please enter a valid email address");
+                return;
+            }
+            sendTestEmail(email);
+        });
+
+        // Add hover effect
+        testEmailBtn.setOnMouseEntered(e ->
+            testEmailBtn.setStyle("-fx-background-color: #047857; -fx-text-fill: white; " +
+                "-fx-font-size: 11px; -fx-padding: 5 10; -fx-background-radius: 6; -fx-cursor: hand;"));
+        testEmailBtn.setOnMouseExited(e ->
+            testEmailBtn.setStyle("-fx-background-color: #059669; -fx-text-fill: white; " +
+                "-fx-font-size: 11px; -fx-padding: 5 10; -fx-background-radius: 6; -fx-cursor: hand;"));
+
+        emailBox.getChildren().addAll(emailField, testEmailBtn);
+
+        grid.add(emailLabel, 0, row);
+        grid.add(emailBox, 1, row);
+        row++;
+
         // Role selection
         Label roleLabel = new Label("Role:");
         roleLabel.setStyle("-fx-text-fill: white; -fx-font-weight: 600;");
@@ -701,6 +758,60 @@ public class UserManagementController {
         grid.add(roleCombo, 1, row);
 
         return grid;
+    }
+
+    /**
+     * Simple email validation
+     */
+    private boolean isValidEmail(String email) {
+        if (email == null || email.isEmpty()) return false;
+        String emailRegex = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$";
+        return email.matches(emailRegex);
+    }
+
+    /**
+     * Send a test email to verify the email address works
+     */
+    private void sendTestEmail(String email) {
+        // Show loading indicator
+        Alert loadingAlert = new Alert(Alert.AlertType.INFORMATION);
+        loadingAlert.setTitle("Sending Test Email");
+        loadingAlert.setHeaderText(null);
+        loadingAlert.setContentText("Sending test email to: " + email + "\nPlease wait...");
+        loadingAlert.initOwner(dialogStage);
+        loadingAlert.getDialogPane().setStyle("-fx-background-color: " + Styles.BG_PRIMARY + ";");
+
+        // Remove buttons to prevent closing
+        loadingAlert.getButtonTypes().clear();
+        loadingAlert.show();
+
+        // Send email in background thread
+        new Thread(() -> {
+            try {
+                EmailService.TestEmailResult result = emailService.sendTestEmail(email);
+
+                Platform.runLater(() -> {
+                    loadingAlert.close();
+
+                    if (result.isSuccess()) {
+                        showAlert(Alert.AlertType.INFORMATION, "Success",
+                            "Test email sent successfully!\n\n" +
+                            "Recipient: " + result.getRecipient() + "\n" +
+                            "SMTP Host: " + result.getSmtpHost() + "\n\n" +
+                            "Please check your inbox (and spam folder).");
+                    } else {
+                        showAlert(Alert.AlertType.ERROR, "Email Failed",
+                            "Failed to send test email:\n\n" + result.getMessage());
+                    }
+                });
+            } catch (Exception e) {
+                Platform.runLater(() -> {
+                    loadingAlert.close();
+                    showAlert(Alert.AlertType.ERROR, "Error",
+                        "Error sending test email:\n" + e.getMessage());
+                });
+            }
+        }).start();
     }
 
     // ================================
@@ -723,12 +834,23 @@ public class UserManagementController {
             return;
         }
 
+        // Validate email format if provided
+        if (data.email != null && !data.email.trim().isEmpty() && !isValidEmail(data.email.trim())) {
+            showAlert(Alert.AlertType.ERROR, "Validation Error", "Please enter a valid email address");
+            return;
+        }
+
         try {
             User newUser = new User();
             newUser.setUsername(data.username.trim());
             newUser.setPassword(data.password);
             newUser.setRole(data.role);
             newUser.setActive(true);
+
+            // Set email if provided
+            if (data.email != null && !data.email.trim().isEmpty()) {
+                newUser.setEmail(data.email.trim());
+            }
 
             authService.createUser(newUser);
             showAlert(Alert.AlertType.INFORMATION, "Success", "User '" + data.username + "' created successfully!");
@@ -739,6 +861,12 @@ public class UserManagementController {
     }
 
     private void updateUser(Long userId, UserFormData data) {
+        // Validate email format if provided
+        if (data.email != null && !data.email.trim().isEmpty() && !isValidEmail(data.email.trim())) {
+            showAlert(Alert.AlertType.ERROR, "Validation Error", "Please enter a valid email address");
+            return;
+        }
+
         try {
             Optional<User> userOpt = authService.getUserById(userId);
             if (userOpt.isEmpty()) {
@@ -754,6 +882,13 @@ public class UserManagementController {
 
             if (data.role != null) {
                 user.setRole(data.role);
+            }
+
+            // Update email (can be set to null/empty to remove)
+            if (data.email != null && !data.email.trim().isEmpty()) {
+                user.setEmail(data.email.trim());
+            } else {
+                user.setEmail(null);
             }
 
             authService.updateUser(user);
@@ -843,6 +978,7 @@ public class UserManagementController {
     public static class UserViewModel {
         private final LongProperty id = new SimpleLongProperty();
         private final StringProperty username = new SimpleStringProperty();
+        private final StringProperty email = new SimpleStringProperty();
         private final ObjectProperty<UserRole> role = new SimpleObjectProperty<>();
         private final StringProperty roleDisplay = new SimpleStringProperty();
         private final ObjectProperty<java.time.LocalDateTime> lastLogin = new SimpleObjectProperty<>();
@@ -854,6 +990,7 @@ public class UserManagementController {
         public UserViewModel(User user) {
             this.id.set(user.getId());
             this.username.set(user.getUsername());
+            this.email.set(user.getEmail() != null ? user.getEmail() : "");
             this.role.set(user.getRole());
             this.roleDisplay.set(user.getRole().getDisplayName());
             this.lastLogin.set(user.getLastLogin());
@@ -870,6 +1007,7 @@ public class UserManagementController {
         // Getters
         public Long getId() { return id.get(); }
         public String getUsername() { return username.get(); }
+        public String getEmail() { return email.get(); }
         public UserRole getRole() { return role.get(); }
         public String getRoleDisplay() { return roleDisplay.get(); }
         public String getLastLoginFormatted() { return lastLoginFormatted.get(); }
@@ -878,6 +1016,7 @@ public class UserManagementController {
         // Properties
         public LongProperty idProperty() { return id; }
         public StringProperty usernameProperty() { return username; }
+        public StringProperty emailProperty() { return email; }
         public ObjectProperty<UserRole> roleProperty() { return role; }
         public StringProperty roleDisplayProperty() { return roleDisplay; }
         public StringProperty lastLoginFormattedProperty() { return lastLoginFormatted; }
@@ -891,11 +1030,13 @@ public class UserManagementController {
     private static class UserFormData {
         final String username;
         final String password;
+        final String email;
         final UserRole role;
 
-        UserFormData(String username, String password, UserRole role) {
+        UserFormData(String username, String password, String email, UserRole role) {
             this.username = username;
             this.password = password;
+            this.email = email;
             this.role = role;
         }
     }

@@ -267,6 +267,8 @@ public class AuthenticationService {
         existingUser.setRole(user.getRole());
         existingUser.setActive(user.getActive());
         existingUser.setPhotoPath(user.getPhotoPath());
+        existingUser.setEmail(user.getEmail());
+        existingUser.setPhoneNumber(user.getPhoneNumber());
 
         return userRepository.save(existingUser);
     }
