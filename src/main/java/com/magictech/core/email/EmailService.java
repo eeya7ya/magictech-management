@@ -35,6 +35,9 @@ public class EmailService {
     @Value("${spring.mail.username:}")
     private String mailUsername;
 
+    @Value("${magictech.mail.provider:gmail}")
+    private String mailProvider;
+
     /**
      * Check if email service is properly configured
      */
@@ -58,6 +61,52 @@ public class EmailService {
             return "SMTP username not configured (spring.mail.username)";
         }
         return "Email service is configured";
+    }
+
+    /**
+     * Get detailed setup instructions for email configuration
+     */
+    public String getSetupInstructions() {
+        return """
+            EMAIL SETUP REQUIRED
+
+            To enable email functionality, configure SMTP credentials:
+
+            OPTION 1: Environment Variables (Recommended)
+            Set these before starting the application:
+            • MAIL_USERNAME=your-email@gmail.com
+            • MAIL_PASSWORD=your-app-password
+            • MAIL_HOST=smtp.gmail.com (for Gmail)
+            • MAIL_HOST=smtp.office365.com (for Outlook)
+
+            OPTION 2: Edit application.properties
+            Update spring.mail.username and spring.mail.password
+
+            FOR GMAIL:
+            1. Enable 2-Factor Authentication
+            2. Go to: Google Account > Security > App Passwords
+            3. Generate a new App Password for "Mail"
+            4. Use the 16-character password (no spaces)
+
+            FOR OUTLOOK:
+            1. Use your full email as username
+            2. Use your password (or App Password if 2FA enabled)
+            3. Set MAIL_HOST=smtp.office365.com
+            """;
+    }
+
+    /**
+     * Get the current mail provider
+     */
+    public String getMailProvider() {
+        return mailProvider;
+    }
+
+    /**
+     * Get the configured mail host
+     */
+    public String getMailHost() {
+        return mailHost;
     }
 
     /**

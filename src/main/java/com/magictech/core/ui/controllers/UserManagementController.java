@@ -773,6 +773,12 @@ public class UserManagementController {
      * Send a test email to verify the email address works
      */
     private void sendTestEmail(String email) {
+        // First check if email is configured
+        if (!emailService.isConfigured()) {
+            showEmailSetupDialog();
+            return;
+        }
+
         // Show loading indicator
         Alert loadingAlert = new Alert(Alert.AlertType.INFORMATION);
         loadingAlert.setTitle("Sending Test Email");
@@ -800,18 +806,94 @@ public class UserManagementController {
                             "SMTP Host: " + result.getSmtpHost() + "\n\n" +
                             "Please check your inbox (and spam folder).");
                     } else {
-                        showAlert(Alert.AlertType.ERROR, "Email Failed",
-                            "Failed to send test email:\n\n" + result.getMessage());
+                        showEmailErrorDialog(result.getMessage());
                     }
                 });
             } catch (Exception e) {
                 Platform.runLater(() -> {
                     loadingAlert.close();
-                    showAlert(Alert.AlertType.ERROR, "Error",
-                        "Error sending test email:\n" + e.getMessage());
+                    showEmailErrorDialog(e.getMessage());
                 });
             }
         }).start();
+    }
+
+    /**
+     * Show email setup instructions dialog
+     */
+    private void showEmailSetupDialog() {
+        Alert alert = new Alert(Alert.AlertType.WARNING);
+        alert.setTitle("Email Not Configured");
+        alert.setHeaderText("SMTP Email Setup Required");
+        alert.initOwner(dialogStage);
+
+        String instructions = """
+            Email service is not configured. To enable email:
+
+            FOR GMAIL:
+            1. Enable 2-Factor Authentication on your Google Account
+            2. Go to: Google Account > Security > App Passwords
+            3. Generate a new App Password for "Mail"
+
+            FOR OUTLOOK:
+            1. Use your full email as username
+            2. Use your account password
+
+            CONFIGURATION:
+            Set environment variables before starting the app:
+            • MAIL_USERNAME=your-email@provider.com
+            • MAIL_PASSWORD=your-app-password
+            • MAIL_HOST=smtp.gmail.com (Gmail)
+            • MAIL_HOST=smtp.office365.com (Outlook)
+
+            Or edit: src/main/resources/application.properties
+            """;
+
+        TextArea textArea = new TextArea(instructions);
+        textArea.setEditable(false);
+        textArea.setWrapText(true);
+        textArea.setPrefWidth(500);
+        textArea.setPrefHeight(300);
+        textArea.setStyle("-fx-font-family: monospace; -fx-font-size: 12px; " +
+                "-fx-control-inner-background: " + Styles.BG_SECONDARY + "; -fx-text-fill: white;");
+
+        alert.getDialogPane().setContent(textArea);
+        alert.getDialogPane().setStyle("-fx-background-color: " + Styles.BG_PRIMARY + ";");
+        alert.getDialogPane().setPrefWidth(550);
+
+        alert.showAndWait();
+    }
+
+    /**
+     * Show email error dialog with troubleshooting tips
+     */
+    private void showEmailErrorDialog(String errorMessage) {
+        Alert alert = new Alert(Alert.AlertType.ERROR);
+        alert.setTitle("Email Failed");
+        alert.setHeaderText("Failed to send test email");
+        alert.initOwner(dialogStage);
+
+        String content = "Error: " + errorMessage + "\n\n" +
+            "TROUBLESHOOTING:\n\n" +
+            "1. Check your credentials are correct\n" +
+            "2. For Gmail: Use an App Password, not your regular password\n" +
+            "3. For Outlook: Ensure SMTP is enabled for your account\n" +
+            "4. Check firewall isn't blocking port 587\n" +
+            "5. Verify internet connection\n\n" +
+            "Current SMTP Host: " + emailService.getMailHost();
+
+        TextArea textArea = new TextArea(content);
+        textArea.setEditable(false);
+        textArea.setWrapText(true);
+        textArea.setPrefWidth(450);
+        textArea.setPrefHeight(220);
+        textArea.setStyle("-fx-font-family: monospace; -fx-font-size: 12px; " +
+                "-fx-control-inner-background: " + Styles.BG_SECONDARY + "; -fx-text-fill: white;");
+
+        alert.getDialogPane().setContent(textArea);
+        alert.getDialogPane().setStyle("-fx-background-color: " + Styles.BG_PRIMARY + ";");
+
+        alert.showAndWait();
     }
 
     // ================================
