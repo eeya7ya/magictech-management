@@ -44,6 +44,22 @@ public class User {
     @Column(nullable = false)
     private Boolean active = true;
 
+    // SMTP Email Settings (per-user)
+    @Column(name = "smtp_provider", length = 50)
+    private String smtpProvider; // gmail, outlook, hotmail, custom
+
+    @Column(name = "smtp_host", length = 255)
+    private String smtpHost;
+
+    @Column(name = "smtp_port")
+    private Integer smtpPort = 587;
+
+    @Column(name = "smtp_password", length = 255)
+    private String smtpPassword; // App password for SMTP
+
+    @Column(name = "smtp_configured")
+    private Boolean smtpConfigured = false;
+
     public User() {
         this.createdAt = LocalDateTime.now();
         this.active = true;
@@ -165,6 +181,57 @@ public class User {
 
     public boolean hasAccess(UserRole requiredRole) {
         return this.role == UserRole.MASTER || this.role == requiredRole;
+    }
+
+    // SMTP Getters and Setters
+    public String getSmtpProvider() {
+        return smtpProvider;
+    }
+
+    public void setSmtpProvider(String smtpProvider) {
+        this.smtpProvider = smtpProvider;
+    }
+
+    public String getSmtpHost() {
+        return smtpHost;
+    }
+
+    public void setSmtpHost(String smtpHost) {
+        this.smtpHost = smtpHost;
+    }
+
+    public Integer getSmtpPort() {
+        return smtpPort;
+    }
+
+    public void setSmtpPort(Integer smtpPort) {
+        this.smtpPort = smtpPort;
+    }
+
+    public String getSmtpPassword() {
+        return smtpPassword;
+    }
+
+    public void setSmtpPassword(String smtpPassword) {
+        this.smtpPassword = smtpPassword;
+    }
+
+    public Boolean getSmtpConfigured() {
+        return smtpConfigured;
+    }
+
+    public void setSmtpConfigured(Boolean smtpConfigured) {
+        this.smtpConfigured = smtpConfigured;
+    }
+
+    /**
+     * Check if user has complete SMTP configuration
+     */
+    public boolean hasSmtpConfigured() {
+        return smtpConfigured != null && smtpConfigured &&
+               email != null && !email.isEmpty() &&
+               smtpHost != null && !smtpHost.isEmpty() &&
+               smtpPassword != null && !smtpPassword.isEmpty();
     }
 
     @Override
