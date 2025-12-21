@@ -23,6 +23,7 @@ import javafx.stage.StageStyle;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import com.magictech.core.auth.User;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
@@ -502,12 +503,15 @@ public class UserManagementController {
      */
     private class ActionButtonsCell extends TableCell<UserViewModel, Void> {
         private final Button editBtn = new Button("✏️ Edit");
+        private final Button testEmailBtn = new Button("📧");
         private final Button toggleBtn = new Button();
         private final Button deleteBtn = new Button("🗑️");
         private final HBox container = new HBox(6);
 
         public ActionButtonsCell() {
             editBtn.setStyle(Styles.BTN_INFO);
+            testEmailBtn.setStyle("-fx-background-color: #059669; -fx-text-fill: white; " +
+                    "-fx-font-size: 12px; -fx-padding: 5 8; -fx-background-radius: 6; -fx-cursor: hand;");
             toggleBtn.setStyle(Styles.BTN_WARNING);
             deleteBtn.setStyle(Styles.BTN_DANGER);
             container.setAlignment(Pos.CENTER);
@@ -515,6 +519,11 @@ public class UserManagementController {
             editBtn.setOnAction(e -> {
                 UserViewModel user = getTableView().getItems().get(getIndex());
                 showEditUserDialog(user);
+            });
+
+            testEmailBtn.setOnAction(e -> {
+                UserViewModel user = getTableView().getItems().get(getIndex());
+                testUserEmail(user);
             });
 
             toggleBtn.setOnAction(e -> {
@@ -527,7 +536,7 @@ public class UserManagementController {
                 handleDeleteUser(user);
             });
 
-            container.getChildren().addAll(editBtn, toggleBtn, deleteBtn);
+            container.getChildren().addAll(editBtn, testEmailBtn, toggleBtn, deleteBtn);
         }
 
         @Override
@@ -614,12 +623,27 @@ public class UserManagementController {
                 TextField emailField = (TextField) grid.lookup("#emailField");
                 @SuppressWarnings("unchecked")
                 ComboBox<UserRole> roleCombo = (ComboBox<UserRole>) grid.lookup("#roleCombo");
+                // SMTP fields
+                @SuppressWarnings("unchecked")
+                ComboBox<String> smtpProviderCombo = (ComboBox<String>) grid.lookup("#smtpProviderCombo");
+                TextField smtpHostField = (TextField) grid.lookup("#smtpHostField");
+                TextField smtpPortField = (TextField) grid.lookup("#smtpPortField");
+                PasswordField smtpPasswordField = (PasswordField) grid.lookup("#smtpPasswordField");
+
+                Integer smtpPort = 587;
+                try {
+                    smtpPort = Integer.parseInt(smtpPortField.getText().trim());
+                } catch (NumberFormatException ignored) {}
 
                 return new UserFormData(
                         usernameField.getText(),
                         passwordField.getText(),
                         emailField.getText(),
-                        roleCombo.getValue()
+                        roleCombo.getValue(),
+                        smtpProviderCombo.getValue() != null ? smtpProviderCombo.getValue().toLowerCase() : null,
+                        smtpHostField.getText(),
+                        smtpPort,
+                        smtpPasswordField.getText()
                 );
             }
             return null;
@@ -652,13 +676,28 @@ public class UserManagementController {
                 TextField emailField = (TextField) grid.lookup("#emailField");
                 @SuppressWarnings("unchecked")
                 ComboBox<UserRole> roleCombo = (ComboBox<UserRole>) grid.lookup("#roleCombo");
+                // SMTP fields
+                @SuppressWarnings("unchecked")
+                ComboBox<String> smtpProviderCombo = (ComboBox<String>) grid.lookup("#smtpProviderCombo");
+                TextField smtpHostField = (TextField) grid.lookup("#smtpHostField");
+                TextField smtpPortField = (TextField) grid.lookup("#smtpPortField");
+                PasswordField smtpPasswordField = (PasswordField) grid.lookup("#smtpPasswordField");
+
+                Integer smtpPort = 587;
+                try {
+                    smtpPort = Integer.parseInt(smtpPortField.getText().trim());
+                } catch (NumberFormatException ignored) {}
 
                 String newPassword = passwordField.getText();
                 return new UserFormData(
                         userVM.getUsername(),
                         newPassword.isEmpty() ? null : newPassword,
                         emailField.getText(),
-                        roleCombo.getValue()
+                        roleCombo.getValue(),
+                        smtpProviderCombo.getValue() != null ? smtpProviderCombo.getValue().toLowerCase() : null,
+                        smtpHostField.getText(),
+                        smtpPort,
+                        smtpPasswordField.getText()
                 );
             }
             return null;
@@ -771,6 +810,110 @@ public class UserManagementController {
 
         grid.add(roleLabel, 0, row);
         grid.add(roleCombo, 1, row);
+        row++;
+
+        // ================================
+        // SMTP EMAIL SETTINGS SECTION
+        // ================================
+        Label smtpSectionLabel = new Label("── Email Settings (for sending) ──");
+        smtpSectionLabel.setStyle("-fx-text-fill: #8b5cf6; -fx-font-weight: bold; -fx-font-size: 12px;");
+        grid.add(smtpSectionLabel, 0, row, 2, 1);
+        row++;
+
+        // SMTP Provider
+        Label smtpProviderLabel = new Label("Email Provider:");
+        smtpProviderLabel.setStyle("-fx-text-fill: white; -fx-font-weight: 600;");
+        ComboBox<String> smtpProviderCombo = new ComboBox<>();
+        smtpProviderCombo.setId("smtpProviderCombo");
+        smtpProviderCombo.getItems().addAll("Gmail", "Outlook", "Hotmail", "Custom");
+        smtpProviderCombo.setStyle("-fx-background-color: " + Styles.BG_SECONDARY + "; -fx-pref-width: 250;");
+
+        grid.add(smtpProviderLabel, 0, row);
+        grid.add(smtpProviderCombo, 1, row);
+        row++;
+
+        // SMTP Host
+        Label smtpHostLabel = new Label("SMTP Host:");
+        smtpHostLabel.setStyle("-fx-text-fill: white; -fx-font-weight: 600;");
+        TextField smtpHostField = new TextField();
+        smtpHostField.setId("smtpHostField");
+        smtpHostField.setPromptText("e.g., smtp.gmail.com");
+        smtpHostField.setStyle(Styles.INPUT_FIELD);
+
+        grid.add(smtpHostLabel, 0, row);
+        grid.add(smtpHostField, 1, row);
+        row++;
+
+        // SMTP Port
+        Label smtpPortLabel = new Label("SMTP Port:");
+        smtpPortLabel.setStyle("-fx-text-fill: white; -fx-font-weight: 600;");
+        TextField smtpPortField = new TextField("587");
+        smtpPortField.setId("smtpPortField");
+        smtpPortField.setStyle(Styles.INPUT_FIELD + " -fx-pref-width: 100;");
+
+        grid.add(smtpPortLabel, 0, row);
+        grid.add(smtpPortField, 1, row);
+        row++;
+
+        // SMTP Password (App Password)
+        Label smtpPasswordLabel = new Label("App Password:");
+        smtpPasswordLabel.setStyle("-fx-text-fill: white; -fx-font-weight: 600;");
+        PasswordField smtpPasswordField = new PasswordField();
+        smtpPasswordField.setId("smtpPasswordField");
+        smtpPasswordField.setPromptText("Gmail/Outlook App Password");
+        smtpPasswordField.setStyle(Styles.INPUT_FIELD);
+
+        grid.add(smtpPasswordLabel, 0, row);
+        grid.add(smtpPasswordField, 1, row);
+        row++;
+
+        // Help text
+        Label smtpHelpLabel = new Label("For Gmail: Use App Password (Google Account > Security > App Passwords)");
+        smtpHelpLabel.setStyle("-fx-text-fill: " + Styles.TEXT_SECONDARY + "; -fx-font-size: 10px;");
+        smtpHelpLabel.setWrapText(true);
+        grid.add(smtpHelpLabel, 0, row, 2, 1);
+
+        // Provider selection auto-fills host
+        smtpProviderCombo.setOnAction(e -> {
+            String provider = smtpProviderCombo.getValue();
+            if (provider != null) {
+                switch (provider) {
+                    case "Gmail" -> smtpHostField.setText("smtp.gmail.com");
+                    case "Outlook" -> smtpHostField.setText("smtp.office365.com");
+                    case "Hotmail" -> smtpHostField.setText("smtp-mail.outlook.com");
+                    case "Custom" -> smtpHostField.setText("");
+                }
+                smtpPortField.setText("587");
+            }
+        });
+
+        // Load existing SMTP settings if editing
+        if (existingUser != null) {
+            // Need to load from database since ViewModel doesn't have SMTP fields
+            try {
+                Optional<User> userOpt = authService.getUserById(existingUser.getId());
+                if (userOpt.isPresent()) {
+                    User user = userOpt.get();
+                    if (user.getSmtpProvider() != null) {
+                        String provider = user.getSmtpProvider();
+                        provider = provider.substring(0, 1).toUpperCase() + provider.substring(1).toLowerCase();
+                        if (smtpProviderCombo.getItems().contains(provider)) {
+                            smtpProviderCombo.setValue(provider);
+                        } else {
+                            smtpProviderCombo.setValue("Custom");
+                        }
+                    }
+                    if (user.getSmtpHost() != null) smtpHostField.setText(user.getSmtpHost());
+                    if (user.getSmtpPort() != null) smtpPortField.setText(String.valueOf(user.getSmtpPort()));
+                    if (user.getSmtpPassword() != null) smtpPasswordField.setText(user.getSmtpPassword());
+                }
+            } catch (Exception ex) {
+                System.err.println("Error loading SMTP settings: " + ex.getMessage());
+            }
+        } else {
+            smtpProviderCombo.setValue("Gmail");
+            smtpHostField.setText("smtp.gmail.com");
+        }
 
         return grid;
     }
@@ -1139,6 +1282,15 @@ public class UserManagementController {
                 newUser.setEmail(data.email.trim());
             }
 
+            // Set SMTP settings if provided
+            if (data.hasSmtpConfig()) {
+                newUser.setSmtpProvider(data.smtpProvider);
+                newUser.setSmtpHost(data.smtpHost);
+                newUser.setSmtpPort(data.smtpPort);
+                newUser.setSmtpPassword(data.smtpPassword);
+                newUser.setSmtpConfigured(true);
+            }
+
             authService.createUser(newUser);
             showAlert(Alert.AlertType.INFORMATION, "Success", "User '" + data.username + "' created successfully!");
             loadUsers();
@@ -1176,6 +1328,22 @@ public class UserManagementController {
                 user.setEmail(data.email.trim());
             } else {
                 user.setEmail(null);
+            }
+
+            // Update SMTP settings
+            if (data.hasSmtpConfig()) {
+                user.setSmtpProvider(data.smtpProvider);
+                user.setSmtpHost(data.smtpHost);
+                user.setSmtpPort(data.smtpPort);
+                user.setSmtpPassword(data.smtpPassword);
+                user.setSmtpConfigured(true);
+            } else if (data.smtpPassword != null && data.smtpPassword.isEmpty()) {
+                // Clear SMTP settings if password is explicitly emptied
+                user.setSmtpProvider(null);
+                user.setSmtpHost(null);
+                user.setSmtpPort(587);
+                user.setSmtpPassword(null);
+                user.setSmtpConfigured(false);
             }
 
             authService.updateUser(user);
@@ -1231,6 +1399,83 @@ public class UserManagementController {
             } catch (Exception e) {
                 showAlert(Alert.AlertType.ERROR, "Error", "Failed to delete user: " + e.getMessage());
             }
+        }
+    }
+
+    /**
+     * Test email for a specific user using their own SMTP settings
+     */
+    private void testUserEmail(UserViewModel userVM) {
+        try {
+            Optional<User> userOpt = authService.getUserById(userVM.getId());
+            if (userOpt.isEmpty()) {
+                showAlert(Alert.AlertType.ERROR, "Error", "User not found");
+                return;
+            }
+
+            User user = userOpt.get();
+
+            // Check if user has email configured
+            if (user.getEmail() == null || user.getEmail().isEmpty()) {
+                showAlert(Alert.AlertType.WARNING, "No Email",
+                    "User '" + user.getUsername() + "' does not have an email address configured.\n\n" +
+                    "Please edit the user and add an email address first.");
+                return;
+            }
+
+            // Check if user has SMTP configured
+            if (!user.hasSmtpConfigured()) {
+                showAlert(Alert.AlertType.WARNING, "Email Not Configured",
+                    "User '" + user.getUsername() + "' has not configured SMTP email settings.\n\n" +
+                    "Please edit the user and configure:\n" +
+                    "• Email Provider (Gmail/Outlook)\n" +
+                    "• SMTP Host\n" +
+                    "• App Password\n\n" +
+                    "For Gmail: Use App Password from Google Account > Security > App Passwords");
+                return;
+            }
+
+            // Show loading indicator
+            Alert loadingAlert = new Alert(Alert.AlertType.INFORMATION);
+            loadingAlert.setTitle("Testing Email");
+            loadingAlert.setHeaderText(null);
+            loadingAlert.setContentText("Sending test email for: " + user.getUsername() + "\nTo: " + user.getEmail() + "\nPlease wait...");
+            loadingAlert.initOwner(dialogStage);
+            loadingAlert.getDialogPane().setStyle("-fx-background-color: " + Styles.BG_PRIMARY + ";");
+            loadingAlert.getButtonTypes().clear();
+            loadingAlert.show();
+
+            // Send test email in background
+            new Thread(() -> {
+                try {
+                    EmailService.TestEmailResult result = emailService.sendTestEmailForUser(user);
+
+                    Platform.runLater(() -> {
+                        loadingAlert.close();
+
+                        if (result.isSuccess()) {
+                            showAlert(Alert.AlertType.INFORMATION, "Success",
+                                "Test email sent successfully!\n\n" +
+                                "User: " + user.getUsername() + "\n" +
+                                "Email: " + user.getEmail() + "\n" +
+                                "SMTP Host: " + result.getSmtpHost() + "\n\n" +
+                                "Please check inbox (and spam folder).");
+                        } else {
+                            showAlert(Alert.AlertType.ERROR, "Email Test Failed",
+                                "Failed to send test email:\n\n" + result.getMessage() + "\n\n" +
+                                "Please check SMTP settings for this user.");
+                        }
+                    });
+                } catch (Exception e) {
+                    Platform.runLater(() -> {
+                        loadingAlert.close();
+                        showAlert(Alert.AlertType.ERROR, "Error", "Failed to test email: " + e.getMessage());
+                    });
+                }
+            }).start();
+
+        } catch (Exception e) {
+            showAlert(Alert.AlertType.ERROR, "Error", "Failed to test email: " + e.getMessage());
         }
     }
 
@@ -1319,12 +1564,31 @@ public class UserManagementController {
         final String password;
         final String email;
         final UserRole role;
+        // SMTP fields
+        final String smtpProvider;
+        final String smtpHost;
+        final Integer smtpPort;
+        final String smtpPassword;
 
         UserFormData(String username, String password, String email, UserRole role) {
+            this(username, password, email, role, null, null, null, null);
+        }
+
+        UserFormData(String username, String password, String email, UserRole role,
+                     String smtpProvider, String smtpHost, Integer smtpPort, String smtpPassword) {
             this.username = username;
             this.password = password;
             this.email = email;
             this.role = role;
+            this.smtpProvider = smtpProvider;
+            this.smtpHost = smtpHost;
+            this.smtpPort = smtpPort;
+            this.smtpPassword = smtpPassword;
+        }
+
+        boolean hasSmtpConfig() {
+            return smtpHost != null && !smtpHost.isEmpty() &&
+                   smtpPassword != null && !smtpPassword.isEmpty();
         }
     }
 }
