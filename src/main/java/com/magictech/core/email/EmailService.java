@@ -1,9 +1,8 @@
 package com.magictech.core.email;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
@@ -11,147 +10,117 @@ import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Optional;
+import java.util.Properties;
 
 /**
  * Service for sending emails via SMTP.
- * Provides methods for sending simple text emails and HTML emails,
- * as well as test email functionality.
+ * Uses database-stored settings for SMTP configuration,
+ * allowing users to configure email from the UI.
  */
 @Service
 public class EmailService {
 
-    @Autowired(required = false)
-    private JavaMailSender mailSender;
-
-    @Value("${magictech.mail.from:noreply@magictech.com}")
-    private String fromAddress;
-
-    @Value("${magictech.mail.from-name:MagicTech Management System}")
-    private String fromName;
-
-    @Value("${spring.mail.host:}")
-    private String mailHost;
-
-    @Value("${spring.mail.username:}")
-    private String mailUsername;
-
-    @Value("${magictech.mail.provider:gmail}")
-    private String mailProvider;
+    @Autowired
+    private EmailSettingsService settingsService;
 
     /**
-     * Check if email service is properly configured
+     * Check if email service is properly configured (from database settings)
      */
     public boolean isConfigured() {
-        return mailSender != null &&
-               mailHost != null && !mailHost.isEmpty() &&
-               mailUsername != null && !mailUsername.isEmpty();
+        return settingsService.isConfigured();
+    }
+
+    /**
+     * Get the active email settings
+     */
+    public Optional<EmailSettings> getSettings() {
+        return settingsService.getActiveSettings();
     }
 
     /**
      * Get configuration status message
      */
     public String getConfigurationStatus() {
-        if (mailSender == null) {
-            return "Mail sender not initialized";
+        Optional<EmailSettings> settings = settingsService.getActiveSettings();
+        if (settings.isEmpty()) {
+            return "No email settings configured. Click 'Email Settings' to set up.";
         }
-        if (mailHost == null || mailHost.isEmpty()) {
-            return "SMTP host not configured (spring.mail.host)";
+        EmailSettings s = settings.get();
+        if (s.getSmtpHost() == null || s.getSmtpHost().isEmpty()) {
+            return "SMTP host not configured";
         }
-        if (mailUsername == null || mailUsername.isEmpty()) {
-            return "SMTP username not configured (spring.mail.username)";
+        if (s.getUsername() == null || s.getUsername().isEmpty()) {
+            return "Email username not configured";
         }
-        return "Email service is configured";
-    }
-
-    /**
-     * Get detailed setup instructions for email configuration
-     */
-    public String getSetupInstructions() {
-        return """
-            EMAIL SETUP REQUIRED
-
-            To enable email functionality, configure SMTP credentials:
-
-            OPTION 1: Environment Variables (Recommended)
-            Set these before starting the application:
-            • MAIL_USERNAME=your-email@gmail.com
-            • MAIL_PASSWORD=your-app-password
-            • MAIL_HOST=smtp.gmail.com (for Gmail)
-            • MAIL_HOST=smtp.office365.com (for Outlook)
-
-            OPTION 2: Edit application.properties
-            Update spring.mail.username and spring.mail.password
-
-            FOR GMAIL:
-            1. Enable 2-Factor Authentication
-            2. Go to: Google Account > Security > App Passwords
-            3. Generate a new App Password for "Mail"
-            4. Use the 16-character password (no spaces)
-
-            FOR OUTLOOK:
-            1. Use your full email as username
-            2. Use your password (or App Password if 2FA enabled)
-            3. Set MAIL_HOST=smtp.office365.com
-            """;
-    }
-
-    /**
-     * Get the current mail provider
-     */
-    public String getMailProvider() {
-        return mailProvider;
+        if (s.getPassword() == null || s.getPassword().isEmpty()) {
+            return "Email password not configured";
+        }
+        return "Email service is configured (" + s.getProvider() + ")";
     }
 
     /**
      * Get the configured mail host
      */
     public String getMailHost() {
-        return mailHost;
+        return settingsService.getActiveSettings()
+                .map(EmailSettings::getSmtpHost)
+                .orElse("Not configured");
     }
 
     /**
-     * Send a simple text email
-     *
-     * @param to Recipient email address
-     * @param subject Email subject
-     * @param text Email body (plain text)
-     * @throws EmailException if sending fails
+     * Create a JavaMailSender from database settings
      */
-    public void sendSimpleEmail(String to, String subject, String text) throws EmailException {
-        if (!isConfigured()) {
-            throw new EmailException("Email service is not configured: " + getConfigurationStatus());
+    private JavaMailSender createMailSender(EmailSettings settings) {
+        JavaMailSenderImpl mailSender = new JavaMailSenderImpl();
+        mailSender.setHost(settings.getSmtpHost());
+        mailSender.setPort(settings.getSmtpPort() != null ? settings.getSmtpPort() : 587);
+        mailSender.setUsername(settings.getUsername());
+        mailSender.setPassword(settings.getPassword());
+
+        Properties props = mailSender.getJavaMailProperties();
+        props.put("mail.transport.protocol", "smtp");
+        props.put("mail.smtp.auth", "true");
+
+        if (Boolean.TRUE.equals(settings.getUseTls())) {
+            props.put("mail.smtp.starttls.enable", "true");
+            props.put("mail.smtp.starttls.required", "true");
         }
 
-        try {
-            SimpleMailMessage message = new SimpleMailMessage();
-            message.setFrom(fromAddress);
-            message.setTo(to);
-            message.setSubject(subject);
-            message.setText(text);
-
-            mailSender.send(message);
-            System.out.println("Email sent successfully to: " + to);
-        } catch (Exception e) {
-            throw new EmailException("Failed to send email to " + to + ": " + e.getMessage(), e);
+        if (Boolean.TRUE.equals(settings.getUseSsl())) {
+            props.put("mail.smtp.ssl.enable", "true");
         }
+
+        props.put("mail.smtp.connectiontimeout", "5000");
+        props.put("mail.smtp.timeout", "5000");
+        props.put("mail.smtp.writetimeout", "5000");
+        props.put("mail.debug", "false");
+
+        return mailSender;
     }
 
     /**
-     * Send an HTML email
-     *
-     * @param to Recipient email address
-     * @param subject Email subject
-     * @param htmlContent Email body (HTML)
-     * @throws EmailException if sending fails
+     * Send an HTML email using database settings
      */
     public void sendHtmlEmail(String to, String subject, String htmlContent) throws EmailException {
-        if (!isConfigured()) {
+        Optional<EmailSettings> settingsOpt = settingsService.getActiveSettings();
+        if (settingsOpt.isEmpty() || !settingsOpt.get().isComplete()) {
             throw new EmailException("Email service is not configured: " + getConfigurationStatus());
         }
+
+        EmailSettings settings = settingsOpt.get();
+        JavaMailSender mailSender = createMailSender(settings);
 
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+            String fromAddress = settings.getFromAddress() != null && !settings.getFromAddress().isEmpty()
+                    ? settings.getFromAddress()
+                    : settings.getUsername();
+            String fromName = settings.getFromName() != null && !settings.getFromName().isEmpty()
+                    ? settings.getFromName()
+                    : "MagicTech Management System";
 
             helper.setFrom(fromAddress, fromName);
             helper.setTo(to);
@@ -161,28 +130,29 @@ public class EmailService {
             mailSender.send(message);
             System.out.println("HTML email sent successfully to: " + to);
         } catch (MessagingException e) {
-            throw new EmailException("Failed to send HTML email to " + to + ": " + e.getMessage(), e);
+            throw new EmailException("Failed to send email: " + e.getMessage(), e);
         } catch (Exception e) {
-            throw new EmailException("Failed to send HTML email to " + to + ": " + e.getMessage(), e);
+            throw new EmailException("Failed to send email: " + e.getMessage(), e);
         }
     }
 
     /**
      * Send a test email to verify email configuration
-     *
-     * @param to Recipient email address
-     * @return TestEmailResult containing success status and details
      */
     public TestEmailResult sendTestEmail(String to) {
         TestEmailResult result = new TestEmailResult();
         result.setRecipient(to);
         result.setTimestamp(LocalDateTime.now());
 
-        if (!isConfigured()) {
+        Optional<EmailSettings> settingsOpt = settingsService.getActiveSettings();
+        if (settingsOpt.isEmpty() || !settingsOpt.get().isComplete()) {
             result.setSuccess(false);
-            result.setMessage("Email service is not configured: " + getConfigurationStatus());
+            result.setMessage("Email not configured. Please set up email settings first.");
             return result;
         }
+
+        EmailSettings settings = settingsOpt.get();
+        result.setSmtpHost(settings.getSmtpHost());
 
         String subject = "MagicTech - Test Email";
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
@@ -215,7 +185,8 @@ public class EmailService {
                             <strong>Test Details:</strong><br>
                             Timestamp: %s<br>
                             Recipient: %s<br>
-                            SMTP Host: %s
+                            SMTP Host: %s<br>
+                            Provider: %s
                         </div>
                         <p>If you received this email, your email configuration is working correctly!</p>
                     </div>
@@ -226,17 +197,15 @@ public class EmailService {
                 </div>
             </body>
             </html>
-            """.formatted(timestamp, to, mailHost);
+            """.formatted(timestamp, to, settings.getSmtpHost(), settings.getProvider());
 
         try {
             sendHtmlEmail(to, subject, htmlContent);
             result.setSuccess(true);
             result.setMessage("Test email sent successfully to " + to);
-            result.setSmtpHost(mailHost);
         } catch (EmailException e) {
             result.setSuccess(false);
             result.setMessage(e.getMessage());
-            result.setSmtpHost(mailHost);
         }
 
         return result;
@@ -244,10 +213,6 @@ public class EmailService {
 
     /**
      * Send a welcome email to a new user
-     *
-     * @param to Recipient email address
-     * @param username The user's username
-     * @throws EmailException if sending fails
      */
     public void sendWelcomeEmail(String to, String username) throws EmailException {
         String subject = "Welcome to MagicTech Management System";
