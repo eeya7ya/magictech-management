@@ -18,6 +18,7 @@ import java.util.Properties;
 @Configuration
 @EnableJpaRepositories(basePackages = {
         "com.magictech.core.auth",
+        "com.magictech.core.email",
         "com.magictech.core.messaging.repository",
         "com.magictech.modules.storage",
         "com.magictech.modules.sales.repository",
@@ -72,9 +73,10 @@ public class DatabaseConfig {
         LocalContainerEntityManagerFactoryBean em = new LocalContainerEntityManagerFactoryBean();
         em.setDataSource(dataSource());
 
-        // ✅ UPDATED: Scan ALL entity packages including messaging
+        // ✅ UPDATED: Scan ALL entity packages including messaging and email
         em.setPackagesToScan(
                 "com.magictech.core.auth",
+                "com.magictech.core.email",
                 "com.magictech.core.messaging.entity",
                 "com.magictech.modules.storage.entity",
                 "com.magictech.modules.sales.entity",
