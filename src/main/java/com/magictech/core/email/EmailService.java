@@ -9,10 +9,13 @@ import org.springframework.stereotype.Service;
 
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
+import jakarta.mail.Session;
+import jakarta.mail.Transport;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Optional;
 import java.util.Properties;
+import java.util.regex.Pattern;
 
 /**
  * Service for sending emails via SMTP.
@@ -22,8 +25,112 @@ import java.util.Properties;
 @Service
 public class EmailService {
 
+    // RFC 5322 compliant email regex pattern
+    private static final Pattern EMAIL_PATTERN = Pattern.compile(
+        "^[a-zA-Z0-9_!#$%&'*+/=?`{|}~^.-]+@[a-zA-Z0-9.-]+$"
+    );
+
     @Autowired
     private EmailSettingsService settingsService;
+
+    /**
+     * Validate email address format
+     */
+    public boolean isValidEmail(String email) {
+        if (email == null || email.isBlank()) {
+            return false;
+        }
+        return EMAIL_PATTERN.matcher(email.trim()).matches();
+    }
+
+    /**
+     * Test SMTP connection without sending an email
+     * Returns a result with connection status and any error messages
+     */
+    public ConnectionTestResult testSmtpConnection() {
+        ConnectionTestResult result = new ConnectionTestResult();
+        result.setTimestamp(LocalDateTime.now());
+
+        Optional<EmailSettings> settingsOpt = settingsService.getActiveSettings();
+        if (settingsOpt.isEmpty() || !settingsOpt.get().isComplete()) {
+            result.setSuccess(false);
+            result.setMessage("Email not configured. Please set up email settings first.");
+            return result;
+        }
+
+        EmailSettings settings = settingsOpt.get();
+        result.setSmtpHost(settings.getSmtpHost());
+        result.setSmtpPort(settings.getSmtpPort());
+
+        try {
+            Properties props = new Properties();
+            props.put("mail.smtp.host", settings.getSmtpHost());
+            props.put("mail.smtp.port", String.valueOf(settings.getSmtpPort()));
+            props.put("mail.smtp.auth", "true");
+
+            if (Boolean.TRUE.equals(settings.getUseTls())) {
+                props.put("mail.smtp.starttls.enable", "true");
+            }
+            if (Boolean.TRUE.equals(settings.getUseSsl())) {
+                props.put("mail.smtp.ssl.enable", "true");
+            }
+            props.put("mail.smtp.connectiontimeout", "5000");
+            props.put("mail.smtp.timeout", "5000");
+
+            Session session = Session.getInstance(props);
+            Transport transport = session.getTransport("smtp");
+            transport.connect(settings.getSmtpHost(), settings.getUsername(), settings.getPassword());
+            transport.close();
+
+            result.setSuccess(true);
+            result.setMessage("SMTP connection successful! Server: " + settings.getSmtpHost() + ":" + settings.getSmtpPort());
+        } catch (Exception e) {
+            result.setSuccess(false);
+            result.setMessage("Connection failed: " + e.getMessage());
+        }
+
+        return result;
+    }
+
+    /**
+     * Test SMTP connection for a specific user's settings
+     */
+    public ConnectionTestResult testSmtpConnectionForUser(User user) {
+        ConnectionTestResult result = new ConnectionTestResult();
+        result.setTimestamp(LocalDateTime.now());
+
+        if (!isUserEmailConfigured(user)) {
+            result.setSuccess(false);
+            result.setMessage("Email not configured for user '" + user.getUsername() + "'.");
+            return result;
+        }
+
+        result.setSmtpHost(user.getSmtpHost());
+        result.setSmtpPort(user.getSmtpPort());
+
+        try {
+            Properties props = new Properties();
+            props.put("mail.smtp.host", user.getSmtpHost());
+            props.put("mail.smtp.port", String.valueOf(user.getSmtpPort()));
+            props.put("mail.smtp.auth", "true");
+            props.put("mail.smtp.starttls.enable", "true");
+            props.put("mail.smtp.connectiontimeout", "5000");
+            props.put("mail.smtp.timeout", "5000");
+
+            Session session = Session.getInstance(props);
+            Transport transport = session.getTransport("smtp");
+            transport.connect(user.getSmtpHost(), user.getEmail(), user.getSmtpPassword());
+            transport.close();
+
+            result.setSuccess(true);
+            result.setMessage("SMTP connection successful for " + user.getUsername() + "!");
+        } catch (Exception e) {
+            result.setSuccess(false);
+            result.setMessage("Connection failed: " + e.getMessage());
+        }
+
+        return result;
+    }
 
     /**
      * Check if email service is properly configured (from database settings)
@@ -427,6 +534,37 @@ public class EmailService {
         @Override
         public String toString() {
             return "TestEmailResult{success=" + success + ", message='" + message + "', recipient='" + recipient + "'}";
+        }
+    }
+
+    /**
+     * Result object for SMTP connection test operations
+     */
+    public static class ConnectionTestResult {
+        private boolean success;
+        private String message;
+        private String smtpHost;
+        private Integer smtpPort;
+        private LocalDateTime timestamp;
+
+        public boolean isSuccess() { return success; }
+        public void setSuccess(boolean success) { this.success = success; }
+
+        public String getMessage() { return message; }
+        public void setMessage(String message) { this.message = message; }
+
+        public String getSmtpHost() { return smtpHost; }
+        public void setSmtpHost(String smtpHost) { this.smtpHost = smtpHost; }
+
+        public Integer getSmtpPort() { return smtpPort; }
+        public void setSmtpPort(Integer smtpPort) { this.smtpPort = smtpPort; }
+
+        public LocalDateTime getTimestamp() { return timestamp; }
+        public void setTimestamp(LocalDateTime timestamp) { this.timestamp = timestamp; }
+
+        @Override
+        public String toString() {
+            return "ConnectionTestResult{success=" + success + ", host='" + smtpHost + ":" + smtpPort + "', message='" + message + "'}";
         }
     }
 }
