@@ -4,8 +4,6 @@ import com.magictech.core.auth.AuthenticationService;
 import com.magictech.core.auth.User;
 import com.magictech.core.auth.UserRole;
 import com.magictech.core.email.EmailService;
-import com.magictech.core.email.EmailSettings;
-import com.magictech.core.email.EmailSettingsService;
 import javafx.application.Platform;
 import javafx.beans.property.*;
 import javafx.collections.FXCollections;
@@ -23,7 +21,6 @@ import javafx.stage.StageStyle;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import com.magictech.core.auth.User;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
@@ -87,9 +84,6 @@ public class UserManagementController {
 
     @Autowired
     private EmailService emailService;
-
-    @Autowired
-    private EmailSettingsService emailSettingsService;
 
     // UI Components
     private TableView<UserViewModel> userTable;
@@ -231,23 +225,13 @@ public class UserManagementController {
         refreshBtn.setOnAction(e -> loadUsers());
         addHoverEffect(refreshBtn, Styles.BTN_SECONDARY, "#64748b");
 
-        // Email Settings Button
-        Button emailSettingsBtn = new Button("📧 Email Settings");
-        emailSettingsBtn.setStyle("-fx-background-color: #059669; -fx-text-fill: white; " +
-                "-fx-font-size: 14px; -fx-font-weight: 600; -fx-padding: 10 20; " +
-                "-fx-background-radius: 8; -fx-cursor: hand;");
-        emailSettingsBtn.setOnAction(e -> showEmailSettingsDialog());
-        addHoverEffect(emailSettingsBtn, "-fx-background-color: #059669; -fx-text-fill: white; " +
-                "-fx-font-size: 14px; -fx-font-weight: 600; -fx-padding: 10 20; " +
-                "-fx-background-radius: 8; -fx-cursor: hand;", "#047857");
-
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
         // User count display
         HBox countBox = buildUserCountComponent();
 
-        toolbar.getChildren().addAll(addUserBtn, refreshBtn, emailSettingsBtn, spacer, countBox);
+        toolbar.getChildren().addAll(addUserBtn, refreshBtn, spacer, countBox);
         return toolbar;
     }
 
@@ -745,53 +729,21 @@ public class UserManagementController {
         grid.add(passwordField, 1, row);
         row++;
 
-        // Email field with test button
+        // Email field
         Label emailLabel = new Label("Email:");
         emailLabel.setStyle("-fx-text-fill: white; -fx-font-weight: 600;");
-
-        HBox emailBox = new HBox(10);
-        emailBox.setAlignment(Pos.CENTER_LEFT);
 
         TextField emailField = new TextField();
         emailField.setId("emailField");
         emailField.setPromptText("Enter email address");
         emailField.setStyle(Styles.INPUT_FIELD);
-        emailField.setPrefWidth(180);
 
         if (existingUser != null && existingUser.getEmail() != null) {
             emailField.setText(existingUser.getEmail());
         }
 
-        // Test Email Button
-        Button testEmailBtn = new Button("Test Email");
-        testEmailBtn.setId("testEmailBtn");
-        testEmailBtn.setStyle("-fx-background-color: #059669; -fx-text-fill: white; " +
-                "-fx-font-size: 11px; -fx-padding: 5 10; -fx-background-radius: 6; -fx-cursor: hand;");
-        testEmailBtn.setOnAction(e -> {
-            String email = emailField.getText().trim();
-            if (email.isEmpty()) {
-                showAlert(Alert.AlertType.WARNING, "Validation", "Please enter an email address first");
-                return;
-            }
-            if (!isValidEmail(email)) {
-                showAlert(Alert.AlertType.WARNING, "Validation", "Please enter a valid email address");
-                return;
-            }
-            sendTestEmail(email);
-        });
-
-        // Add hover effect
-        testEmailBtn.setOnMouseEntered(e ->
-            testEmailBtn.setStyle("-fx-background-color: #047857; -fx-text-fill: white; " +
-                "-fx-font-size: 11px; -fx-padding: 5 10; -fx-background-radius: 6; -fx-cursor: hand;"));
-        testEmailBtn.setOnMouseExited(e ->
-            testEmailBtn.setStyle("-fx-background-color: #059669; -fx-text-fill: white; " +
-                "-fx-font-size: 11px; -fx-padding: 5 10; -fx-background-radius: 6; -fx-cursor: hand;"));
-
-        emailBox.getChildren().addAll(emailField, testEmailBtn);
-
         grid.add(emailLabel, 0, row);
-        grid.add(emailBox, 1, row);
+        grid.add(emailField, 1, row);
         row++;
 
         // Role selection
@@ -982,101 +934,6 @@ public class UserManagementController {
     }
 
     /**
-     * Send a test email to verify the email address works
-     */
-    private void sendTestEmail(String email) {
-        // First check if email is configured
-        if (!emailService.isConfigured()) {
-            showEmailSetupDialog();
-            return;
-        }
-
-        // Show loading indicator
-        Alert loadingAlert = new Alert(Alert.AlertType.INFORMATION);
-        loadingAlert.setTitle("Sending Test Email");
-        loadingAlert.setHeaderText(null);
-        loadingAlert.setContentText("Sending test email to: " + email + "\nPlease wait...");
-        loadingAlert.initOwner(dialogStage);
-        loadingAlert.getDialogPane().setStyle("-fx-background-color: " + Styles.BG_PRIMARY + ";");
-
-        // Remove buttons to prevent closing
-        loadingAlert.getButtonTypes().clear();
-        loadingAlert.show();
-
-        // Send email in background thread
-        new Thread(() -> {
-            try {
-                EmailService.TestEmailResult result = emailService.sendTestEmail(email);
-
-                Platform.runLater(() -> {
-                    loadingAlert.close();
-
-                    if (result.isSuccess()) {
-                        showAlert(Alert.AlertType.INFORMATION, "Success",
-                            "Test email sent successfully!\n\n" +
-                            "Recipient: " + result.getRecipient() + "\n" +
-                            "SMTP Host: " + result.getSmtpHost() + "\n\n" +
-                            "Please check your inbox (and spam folder).");
-                    } else {
-                        showEmailErrorDialog(result.getMessage());
-                    }
-                });
-            } catch (Exception e) {
-                Platform.runLater(() -> {
-                    loadingAlert.close();
-                    showEmailErrorDialog(e.getMessage());
-                });
-            }
-        }).start();
-    }
-
-    /**
-     * Show email setup instructions dialog
-     */
-    private void showEmailSetupDialog() {
-        Alert alert = new Alert(Alert.AlertType.WARNING);
-        alert.setTitle("Email Not Configured");
-        alert.setHeaderText("SMTP Email Setup Required");
-        alert.initOwner(dialogStage);
-
-        String instructions = """
-            Email service is not configured. To enable email:
-
-            FOR GMAIL:
-            1. Enable 2-Factor Authentication on your Google Account
-            2. Go to: Google Account > Security > App Passwords
-            3. Generate a new App Password for "Mail"
-
-            FOR OUTLOOK:
-            1. Use your full email as username
-            2. Use your account password
-
-            CONFIGURATION:
-            Set environment variables before starting the app:
-            • MAIL_USERNAME=your-email@provider.com
-            • MAIL_PASSWORD=your-app-password
-            • MAIL_HOST=smtp.gmail.com (Gmail)
-            • MAIL_HOST=smtp.office365.com (Outlook)
-
-            Or edit: src/main/resources/application.properties
-            """;
-
-        TextArea textArea = new TextArea(instructions);
-        textArea.setEditable(false);
-        textArea.setWrapText(true);
-        textArea.setPrefWidth(500);
-        textArea.setPrefHeight(300);
-        textArea.setStyle("-fx-font-family: monospace; -fx-font-size: 12px; " +
-                "-fx-control-inner-background: " + Styles.BG_SECONDARY + "; -fx-text-fill: white;");
-
-        alert.getDialogPane().setContent(textArea);
-        alert.getDialogPane().setStyle("-fx-background-color: " + Styles.BG_PRIMARY + ";");
-        alert.getDialogPane().setPrefWidth(550);
-
-        alert.showAndWait();
-    }
-
-    /**
      * Test SMTP settings by sending an actual test email using the provided settings
      * This tests the form's SMTP configuration before saving
      */
@@ -1256,228 +1113,6 @@ public class UserManagementController {
         alert.getDialogPane().setPrefWidth(550);
 
         alert.showAndWait();
-    }
-
-    /**
-     * Show email error dialog with troubleshooting tips
-     */
-    private void showEmailErrorDialog(String errorMessage) {
-        Alert alert = new Alert(Alert.AlertType.ERROR);
-        alert.setTitle("Email Failed");
-        alert.setHeaderText("Failed to send test email");
-        alert.initOwner(dialogStage);
-
-        String content = "Error: " + errorMessage + "\n\n" +
-            "TROUBLESHOOTING:\n\n" +
-            "1. Check your credentials are correct\n" +
-            "2. For Gmail: Use an App Password, not your regular password\n" +
-            "3. For Outlook: Ensure SMTP is enabled for your account\n" +
-            "4. Check firewall isn't blocking port 587\n" +
-            "5. Verify internet connection\n\n" +
-            "Current SMTP Host: " + emailService.getMailHost();
-
-        TextArea textArea = new TextArea(content);
-        textArea.setEditable(false);
-        textArea.setWrapText(true);
-        textArea.setPrefWidth(450);
-        textArea.setPrefHeight(220);
-        textArea.setStyle("-fx-font-family: monospace; -fx-font-size: 12px; " +
-                "-fx-control-inner-background: " + Styles.BG_SECONDARY + "; -fx-text-fill: white;");
-
-        alert.getDialogPane().setContent(textArea);
-        alert.getDialogPane().setStyle("-fx-background-color: " + Styles.BG_PRIMARY + ";");
-
-        alert.showAndWait();
-    }
-
-    /**
-     * Show email settings dialog for configuring SMTP
-     */
-    private void showEmailSettingsDialog() {
-        Dialog<EmailSettings> dialog = new Dialog<>();
-        dialog.setTitle("Email Settings");
-        dialog.setHeaderText("Configure SMTP Email Settings");
-        dialog.initOwner(dialogStage);
-
-        DialogPane dialogPane = dialog.getDialogPane();
-        dialogPane.getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
-        dialogPane.setStyle("-fx-background-color: " + Styles.BG_PRIMARY + ";");
-        dialogPane.setPrefWidth(500);
-
-        // Load existing settings or create defaults
-        EmailSettings existingSettings = emailSettingsService.getActiveSettings().orElse(null);
-
-        GridPane grid = new GridPane();
-        grid.setHgap(15);
-        grid.setVgap(15);
-        grid.setPadding(new Insets(25));
-
-        int row = 0;
-
-        // Provider selection
-        Label providerLabel = new Label("Email Provider:");
-        providerLabel.setStyle("-fx-text-fill: white; -fx-font-weight: 600;");
-        ComboBox<String> providerCombo = new ComboBox<>();
-        providerCombo.getItems().addAll("Gmail", "Outlook", "Hotmail", "Custom");
-        providerCombo.setStyle("-fx-background-color: " + Styles.BG_SECONDARY + "; -fx-pref-width: 300;");
-
-        grid.add(providerLabel, 0, row);
-        grid.add(providerCombo, 1, row);
-        row++;
-
-        // SMTP Host
-        Label hostLabel = new Label("SMTP Host:");
-        hostLabel.setStyle("-fx-text-fill: white; -fx-font-weight: 600;");
-        TextField hostField = new TextField();
-        hostField.setPromptText("e.g., smtp.gmail.com");
-        hostField.setStyle(Styles.INPUT_FIELD + " -fx-pref-width: 300;");
-
-        grid.add(hostLabel, 0, row);
-        grid.add(hostField, 1, row);
-        row++;
-
-        // SMTP Port
-        Label portLabel = new Label("SMTP Port:");
-        portLabel.setStyle("-fx-text-fill: white; -fx-font-weight: 600;");
-        TextField portField = new TextField("587");
-        portField.setStyle(Styles.INPUT_FIELD + " -fx-pref-width: 100;");
-
-        grid.add(portLabel, 0, row);
-        grid.add(portField, 1, row);
-        row++;
-
-        // Email Username
-        Label usernameLabel = new Label("Email Address:");
-        usernameLabel.setStyle("-fx-text-fill: white; -fx-font-weight: 600;");
-        TextField usernameField = new TextField();
-        usernameField.setPromptText("your-email@gmail.com");
-        usernameField.setStyle(Styles.INPUT_FIELD + " -fx-pref-width: 300;");
-
-        grid.add(usernameLabel, 0, row);
-        grid.add(usernameField, 1, row);
-        row++;
-
-        // Email Password
-        Label passwordLabel = new Label("Password/App Password:");
-        passwordLabel.setStyle("-fx-text-fill: white; -fx-font-weight: 600;");
-        PasswordField passwordField = new PasswordField();
-        passwordField.setPromptText("Your app password");
-        passwordField.setStyle(Styles.INPUT_FIELD + " -fx-pref-width: 300;");
-
-        grid.add(passwordLabel, 0, row);
-        grid.add(passwordField, 1, row);
-        row++;
-
-        // From Name
-        Label fromNameLabel = new Label("Sender Name:");
-        fromNameLabel.setStyle("-fx-text-fill: white; -fx-font-weight: 600;");
-        TextField fromNameField = new TextField("MagicTech Management System");
-        fromNameField.setStyle(Styles.INPUT_FIELD + " -fx-pref-width: 300;");
-
-        grid.add(fromNameLabel, 0, row);
-        grid.add(fromNameField, 1, row);
-        row++;
-
-        // Help text
-        Label helpLabel = new Label("""
-            For Gmail: Enable 2FA and create an App Password
-            Go to: Google Account > Security > App Passwords
-
-            For Outlook: Use your regular password or App Password if 2FA enabled""");
-        helpLabel.setStyle("-fx-text-fill: " + Styles.TEXT_SECONDARY + "; -fx-font-size: 11px;");
-        helpLabel.setWrapText(true);
-
-        grid.add(helpLabel, 0, row, 2, 1);
-
-        // Provider selection auto-fills host
-        providerCombo.setOnAction(e -> {
-            String provider = providerCombo.getValue();
-            if (provider != null) {
-                switch (provider) {
-                    case "Gmail" -> hostField.setText("smtp.gmail.com");
-                    case "Outlook" -> hostField.setText("smtp.office365.com");
-                    case "Hotmail" -> hostField.setText("smtp-mail.outlook.com");
-                    case "Custom" -> hostField.setText("");
-                }
-                portField.setText("587");
-            }
-        });
-
-        // Load existing settings
-        if (existingSettings != null) {
-            if (existingSettings.getProvider() != null) {
-                String provider = existingSettings.getProvider();
-                provider = provider.substring(0, 1).toUpperCase() + provider.substring(1).toLowerCase();
-                if (providerCombo.getItems().contains(provider)) {
-                    providerCombo.setValue(provider);
-                } else {
-                    providerCombo.setValue("Custom");
-                }
-            }
-            if (existingSettings.getSmtpHost() != null) hostField.setText(existingSettings.getSmtpHost());
-            if (existingSettings.getSmtpPort() != null) portField.setText(String.valueOf(existingSettings.getSmtpPort()));
-            if (existingSettings.getUsername() != null) usernameField.setText(existingSettings.getUsername());
-            if (existingSettings.getPassword() != null) passwordField.setText(existingSettings.getPassword());
-            if (existingSettings.getFromName() != null) fromNameField.setText(existingSettings.getFromName());
-        } else {
-            providerCombo.setValue("Gmail");
-            hostField.setText("smtp.gmail.com");
-        }
-
-        dialogPane.setContent(grid);
-
-        Button okButton = (Button) dialogPane.lookupButton(ButtonType.OK);
-        okButton.setText("Save Settings");
-        okButton.setStyle(Styles.BTN_PRIMARY);
-
-        dialog.setResultConverter(buttonType -> {
-            if (buttonType == ButtonType.OK) {
-                EmailSettings settings = existingSettings != null ? existingSettings : new EmailSettings();
-                settings.setProvider(providerCombo.getValue().toLowerCase());
-                settings.setSmtpHost(hostField.getText().trim());
-                try {
-                    settings.setSmtpPort(Integer.parseInt(portField.getText().trim()));
-                } catch (NumberFormatException e) {
-                    settings.setSmtpPort(587);
-                }
-                settings.setUsername(usernameField.getText().trim());
-                settings.setPassword(passwordField.getText());
-                settings.setFromAddress(usernameField.getText().trim());
-                settings.setFromName(fromNameField.getText().trim());
-                settings.setUseTls(true);
-                settings.setUseSsl(false);
-                return settings;
-            }
-            return null;
-        });
-
-        Optional<EmailSettings> result = dialog.showAndWait();
-        result.ifPresent(settings -> {
-            // Validate
-            if (settings.getSmtpHost() == null || settings.getSmtpHost().isEmpty()) {
-                showAlert(Alert.AlertType.ERROR, "Validation Error", "SMTP Host is required");
-                return;
-            }
-            if (settings.getUsername() == null || settings.getUsername().isEmpty()) {
-                showAlert(Alert.AlertType.ERROR, "Validation Error", "Email address is required");
-                return;
-            }
-            if (settings.getPassword() == null || settings.getPassword().isEmpty()) {
-                showAlert(Alert.AlertType.ERROR, "Validation Error", "Password is required");
-                return;
-            }
-
-            try {
-                emailSettingsService.saveSettings(settings);
-                showAlert(Alert.AlertType.INFORMATION, "Success",
-                    "Email settings saved successfully!\n\n" +
-                    "Provider: " + settings.getProvider() + "\n" +
-                    "Host: " + settings.getSmtpHost() + "\n" +
-                    "Email: " + settings.getUsername());
-            } catch (Exception e) {
-                showAlert(Alert.AlertType.ERROR, "Error", "Failed to save settings: " + e.getMessage());
-            }
-        });
     }
 
     // ================================
