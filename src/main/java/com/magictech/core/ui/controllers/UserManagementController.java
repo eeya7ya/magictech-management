@@ -327,6 +327,7 @@ public class UserManagementController {
             buildIdColumn(),
             buildUsernameColumn(),
             buildRoleColumn(),
+            buildSmtpStatusColumn(),
             buildLastLoginColumn(),
             buildStatusColumn(),
             buildActionsColumn()
@@ -410,6 +411,14 @@ public class UserManagementController {
         return col;
     }
 
+    private TableColumn<UserViewModel, Boolean> buildSmtpStatusColumn() {
+        TableColumn<UserViewModel, Boolean> col = new TableColumn<>("SMTP");
+        col.setCellValueFactory(new PropertyValueFactory<>("smtpConfigured"));
+        col.setMinWidth(100);
+        col.setCellFactory(column -> new SmtpStatusCell());
+        return col;
+    }
+
     private TableColumn<UserViewModel, Void> buildActionsColumn() {
         TableColumn<UserViewModel, Void> col = new TableColumn<>("Actions");
         col.setMinWidth(220);
@@ -477,6 +486,34 @@ public class UserManagementController {
                         "-fx-font-weight: 600; -fx-font-size: 12px;");
 
                 statusBox.getChildren().addAll(dot, text);
+                setGraphic(statusBox);
+            }
+        }
+    }
+
+    /**
+     * Custom cell for SMTP configuration status
+     */
+    private class SmtpStatusCell extends TableCell<UserViewModel, Boolean> {
+        @Override
+        protected void updateItem(Boolean item, boolean empty) {
+            super.updateItem(item, empty);
+            if (empty) {
+                setGraphic(null);
+            } else {
+                HBox statusBox = new HBox(5);
+                statusBox.setAlignment(Pos.CENTER_LEFT);
+
+                boolean configured = item != null && item;
+
+                Label icon = new Label(configured ? "📧" : "❌");
+                icon.setStyle("-fx-font-size: 14px;");
+
+                Label text = new Label(configured ? "Configured" : "Not Set");
+                text.setStyle("-fx-text-fill: " + (configured ? "#10b981" : "#9ca3af") + "; " +
+                        "-fx-font-weight: 600; -fx-font-size: 11px;");
+
+                statusBox.getChildren().addAll(icon, text);
                 setGraphic(statusBox);
             }
         }
@@ -729,23 +766,6 @@ public class UserManagementController {
         grid.add(passwordField, 1, row);
         row++;
 
-        // Email field
-        Label emailLabel = new Label("Email:");
-        emailLabel.setStyle("-fx-text-fill: white; -fx-font-weight: 600;");
-
-        TextField emailField = new TextField();
-        emailField.setId("emailField");
-        emailField.setPromptText("Enter email address");
-        emailField.setStyle(Styles.INPUT_FIELD);
-
-        if (existingUser != null && existingUser.getEmail() != null) {
-            emailField.setText(existingUser.getEmail());
-        }
-
-        grid.add(emailLabel, 0, row);
-        grid.add(emailField, 1, row);
-        row++;
-
         // Role selection
         Label roleLabel = new Label("Role:");
         roleLabel.setStyle("-fx-text-fill: white; -fx-font-weight: 600;");
@@ -770,6 +790,23 @@ public class UserManagementController {
         Label smtpSectionLabel = new Label("── SMTP Settings (for sending emails) ──");
         smtpSectionLabel.setStyle("-fx-text-fill: #8b5cf6; -fx-font-weight: bold; -fx-font-size: 12px;");
         grid.add(smtpSectionLabel, 0, row, 2, 1);
+        row++;
+
+        // SMTP Email (sender email for SMTP)
+        Label emailLabel = new Label("SMTP Email:");
+        emailLabel.setStyle("-fx-text-fill: white; -fx-font-weight: 600;");
+
+        TextField emailField = new TextField();
+        emailField.setId("emailField");
+        emailField.setPromptText("your-email@gmail.com");
+        emailField.setStyle(Styles.INPUT_FIELD);
+
+        if (existingUser != null && existingUser.getEmail() != null) {
+            emailField.setText(existingUser.getEmail());
+        }
+
+        grid.add(emailLabel, 0, row);
+        grid.add(emailField, 1, row);
         row++;
 
         // SMTP Provider
@@ -1387,6 +1424,7 @@ public class UserManagementController {
         private final ObjectProperty<java.time.LocalDateTime> lastLogin = new SimpleObjectProperty<>();
         private final StringProperty lastLoginFormatted = new SimpleStringProperty();
         private final BooleanProperty active = new SimpleBooleanProperty();
+        private final BooleanProperty smtpConfigured = new SimpleBooleanProperty();
 
         private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
@@ -1405,6 +1443,7 @@ public class UserManagementController {
             }
 
             this.active.set(user.getActive());
+            this.smtpConfigured.set(user.hasSmtpConfigured());
         }
 
         // Getters
@@ -1415,6 +1454,7 @@ public class UserManagementController {
         public String getRoleDisplay() { return roleDisplay.get(); }
         public String getLastLoginFormatted() { return lastLoginFormatted.get(); }
         public Boolean isActive() { return active.get(); }
+        public Boolean isSmtpConfigured() { return smtpConfigured.get(); }
 
         // Properties
         public LongProperty idProperty() { return id; }
@@ -1424,6 +1464,7 @@ public class UserManagementController {
         public StringProperty roleDisplayProperty() { return roleDisplay; }
         public StringProperty lastLoginFormattedProperty() { return lastLoginFormatted; }
         public BooleanProperty activeProperty() { return active; }
+        public BooleanProperty smtpConfiguredProperty() { return smtpConfigured; }
     }
 
     // ================================

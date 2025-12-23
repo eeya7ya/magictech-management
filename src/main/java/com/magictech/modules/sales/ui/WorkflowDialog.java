@@ -1421,24 +1421,156 @@ public class WorkflowDialog extends Stage {
 
     // STEP 5: Tender Acceptance
     private void loadStep5_TenderAcceptance() {
+        // CRITICAL FIX: Refresh workflow state from database first
+        refreshWorkflow();
+
+        System.out.println("🔍 DEBUG: Loading Step 5, current workflow step: " + workflow.getCurrentStep());
+
+        // Check if step 5 is already completed (Project team completed execution)
+        Optional<WorkflowStepCompletion> step5Opt = stepService.getStep(workflow.getId(), 5);
+        if (step5Opt.isPresent()) {
+            WorkflowStepCompletion step5 = step5Opt.get();
+
+            // Check if step is completed
+            if (Boolean.TRUE.equals(step5.getCompleted())) {
+                System.out.println("✅ DEBUG: Step 5 is already completed");
+                showTenderAcceptanceCompleted(step5);
+                return;
+            }
+
+            // Check if tender was accepted and waiting for PROJECT team
+            if (Boolean.TRUE.equals(step5.getNeedsExternalAction()) &&
+                "PROJECT".equals(step5.getExternalModule()) &&
+                Boolean.FALSE.equals(step5.getExternalActionCompleted())) {
+                System.out.println("⏳ DEBUG: Step 5 waiting for Project team");
+                showTenderAcceptancePendingUI(step5);
+                return;
+            }
+        }
+
+        System.out.println("❌ DEBUG: Step 5 - showing tender acceptance options");
+        showTenderAcceptanceOptions();
+    }
+
+    private void showTenderAcceptanceOptions() {
         Label question = new Label("Does the Tender Accepted?");
-        question.setFont(Font.font("System", FontWeight.NORMAL, 16));
+        question.setFont(Font.font("System", FontWeight.BOLD, 18));
+        question.setTextFill(Color.WHITE);
+
+        Label infoLabel = new Label(
+            "If the tender is accepted, the Project team will be notified to start work.\n" +
+            "If rejected, please provide a reason."
+        );
+        infoLabel.setFont(Font.font("System", FontWeight.NORMAL, 14));
+        infoLabel.setWrapText(true);
+        infoLabel.setTextFill(Color.web("#94a3b8"));
 
         Button yesButton = new Button("Yes - Tender Accepted");
-        yesButton.setStyle("-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20;");
+        yesButton.setStyle("-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20; -fx-font-weight: bold;");
         yesButton.setOnAction(e -> {
             workflowService.markTenderAccepted(workflow.getId(), currentUser);
-            showSuccess("Tender accepted! Project team will be notified to start work.");
+            showSuccess("Tender accepted! Project team has been notified to start work.");
+            // CRITICAL FIX: Refresh and reload to show pending state
+            refreshWorkflow();
+            loadCurrentStep();
         });
 
         Button noButton = new Button("No - Tender Rejected");
-        noButton.setStyle("-fx-background-color: #e74c3c; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20;");
+        noButton.setStyle("-fx-background-color: #e74c3c; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20; -fx-font-weight: bold;");
         noButton.setOnAction(e -> showRejectionDialog());
 
-        HBox buttons = new HBox(10, yesButton, noButton);
+        HBox buttons = new HBox(15, yesButton, noButton);
         buttons.setAlignment(Pos.CENTER);
+        buttons.setPadding(new Insets(20, 0, 0, 0));
 
-        stepContainer.getChildren().addAll(question, buttons);
+        stepContainer.getChildren().addAll(question, infoLabel, buttons);
+    }
+
+    /**
+     * Show pending/waiting state for Step 5 when waiting for Project team
+     */
+    private void showTenderAcceptancePendingUI(WorkflowStepCompletion step) {
+        VBox pendingBox = new VBox(15);
+        pendingBox.setAlignment(Pos.CENTER_LEFT);
+        pendingBox.setPadding(new Insets(20));
+        pendingBox.setStyle("-fx-background-color: #fef3c7; -fx-border-color: #f59e0b; -fx-border-width: 2; -fx-border-radius: 8; -fx-background-radius: 8;");
+
+        Label statusLabel = new Label("⏳ Waiting for Project Team");
+        statusLabel.setFont(Font.font("System", FontWeight.BOLD, 18));
+        statusLabel.setTextFill(Color.web("#92400e"));
+
+        Label messageLabel = new Label("Tender has been accepted! The Project team has been notified to start work.");
+        messageLabel.setFont(Font.font("System", FontWeight.NORMAL, 14));
+        messageLabel.setWrapText(true);
+
+        Label infoLabel = new Label("📋 The Project team will execute the project and notify you when completed.");
+        infoLabel.setFont(Font.font("System", FontWeight.NORMAL, 14));
+        infoLabel.setWrapText(true);
+        infoLabel.setTextFill(Color.web("#78350f"));
+
+        Label dateLabel = new Label("📅 Accepted: " + formatDateTime(step.getCreatedAt()));
+        dateLabel.setFont(Font.font("System", FontWeight.NORMAL, 12));
+        dateLabel.setTextFill(Color.web("#78350f"));
+
+        // Refresh button to check if Project team has completed
+        Button refreshButton = new Button("🔄 Check Status");
+        refreshButton.setStyle("-fx-background-color: #f59e0b; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20; -fx-font-weight: bold;");
+        refreshButton.setOnAction(e -> {
+            refreshWorkflow();
+            loadCurrentStep();
+        });
+
+        pendingBox.getChildren().addAll(statusLabel, messageLabel, infoLabel, dateLabel, refreshButton);
+
+        Label waitingInfo = new Label("💡 Click 'Check Status' to see if the Project team has completed the work. The workflow will automatically advance once they confirm completion.");
+        waitingInfo.setFont(Font.font("System", FontWeight.NORMAL, 12));
+        waitingInfo.setTextFill(Color.web("#6b7280"));
+        waitingInfo.setPadding(new Insets(15, 0, 0, 0));
+        waitingInfo.setWrapText(true);
+
+        stepContainer.getChildren().addAll(pendingBox, waitingInfo);
+
+        // Disable Next button while waiting for Project team
+        nextButton.setDisable(true);
+    }
+
+    /**
+     * Show completed state for Step 5 when Project team has finished
+     */
+    private void showTenderAcceptanceCompleted(WorkflowStepCompletion step) {
+        VBox completionBox = new VBox(15);
+        completionBox.setAlignment(Pos.CENTER_LEFT);
+        completionBox.setPadding(new Insets(20));
+        completionBox.setStyle("-fx-background-color: #d1fae5; -fx-border-color: #10b981; -fx-border-width: 2; -fx-border-radius: 8; -fx-background-radius: 8;");
+
+        Label statusLabel = new Label("✅ Tender Accepted & Project Completed");
+        statusLabel.setFont(Font.font("System", FontWeight.BOLD, 18));
+        statusLabel.setTextFill(Color.web("#065f46"));
+
+        Label messageLabel = new Label("The tender was accepted and the Project team has completed their work.");
+        messageLabel.setFont(Font.font("System", FontWeight.NORMAL, 14));
+        messageLabel.setWrapText(true);
+
+        Label completedLabel = new Label("✓ Completed by: " + (step.getCompletedBy() != null ? step.getCompletedBy() : "Project Team"));
+        completedLabel.setFont(Font.font("System", FontWeight.NORMAL, 14));
+        completedLabel.setTextFill(Color.web("#065f46"));
+
+        Label dateLabel = new Label("📅 Completed: " + formatDateTime(step.getCompletedAt()));
+        dateLabel.setFont(Font.font("System", FontWeight.NORMAL, 14));
+        dateLabel.setTextFill(Color.web("#065f46"));
+
+        completionBox.getChildren().addAll(statusLabel, messageLabel, completedLabel, dateLabel);
+
+        // Info message about progression
+        Label progressInfo = new Label("✅ Step 5 completed. Click 'Next →' to proceed to Step 6.");
+        progressInfo.setFont(Font.font("System", FontWeight.BOLD, 14));
+        progressInfo.setTextFill(Color.web("#059669"));
+        progressInfo.setPadding(new Insets(15, 0, 0, 0));
+
+        stepContainer.getChildren().addAll(completionBox, progressInfo);
+
+        // Enable Next button since step is completed
+        nextButton.setDisable(false);
     }
 
     private void showRejectionDialog() {
