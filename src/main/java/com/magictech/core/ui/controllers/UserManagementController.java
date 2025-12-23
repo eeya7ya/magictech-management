@@ -1081,18 +1081,47 @@ public class UserManagementController {
      * This tests the form's SMTP configuration before saving
      */
     private void testSmtpSettings(String email, String smtpHost, int smtpPort, String smtpPassword) {
-        // Show loading indicator
-        Alert loadingAlert = new Alert(Alert.AlertType.INFORMATION);
-        loadingAlert.setTitle("Testing SMTP Settings");
-        loadingAlert.setHeaderText(null);
-        loadingAlert.setContentText("Sending test email using your SMTP settings...\n\n" +
+        // Create a proper Stage-based loading dialog (Alert.close() doesn't work properly without buttons)
+        Stage loadingStage = new Stage();
+        loadingStage.initModality(javafx.stage.Modality.APPLICATION_MODAL);
+        loadingStage.initOwner(dialogStage);
+        loadingStage.initStyle(javafx.stage.StageStyle.UNDECORATED);
+        loadingStage.setTitle("Testing SMTP Settings");
+
+        VBox loadingContent = new VBox(15);
+        loadingContent.setAlignment(Pos.CENTER);
+        loadingContent.setPadding(new Insets(30));
+        loadingContent.setStyle("-fx-background-color: " + Styles.BG_PRIMARY + "; -fx-background-radius: 10;");
+
+        // Info icon
+        Label iconLabel = new Label("\u2139");
+        iconLabel.setStyle("-fx-font-size: 32px; -fx-text-fill: #3b82f6;");
+
+        Label titleLabel = new Label("Testing SMTP Settings");
+        titleLabel.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: " + Styles.TEXT_PRIMARY + ";");
+
+        Label messageLabel = new Label("Sending test email using your SMTP settings...\n\n" +
                 "Email: " + email + "\n" +
                 "SMTP Host: " + smtpHost + ":" + smtpPort + "\n\n" +
                 "Please wait...");
-        loadingAlert.initOwner(dialogStage);
-        loadingAlert.getDialogPane().setStyle("-fx-background-color: " + Styles.BG_PRIMARY + ";");
-        loadingAlert.getButtonTypes().clear();
-        loadingAlert.show();
+        messageLabel.setStyle("-fx-text-fill: " + Styles.TEXT_PRIMARY + "; -fx-font-size: 13px;");
+        messageLabel.setWrapText(true);
+
+        // Progress indicator
+        javafx.scene.control.ProgressIndicator progress = new javafx.scene.control.ProgressIndicator();
+        progress.setPrefSize(40, 40);
+
+        loadingContent.getChildren().addAll(iconLabel, titleLabel, messageLabel, progress);
+
+        Scene loadingScene = new Scene(loadingContent, 350, 250);
+        loadingStage.setScene(loadingScene);
+        loadingStage.show();
+
+        // Center on owner
+        if (dialogStage != null) {
+            loadingStage.setX(dialogStage.getX() + (dialogStage.getWidth() - 350) / 2);
+            loadingStage.setY(dialogStage.getY() + (dialogStage.getHeight() - 250) / 2);
+        }
 
         // Test in background thread
         new Thread(() -> {
@@ -1168,7 +1197,7 @@ public class UserManagementController {
                 mailSender.send(message);
 
                 Platform.runLater(() -> {
-                    loadingAlert.close();
+                    loadingStage.close();
                     showAlert(Alert.AlertType.INFORMATION, "SMTP Test Successful!",
                         "Test email sent successfully!\n\n" +
                         "Email: " + email + "\n" +
@@ -1179,7 +1208,7 @@ public class UserManagementController {
 
             } catch (Exception e) {
                 Platform.runLater(() -> {
-                    loadingAlert.close();
+                    loadingStage.close();
                     showSmtpErrorDialog(email, smtpHost, smtpPort, e.getMessage());
                 });
             }
