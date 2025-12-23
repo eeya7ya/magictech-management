@@ -815,13 +815,13 @@ public class UserManagementController {
         // ================================
         // SMTP EMAIL SETTINGS SECTION
         // ================================
-        Label smtpSectionLabel = new Label("── Email Settings (for sending) ──");
+        Label smtpSectionLabel = new Label("── SMTP Settings (for sending emails) ──");
         smtpSectionLabel.setStyle("-fx-text-fill: #8b5cf6; -fx-font-weight: bold; -fx-font-size: 12px;");
         grid.add(smtpSectionLabel, 0, row, 2, 1);
         row++;
 
         // SMTP Provider
-        Label smtpProviderLabel = new Label("Email Provider:");
+        Label smtpProviderLabel = new Label("Provider:");
         smtpProviderLabel.setStyle("-fx-text-fill: white; -fx-font-weight: 600;");
         ComboBox<String> smtpProviderCombo = new ComboBox<>();
         smtpProviderCombo.setId("smtpProviderCombo");
@@ -855,16 +855,70 @@ public class UserManagementController {
         grid.add(smtpPortField, 1, row);
         row++;
 
-        // SMTP Password (App Password)
+        // SMTP Password (App Password) with Test SMTP button
         Label smtpPasswordLabel = new Label("App Password:");
         smtpPasswordLabel.setStyle("-fx-text-fill: white; -fx-font-weight: 600;");
+
+        HBox smtpPasswordBox = new HBox(10);
+        smtpPasswordBox.setAlignment(Pos.CENTER_LEFT);
+
         PasswordField smtpPasswordField = new PasswordField();
         smtpPasswordField.setId("smtpPasswordField");
         smtpPasswordField.setPromptText("Gmail/Outlook App Password");
         smtpPasswordField.setStyle(Styles.INPUT_FIELD);
+        smtpPasswordField.setPrefWidth(150);
+
+        // Test SMTP Button - sends actual test email using form settings
+        Button testSmtpBtn = new Button("Test SMTP");
+        testSmtpBtn.setId("testSmtpBtn");
+        testSmtpBtn.setStyle("-fx-background-color: #f59e0b; -fx-text-fill: white; " +
+                "-fx-font-size: 11px; -fx-padding: 5 10; -fx-background-radius: 6; -fx-cursor: hand;");
+        testSmtpBtn.setOnAction(e -> {
+            // Get values from form
+            String email = emailField.getText().trim();
+            String host = smtpHostField.getText().trim();
+            String portStr = smtpPortField.getText().trim();
+            String password = smtpPasswordField.getText();
+
+            // Validate required fields
+            if (email.isEmpty()) {
+                showAlert(Alert.AlertType.WARNING, "Validation", "Please enter an email address first");
+                return;
+            }
+            if (!isValidEmail(email)) {
+                showAlert(Alert.AlertType.WARNING, "Validation", "Please enter a valid email address");
+                return;
+            }
+            if (host.isEmpty()) {
+                showAlert(Alert.AlertType.WARNING, "Validation", "Please enter SMTP host");
+                return;
+            }
+            if (password.isEmpty()) {
+                showAlert(Alert.AlertType.WARNING, "Validation", "Please enter App Password");
+                return;
+            }
+
+            int port = 587;
+            try {
+                port = Integer.parseInt(portStr);
+            } catch (NumberFormatException ignored) {}
+
+            // Test SMTP connection and send actual test email
+            testSmtpSettings(email, host, port, password);
+        });
+
+        // Add hover effect
+        testSmtpBtn.setOnMouseEntered(ev ->
+            testSmtpBtn.setStyle("-fx-background-color: #d97706; -fx-text-fill: white; " +
+                "-fx-font-size: 11px; -fx-padding: 5 10; -fx-background-radius: 6; -fx-cursor: hand;"));
+        testSmtpBtn.setOnMouseExited(ev ->
+            testSmtpBtn.setStyle("-fx-background-color: #f59e0b; -fx-text-fill: white; " +
+                "-fx-font-size: 11px; -fx-padding: 5 10; -fx-background-radius: 6; -fx-cursor: hand;"));
+
+        smtpPasswordBox.getChildren().addAll(smtpPasswordField, testSmtpBtn);
 
         grid.add(smtpPasswordLabel, 0, row);
-        grid.add(smtpPasswordField, 1, row);
+        grid.add(smtpPasswordBox, 1, row);
         row++;
 
         // Help text
@@ -1012,6 +1066,159 @@ public class UserManagementController {
         textArea.setWrapText(true);
         textArea.setPrefWidth(500);
         textArea.setPrefHeight(300);
+        textArea.setStyle("-fx-font-family: monospace; -fx-font-size: 12px; " +
+                "-fx-control-inner-background: " + Styles.BG_SECONDARY + "; -fx-text-fill: white;");
+
+        alert.getDialogPane().setContent(textArea);
+        alert.getDialogPane().setStyle("-fx-background-color: " + Styles.BG_PRIMARY + ";");
+        alert.getDialogPane().setPrefWidth(550);
+
+        alert.showAndWait();
+    }
+
+    /**
+     * Test SMTP settings by sending an actual test email using the provided settings
+     * This tests the form's SMTP configuration before saving
+     */
+    private void testSmtpSettings(String email, String smtpHost, int smtpPort, String smtpPassword) {
+        // Show loading indicator
+        Alert loadingAlert = new Alert(Alert.AlertType.INFORMATION);
+        loadingAlert.setTitle("Testing SMTP Settings");
+        loadingAlert.setHeaderText(null);
+        loadingAlert.setContentText("Sending test email using your SMTP settings...\n\n" +
+                "Email: " + email + "\n" +
+                "SMTP Host: " + smtpHost + ":" + smtpPort + "\n\n" +
+                "Please wait...");
+        loadingAlert.initOwner(dialogStage);
+        loadingAlert.getDialogPane().setStyle("-fx-background-color: " + Styles.BG_PRIMARY + ";");
+        loadingAlert.getButtonTypes().clear();
+        loadingAlert.show();
+
+        // Test in background thread
+        new Thread(() -> {
+            try {
+                // Create a temporary mail sender with the form's settings
+                org.springframework.mail.javamail.JavaMailSenderImpl mailSender = new org.springframework.mail.javamail.JavaMailSenderImpl();
+                mailSender.setHost(smtpHost);
+                mailSender.setPort(smtpPort);
+                mailSender.setUsername(email);
+                mailSender.setPassword(smtpPassword);
+
+                java.util.Properties props = mailSender.getJavaMailProperties();
+                props.put("mail.transport.protocol", "smtp");
+                props.put("mail.smtp.auth", "true");
+                props.put("mail.smtp.starttls.enable", "true");
+                props.put("mail.smtp.starttls.required", "true");
+                props.put("mail.smtp.connectiontimeout", "10000");
+                props.put("mail.smtp.timeout", "10000");
+                props.put("mail.smtp.writetimeout", "10000");
+
+                // Create and send test email
+                jakarta.mail.internet.MimeMessage message = mailSender.createMimeMessage();
+                org.springframework.mail.javamail.MimeMessageHelper helper =
+                    new org.springframework.mail.javamail.MimeMessageHelper(message, true, "UTF-8");
+
+                helper.setFrom(email, "MagicTech SMTP Test");
+                helper.setTo(email);
+                helper.setSubject("MagicTech - SMTP Test Successful!");
+
+                String timestamp = java.time.LocalDateTime.now()
+                    .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+
+                String htmlContent = """
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <style>
+                            body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f4f4f4; }
+                            .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 30px; border-radius: 10px; }
+                            .header { background: linear-gradient(135deg, #f59e0b 0%%, #d97706 100%%); color: white; padding: 20px; border-radius: 10px 10px 0 0; margin: -30px -30px 30px -30px; text-align: center; }
+                            .success-icon { font-size: 48px; margin-bottom: 10px; }
+                            h1 { margin: 0; font-size: 24px; }
+                            .content { color: #333; line-height: 1.6; }
+                            .info-box { background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; }
+                            .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; color: #666; font-size: 12px; text-align: center; }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="container">
+                            <div class="header">
+                                <div class="success-icon">✉️</div>
+                                <h1>SMTP Test Successful!</h1>
+                            </div>
+                            <div class="content">
+                                <p>Congratulations! Your SMTP settings are working correctly.</p>
+                                <div class="info-box">
+                                    <strong>Test Details:</strong><br>
+                                    Email: %s<br>
+                                    SMTP Host: %s:%d<br>
+                                    Timestamp: %s
+                                </div>
+                                <p>You can now save your settings and send emails from the application.</p>
+                            </div>
+                            <div class="footer">
+                                <p>MagicTech Management System - SMTP Configuration Test</p>
+                            </div>
+                        </div>
+                    </body>
+                    </html>
+                    """.formatted(email, smtpHost, smtpPort, timestamp);
+
+                helper.setText(htmlContent, true);
+                mailSender.send(message);
+
+                Platform.runLater(() -> {
+                    loadingAlert.close();
+                    showAlert(Alert.AlertType.INFORMATION, "SMTP Test Successful!",
+                        "Test email sent successfully!\n\n" +
+                        "Email: " + email + "\n" +
+                        "SMTP Host: " + smtpHost + ":" + smtpPort + "\n\n" +
+                        "Please check your inbox (and spam folder) for the test email.\n\n" +
+                        "Your SMTP settings are working correctly!");
+                });
+
+            } catch (Exception e) {
+                Platform.runLater(() -> {
+                    loadingAlert.close();
+                    showSmtpErrorDialog(email, smtpHost, smtpPort, e.getMessage());
+                });
+            }
+        }).start();
+    }
+
+    /**
+     * Show SMTP error dialog with troubleshooting tips
+     */
+    private void showSmtpErrorDialog(String email, String smtpHost, int smtpPort, String errorMessage) {
+        Alert alert = new Alert(Alert.AlertType.ERROR);
+        alert.setTitle("SMTP Test Failed");
+        alert.setHeaderText("Failed to send test email");
+        alert.initOwner(dialogStage);
+
+        String content = "Error: " + errorMessage + "\n\n" +
+            "SETTINGS USED:\n" +
+            "• Email: " + email + "\n" +
+            "• SMTP Host: " + smtpHost + "\n" +
+            "• SMTP Port: " + smtpPort + "\n\n" +
+            "TROUBLESHOOTING:\n\n" +
+            "FOR GMAIL:\n" +
+            "1. Enable 2-Factor Authentication\n" +
+            "2. Generate App Password at:\n" +
+            "   Google Account > Security > App Passwords\n" +
+            "3. Use smtp.gmail.com port 587\n\n" +
+            "FOR OUTLOOK:\n" +
+            "1. Use smtp.office365.com port 587\n" +
+            "2. Use your regular password or App Password\n\n" +
+            "GENERAL:\n" +
+            "• Check firewall isn't blocking port " + smtpPort + "\n" +
+            "• Verify internet connection\n" +
+            "• Make sure email/password are correct";
+
+        TextArea textArea = new TextArea(content);
+        textArea.setEditable(false);
+        textArea.setWrapText(true);
+        textArea.setPrefWidth(500);
+        textArea.setPrefHeight(350);
         textArea.setStyle("-fx-font-family: monospace; -fx-font-size: 12px; " +
                 "-fx-control-inner-background: " + Styles.BG_SECONDARY + "; -fx-text-fill: white;");
 
