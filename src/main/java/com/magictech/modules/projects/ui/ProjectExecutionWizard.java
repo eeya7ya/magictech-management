@@ -818,21 +818,15 @@ public class ProjectExecutionWizard extends Stage {
             System.out.println("   Explanation: " + explanation);
         }
 
-        // Notify callback (this will notify Sales workflow to advance)
+        // Close wizard first (before callback triggers any dialogs)
+        cleanup();
+        close();
+
+        // Notify callback (this will notify Sales workflow to advance and show appropriate dialog)
+        // The callback handles showing success/error messages, so we don't show our own
         if (callback != null) {
             callback.onProjectCompleted(project, salesWorkflowId, success, explanation);
         }
-
-        // Show success message
-        if (success) {
-            showSuccess("Project completed successfully!\nSales team will be notified to proceed.");
-        } else {
-            showWarning("Project status recorded with explanation.\nSales team will be notified.");
-        }
-
-        // Close wizard
-        cleanup();
-        close();
     }
 
     private void handleBack() {
