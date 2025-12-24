@@ -95,10 +95,7 @@ public class DashboardBackgroundPane extends Pane {
         double y1 = height * 0.15 + Math.cos(time * 0.3) * height * 0.05;
         drawSubtleOrb(gc, x1, y1, width * 0.35, config.accentColor1);
 
-        // Top-right accent
-        double x2 = width * 0.85 + Math.cos(time * 0.35) * width * 0.05;
-        double y2 = height * 0.2 + Math.sin(time * 0.45) * height * 0.05;
-        drawSubtleOrb(gc, x2, y2, width * 0.3, config.accentColor2);
+        // Top-right accent removed per user request
 
         // Bottom-center accent
         double x3 = width * 0.5 + Math.sin(time * 0.5) * width * 0.08;

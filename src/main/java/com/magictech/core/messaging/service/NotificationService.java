@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -41,9 +42,12 @@ public class NotificationService {
 
     /**
      * Publish a notification message to Redis and store in database.
+     * Uses REQUIRES_NEW propagation to run in a separate transaction,
+     * preventing notification failures from rolling back the calling transaction.
      *
      * @param message The notification message to publish
      */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void publishNotification(NotificationMessage message) {
         try {
             // Set source device ID if not already set
@@ -364,6 +368,8 @@ public class NotificationService {
     /**
      * Convenience method to send a notification with all parameters.
      * Wraps the builder pattern for simpler one-line calls.
+     * Uses REQUIRES_NEW propagation to run in a separate transaction,
+     * preventing notification failures from rolling back the calling transaction.
      *
      * @param title Notification title
      * @param message Notification message
@@ -373,6 +379,7 @@ public class NotificationService {
      * @param entityType Entity type (WORKFLOW, PROJECT, etc.)
      * @param entityId Entity ID
      */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void sendNotification(String title, String message, String type, String targetModule,
                                  String action, String entityType, Long entityId) {
         NotificationMessage notificationMessage = new NotificationMessage.Builder()
