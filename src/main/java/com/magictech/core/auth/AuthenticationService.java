@@ -270,6 +270,13 @@ public class AuthenticationService {
         existingUser.setEmail(user.getEmail());
         existingUser.setPhoneNumber(user.getPhoneNumber());
 
+        // Update SMTP settings
+        existingUser.setSmtpProvider(user.getSmtpProvider());
+        existingUser.setSmtpHost(user.getSmtpHost());
+        existingUser.setSmtpPort(user.getSmtpPort());
+        existingUser.setSmtpPassword(user.getSmtpPassword());
+        existingUser.setSmtpConfigured(user.getSmtpConfigured());
+
         return userRepository.save(existingUser);
     }
 

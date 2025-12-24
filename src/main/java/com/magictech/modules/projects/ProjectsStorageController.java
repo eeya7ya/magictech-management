@@ -3431,7 +3431,10 @@ public class ProjectsStorageController extends BaseModuleController {
 
     /**
      * Check if the tender has been accepted for the selected project.
-     * The tender is accepted when Step 5 of the Sales workflow is completed.
+     * The tender is accepted when:
+     * 1. Step 5 of the Sales workflow is completed, OR
+     * 2. Step 5 has needsExternalAction=true and externalModule="PROJECT"
+     *    (meaning Sales clicked "Yes - Tender Accepted" and waiting for PROJECT team)
      * @return true if tender is accepted, false otherwise
      */
     private boolean isTenderAccepted() {
@@ -3443,8 +3446,23 @@ public class ProjectsStorageController extends BaseModuleController {
             var workflowOpt = projectWorkflowService.getWorkflowByProjectId(selectedProject.getId());
             if (workflowOpt.isPresent()) {
                 var workflow = workflowOpt.get();
-                // Step 5 is Tender Acceptance
-                return workflow.isStepCompleted(5);
+                // Check if Step 5 is completed
+                if (workflow.isStepCompleted(5)) {
+                    return true;
+                }
+
+                // Also check if Step 5 is in progress with external action assigned to PROJECT team
+                // This means Sales clicked "Yes - Tender Accepted" and now waiting for PROJECT to execute
+                var step5Opt = workflowStepService.getStep(workflow.getId(), 5);
+                if (step5Opt.isPresent()) {
+                    var step5 = step5Opt.get();
+                    // If Step 5 needs external action from PROJECT team, tender was accepted!
+                    if (Boolean.TRUE.equals(step5.getNeedsExternalAction()) &&
+                        "PROJECT".equals(step5.getExternalModule())) {
+                        System.out.println("✅ Tender accepted - PROJECT team can now start execution");
+                        return true;
+                    }
+                }
             }
         } catch (Exception e) {
             System.out.println("Error checking tender acceptance: " + e.getMessage());
