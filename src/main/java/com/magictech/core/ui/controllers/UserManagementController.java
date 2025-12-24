@@ -1393,15 +1393,51 @@ public class UserManagementController {
                 return;
             }
 
-            // Show loading indicator
-            Alert loadingAlert = new Alert(Alert.AlertType.INFORMATION);
-            loadingAlert.setTitle("Testing Email");
-            loadingAlert.setHeaderText(null);
-            loadingAlert.setContentText("Sending test email for: " + user.getUsername() + "\nTo: " + user.getEmail() + "\nPlease wait...");
-            loadingAlert.initOwner(dialogStage);
-            loadingAlert.getDialogPane().setStyle("-fx-background-color: " + Styles.BG_PRIMARY + ";");
-            loadingAlert.getButtonTypes().clear();
-            loadingAlert.show();
+            // Create a proper Stage-based loading dialog (Alert.close() doesn't work properly without buttons)
+            Stage loadingStage = new Stage();
+            loadingStage.initModality(Modality.APPLICATION_MODAL);
+            loadingStage.initOwner(dialogStage);
+            loadingStage.initStyle(StageStyle.UNDECORATED);
+            loadingStage.setTitle("Testing Email");
+
+            VBox loadingContent = new VBox(15);
+            loadingContent.setAlignment(Pos.CENTER);
+            loadingContent.setPadding(new Insets(30));
+            loadingContent.setStyle("-fx-background-color: " + Styles.BG_PRIMARY + "; -fx-background-radius: 10;");
+
+            // Info icon
+            Label iconLabel = new Label("📧");
+            iconLabel.setStyle("-fx-font-size: 32px;");
+
+            Label titleLabel = new Label("Testing Email");
+            titleLabel.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: " + Styles.TEXT_PRIMARY + ";");
+
+            Label messageLabel = new Label("Sending test email for: " + user.getUsername() + "\n" +
+                    "To: " + user.getEmail() + "\n\nPlease wait...");
+            messageLabel.setStyle("-fx-text-fill: " + Styles.TEXT_PRIMARY + "; -fx-font-size: 13px;");
+            messageLabel.setWrapText(true);
+
+            // Progress indicator
+            javafx.scene.control.ProgressIndicator progress = new javafx.scene.control.ProgressIndicator();
+            progress.setPrefSize(40, 40);
+
+            // Close button for manual close if needed
+            Button closeBtn = new Button("Close");
+            closeBtn.setStyle(Styles.BTN_SECONDARY);
+            closeBtn.setOnAction(e -> loadingStage.close());
+            closeBtn.setVisible(false); // Hidden initially, shown if operation takes too long
+
+            loadingContent.getChildren().addAll(iconLabel, titleLabel, messageLabel, progress, closeBtn);
+
+            Scene loadingScene = new Scene(loadingContent, 350, 250);
+            loadingStage.setScene(loadingScene);
+            loadingStage.show();
+
+            // Center on owner
+            if (dialogStage != null) {
+                loadingStage.setX(dialogStage.getX() + (dialogStage.getWidth() - 350) / 2);
+                loadingStage.setY(dialogStage.getY() + (dialogStage.getHeight() - 250) / 2);
+            }
 
             // Send test email in background
             new Thread(() -> {
@@ -1409,7 +1445,7 @@ public class UserManagementController {
                     EmailService.TestEmailResult result = emailService.sendTestEmailForUser(user);
 
                     Platform.runLater(() -> {
-                        loadingAlert.close();
+                        loadingStage.close();
 
                         if (result.isSuccess()) {
                             showAlert(Alert.AlertType.INFORMATION, "Success",
@@ -1426,7 +1462,7 @@ public class UserManagementController {
                     });
                 } catch (Exception e) {
                     Platform.runLater(() -> {
-                        loadingAlert.close();
+                        loadingStage.close();
                         showAlert(Alert.AlertType.ERROR, "Error", "Failed to test email: " + e.getMessage());
                     });
                 }
