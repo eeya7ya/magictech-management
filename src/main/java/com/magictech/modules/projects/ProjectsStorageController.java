@@ -76,6 +76,9 @@ public class ProjectsStorageController extends BaseModuleController {
     @Autowired
     private ProjectWorkflowService projectWorkflowService;
 
+    @Autowired
+    private com.magictech.modules.sales.service.WorkflowStepService workflowStepService;
+
     // Active Project Execution Wizard
     private ProjectExecutionWizard activeExecutionWizard;
 
@@ -3517,7 +3520,25 @@ public class ProjectsStorageController extends BaseModuleController {
             }
 
             var workflow = workflowOpt.get();
+            // CRITICAL FIX: Check if tender was accepted by Sales
+            // Tender is accepted when Step 5 has needsExternalAction=true and externalModule="PROJECT"
+            // This happens BEFORE the step is completed (step completes when PROJECT team finishes)
             boolean tenderAccepted = workflow.isStepCompleted(5);
+
+            // Also check if Step 5 is in progress with external action assigned to PROJECT team
+            // This means Sales clicked "Yes - Tender Accepted" and now waiting for PROJECT to execute
+            if (!tenderAccepted) {
+                var step5Opt = workflowStepService.getStep(workflow.getId(), 5);
+                if (step5Opt.isPresent()) {
+                    var step5 = step5Opt.get();
+                    // If Step 5 needs external action from PROJECT team, tender was accepted!
+                    if (Boolean.TRUE.equals(step5.getNeedsExternalAction()) &&
+                        "PROJECT".equals(step5.getExternalModule())) {
+                        tenderAccepted = true;
+                        System.out.println("✅ Tender accepted - PROJECT team can now start execution");
+                    }
+                }
+            }
 
             if (tenderAccepted) {
                 // Tender accepted - enable wizard
