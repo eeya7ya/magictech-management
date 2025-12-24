@@ -29,9 +29,12 @@ public class Project {
     @Column(name = "date_of_completion")
     private LocalDate dateOfCompletion;
 
-    // Metadata fields
+    // Metadata fields - Owner tracking for role-based visibility
     @Column(name = "created_by", length = 100)
     private String createdBy;
+
+    @Column(name = "created_by_id")
+    private Long createdById;
 
     @Column(name = "date_added", nullable = false)
     private LocalDateTime dateAdded;
@@ -141,6 +144,14 @@ public class Project {
 
     public void setCreatedBy(String createdBy) {
         this.createdBy = createdBy;
+    }
+
+    public Long getCreatedById() {
+        return createdById;
+    }
+
+    public void setCreatedById(Long createdById) {
+        this.createdById = createdById;
     }
 
     public LocalDateTime getDateAdded() {

@@ -1,6 +1,8 @@
 package com.magictech.modules.sales.ui;
 
 import com.magictech.core.auth.User;
+import com.magictech.core.auth.UserRepository;
+import com.magictech.core.auth.UserRole;
 import com.magictech.core.ui.components.RoadmapProgressBar;
 import com.magictech.modules.projects.entity.Project;
 import com.magictech.modules.sales.entity.MissingItemRequest;
@@ -10,6 +12,7 @@ import com.magictech.modules.sales.entity.WorkflowStepCompletion;
 import com.magictech.modules.sales.repository.SiteSurveyDataRepository;
 import com.magictech.modules.sales.service.ProjectWorkflowService;
 import com.magictech.modules.sales.service.WorkflowStepService;
+import com.magictech.modules.sales.service.WorkflowEmailService;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.geometry.Rectangle2D;
@@ -71,6 +74,10 @@ public class WorkflowDialog extends Stage {
     private final User currentUser;
     private ProjectWorkflow workflow;
 
+    // New dependencies for role-based user assignment
+    private final UserRepository userRepository;
+    private final WorkflowEmailService workflowEmailService;
+
     // Callback for communicating with parent controller
     private WorkflowDialogCallback callback;
 
@@ -105,7 +112,9 @@ public class WorkflowDialog extends Stage {
                           WorkflowStepService stepService,
                           SiteSurveyDataRepository siteSurveyRepository,
                           com.magictech.modules.sales.repository.SizingPricingDataRepository sizingPricingRepository,
-                          com.magictech.modules.sales.repository.BankGuaranteeDataRepository bankGuaranteeRepository) {
+                          com.magictech.modules.sales.repository.BankGuaranteeDataRepository bankGuaranteeRepository,
+                          UserRepository userRepository,
+                          WorkflowEmailService workflowEmailService) {
         this.project = project;
         this.currentUser = currentUser;
         this.workflowService = workflowService;
@@ -113,6 +122,8 @@ public class WorkflowDialog extends Stage {
         this.siteSurveyRepository = siteSurveyRepository;
         this.sizingPricingRepository = sizingPricingRepository;
         this.bankGuaranteeRepository = bankGuaranteeRepository;
+        this.userRepository = userRepository;
+        this.workflowEmailService = workflowEmailService;
 
         // Use DECORATED style for window controls (minimize, maximize, close)
         initStyle(StageStyle.DECORATED);
@@ -566,22 +577,79 @@ public class WorkflowDialog extends Stage {
     }
 
     private void showSiteSurveyRequestOptions() {
-        // ORIGINAL FUNCTIONALITY - PRESERVED
         Label question = new Label("Does Project need site survey?");
         question.setFont(Font.font("System", FontWeight.NORMAL, 16));
+        question.setTextFill(Color.WHITE);
 
+        // Option 1: Do it yourself
         Button yesButton = new Button("Yes - I'll do it myself");
         yesButton.setStyle("-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20;");
         yesButton.setOnAction(e -> handleSiteSurveySales());
 
-        Button yesProjectButton = new Button("Yes - Request from Project Team");
-        yesProjectButton.setStyle("-fx-background-color: #3498db; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20;");
-        yesProjectButton.setOnAction(e -> handleSiteSurveyProject());
+        // Option 2: Request from a specific Project Team member
+        VBox projectRequestBox = new VBox(10);
+        projectRequestBox.setAlignment(Pos.CENTER_LEFT);
+        projectRequestBox.setPadding(new Insets(15));
+        projectRequestBox.setStyle("-fx-background-color: rgba(52, 152, 219, 0.1); -fx-border-color: #3498db; -fx-border-width: 1; -fx-border-radius: 8; -fx-background-radius: 8;");
 
-        HBox buttons = new HBox(10, yesButton, yesProjectButton);
-        buttons.setAlignment(Pos.CENTER);
+        Label selectLabel = new Label("Or assign to a specific Project Manager:");
+        selectLabel.setFont(Font.font("System", FontWeight.BOLD, 14));
+        selectLabel.setTextFill(Color.WHITE);
 
-        stepContainer.getChildren().addAll(question, buttons);
+        // Dropdown for Project team users
+        ComboBox<User> projectUserCombo = new ComboBox<>();
+        projectUserCombo.setPromptText("Select Project Manager...");
+        projectUserCombo.setPrefWidth(300);
+
+        // Load Project team users
+        List<User> projectUsers = userRepository.findByRoleAndActiveTrue(UserRole.PROJECTS);
+        // Also include PROJECT_SUPPLIER role
+        projectUsers.addAll(userRepository.findByRoleAndActiveTrue(UserRole.PROJECT_SUPPLIER));
+        projectUserCombo.getItems().addAll(projectUsers);
+
+        // Custom cell factory to show username
+        projectUserCombo.setCellFactory(lv -> new ListCell<User>() {
+            @Override
+            protected void updateItem(User user, boolean empty) {
+                super.updateItem(user, empty);
+                setText(empty || user == null ? null : user.getUsername() +
+                    (user.getEmail() != null ? " (" + user.getEmail() + ")" : ""));
+            }
+        });
+        projectUserCombo.setButtonCell(new ListCell<User>() {
+            @Override
+            protected void updateItem(User user, boolean empty) {
+                super.updateItem(user, empty);
+                setText(empty || user == null ? null : user.getUsername());
+            }
+        });
+
+        Button sendRequestButton = new Button("📧 Send Request to Selected User");
+        sendRequestButton.setStyle("-fx-background-color: #3498db; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20;");
+        sendRequestButton.setDisable(true);
+
+        // Enable button only when a user is selected
+        projectUserCombo.setOnAction(e -> sendRequestButton.setDisable(projectUserCombo.getValue() == null));
+
+        sendRequestButton.setOnAction(e -> {
+            User selectedUser = projectUserCombo.getValue();
+            if (selectedUser != null) {
+                handleSiteSurveyProjectWithUser(selectedUser);
+            }
+        });
+
+        // Email notification info
+        Label emailInfo = new Label("An email notification will be sent to the selected user.");
+        emailInfo.setFont(Font.font("System", FontWeight.NORMAL, 12));
+        emailInfo.setTextFill(Color.web("#94a3b8"));
+
+        projectRequestBox.getChildren().addAll(selectLabel, projectUserCombo, sendRequestButton, emailInfo);
+
+        VBox optionsBox = new VBox(20);
+        optionsBox.setAlignment(Pos.CENTER);
+        optionsBox.getChildren().addAll(question, yesButton, projectRequestBox);
+
+        stepContainer.getChildren().add(optionsBox);
     }
 
     /**
@@ -802,6 +870,52 @@ public class WorkflowDialog extends Stage {
     private void handleSiteSurveyProject() {
         workflowService.requestSiteSurveyFromProject(workflow.getId(), currentUser);
         showInfo("Site survey request sent to Project Team. Waiting for their response...");
+    }
+
+    /**
+     * NEW: Handle site survey request with a specific assigned user.
+     * Assigns the user to Step 1 and sends an email notification.
+     */
+    private void handleSiteSurveyProjectWithUser(User assignedUser) {
+        try {
+            // Get Step 1 completion record
+            Optional<WorkflowStepCompletion> step1Opt = stepService.getStep(workflow.getId(), 1);
+            if (step1Opt.isEmpty()) {
+                showError("Could not find Step 1 for this workflow.");
+                return;
+            }
+
+            WorkflowStepCompletion step1 = step1Opt.get();
+
+            // Assign the selected user to this step
+            stepService.assignUserToStep(step1, assignedUser, currentUser);
+
+            // Mark that this step needs external action
+            stepService.markNeedsExternalAction(step1, "PROJECT");
+
+            // Also call the original workflow service method for compatibility
+            workflowService.requestSiteSurveyFromProject(workflow.getId(), currentUser);
+
+            // Send email notification to the assigned user
+            boolean emailSent = workflowEmailService.sendStepAssignmentEmail(step1, assignedUser, currentUser, project);
+
+            String message = "Site survey request sent to " + assignedUser.getUsername() + "!";
+            if (emailSent) {
+                message += "\n\n📧 Email notification sent to " + assignedUser.getEmail();
+            } else {
+                message += "\n\n⚠️ Could not send email notification (SMTP not configured for user).";
+            }
+
+            showInfo(message);
+
+            // Refresh the UI to show pending state
+            refreshWorkflow();
+            loadCurrentStep();
+
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            showError("Failed to send site survey request: " + ex.getMessage());
+        }
     }
 
     // STEP 2: Selection & Design

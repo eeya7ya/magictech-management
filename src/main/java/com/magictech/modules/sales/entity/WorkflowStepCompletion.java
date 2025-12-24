@@ -86,6 +86,42 @@ public class WorkflowStepCompletion {
     @Column(name = "notes", columnDefinition = "TEXT")
     private String notes;
 
+    // ============================================================
+    // ASSIGNMENT FIELDS - Who is assigned to complete this step
+    // ============================================================
+
+    @Column(name = "assigned_user_id")
+    private Long assignedUserId;
+
+    @Column(name = "assigned_username", length = 100)
+    private String assignedUsername;
+
+    @Column(name = "assigned_user_email", length = 150)
+    private String assignedUserEmail;
+
+    @Column(name = "assigned_by_user_id")
+    private Long assignedByUserId;
+
+    @Column(name = "assigned_by_username", length = 100)
+    private String assignedByUsername;
+
+    @Column(name = "assigned_at")
+    private LocalDateTime assignedAt;
+
+    @Column(name = "email_sent_at")
+    private LocalDateTime emailSentAt;
+
+    @Column(name = "email_sent")
+    private Boolean emailSent = false;
+
+    @Column(name = "assignment_status", length = 30)
+    @Enumerated(EnumType.STRING)
+    private AssignmentStatus assignmentStatus = AssignmentStatus.PENDING_ASSIGNMENT;
+
+    // Target role for this step (e.g., PROJECTS, PRESALES, FINANCE)
+    @Column(name = "target_role", length = 50)
+    private String targetRole;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -95,6 +131,15 @@ public class WorkflowStepCompletion {
     @Column(nullable = false)
     private Boolean active = true;
 
+    // Assignment Status Enum
+    public enum AssignmentStatus {
+        PENDING_ASSIGNMENT,  // Not yet assigned to anyone
+        ASSIGNED,            // Assigned to a user, waiting for them to start
+        IN_PROGRESS,         // User has started working on it
+        COMPLETED,           // Step completed
+        REJECTED             // Step was rejected
+    }
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
@@ -102,6 +147,8 @@ public class WorkflowStepCompletion {
         if (this.active == null) this.active = true;
         if (this.completed == null) this.completed = false;
         if (this.needsExternalAction == null) this.needsExternalAction = false;
+        if (this.assignmentStatus == null) this.assignmentStatus = AssignmentStatus.PENDING_ASSIGNMENT;
+        if (this.emailSent == null) this.emailSent = false;
     }
 
     @PreUpdate
@@ -323,5 +370,117 @@ public class WorkflowStepCompletion {
 
     public void setExternalActionCompletedBy(String externalActionCompletedBy) {
         this.externalActionCompletedBy = externalActionCompletedBy;
+    }
+
+    // ============================================================
+    // ASSIGNMENT GETTERS AND SETTERS
+    // ============================================================
+
+    public Long getAssignedUserId() {
+        return assignedUserId;
+    }
+
+    public void setAssignedUserId(Long assignedUserId) {
+        this.assignedUserId = assignedUserId;
+    }
+
+    public String getAssignedUsername() {
+        return assignedUsername;
+    }
+
+    public void setAssignedUsername(String assignedUsername) {
+        this.assignedUsername = assignedUsername;
+    }
+
+    public String getAssignedUserEmail() {
+        return assignedUserEmail;
+    }
+
+    public void setAssignedUserEmail(String assignedUserEmail) {
+        this.assignedUserEmail = assignedUserEmail;
+    }
+
+    public Long getAssignedByUserId() {
+        return assignedByUserId;
+    }
+
+    public void setAssignedByUserId(Long assignedByUserId) {
+        this.assignedByUserId = assignedByUserId;
+    }
+
+    public String getAssignedByUsername() {
+        return assignedByUsername;
+    }
+
+    public void setAssignedByUsername(String assignedByUsername) {
+        this.assignedByUsername = assignedByUsername;
+    }
+
+    public LocalDateTime getAssignedAt() {
+        return assignedAt;
+    }
+
+    public void setAssignedAt(LocalDateTime assignedAt) {
+        this.assignedAt = assignedAt;
+    }
+
+    public LocalDateTime getEmailSentAt() {
+        return emailSentAt;
+    }
+
+    public void setEmailSentAt(LocalDateTime emailSentAt) {
+        this.emailSentAt = emailSentAt;
+    }
+
+    public Boolean getEmailSent() {
+        return emailSent;
+    }
+
+    public void setEmailSent(Boolean emailSent) {
+        this.emailSent = emailSent;
+    }
+
+    public AssignmentStatus getAssignmentStatus() {
+        return assignmentStatus;
+    }
+
+    public void setAssignmentStatus(AssignmentStatus assignmentStatus) {
+        this.assignmentStatus = assignmentStatus;
+    }
+
+    public String getTargetRole() {
+        return targetRole;
+    }
+
+    public void setTargetRole(String targetRole) {
+        this.targetRole = targetRole;
+    }
+
+    /**
+     * Helper method to check if this step is assigned to someone
+     */
+    public boolean isAssigned() {
+        return assignedUserId != null && assignmentStatus != AssignmentStatus.PENDING_ASSIGNMENT;
+    }
+
+    /**
+     * Helper method to assign a user to this step
+     */
+    public void assignUser(Long userId, String username, String email, Long assignedById, String assignedByName) {
+        this.assignedUserId = userId;
+        this.assignedUsername = username;
+        this.assignedUserEmail = email;
+        this.assignedByUserId = assignedById;
+        this.assignedByUsername = assignedByName;
+        this.assignedAt = LocalDateTime.now();
+        this.assignmentStatus = AssignmentStatus.ASSIGNED;
+    }
+
+    /**
+     * Helper method to mark email as sent
+     */
+    public void markEmailSent() {
+        this.emailSent = true;
+        this.emailSentAt = LocalDateTime.now();
     }
 }

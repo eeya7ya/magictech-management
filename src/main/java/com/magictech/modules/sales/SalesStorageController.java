@@ -58,6 +58,8 @@ public class SalesStorageController extends BaseModuleController
     @Autowired private com.magictech.modules.sales.repository.SizingPricingDataRepository sizingPricingRepository;
     @Autowired private com.magictech.modules.sales.repository.BankGuaranteeDataRepository bankGuaranteeRepository;
     @Autowired private com.magictech.core.messaging.service.NotificationListenerService notificationListenerService;
+    @Autowired private com.magictech.core.auth.UserRepository userRepository;
+    @Autowired private com.magictech.modules.sales.service.WorkflowEmailService workflowEmailService;
 
     private com.magictech.core.ui.components.DashboardBackgroundPane backgroundPane;
     private StackPane mainContainer;
@@ -1237,7 +1239,7 @@ public class SalesStorageController extends BaseModuleController
     private void handleWorkflowDialogOpen(Project project,
                                           com.magictech.modules.sales.entity.ProjectWorkflow workflow) {
         try {
-            WorkflowDialog dialog = new WorkflowDialog(project, currentUser, workflowService, stepService, siteSurveyRepository, sizingPricingRepository, bankGuaranteeRepository);
+            WorkflowDialog dialog = new WorkflowDialog(project, currentUser, workflowService, stepService, siteSurveyRepository, sizingPricingRepository, bankGuaranteeRepository, userRepository, workflowEmailService);
 
             // Set callback for Step 4 navigation
             dialog.setCallback(this);
@@ -2504,7 +2506,9 @@ public class SalesStorageController extends BaseModuleController
                 stepService,
                 siteSurveyRepository,
                 sizingPricingRepository,
-                bankGuaranteeRepository
+                bankGuaranteeRepository,
+                userRepository,
+                workflowEmailService
             );
 
             // Set callback for Step 4 navigation

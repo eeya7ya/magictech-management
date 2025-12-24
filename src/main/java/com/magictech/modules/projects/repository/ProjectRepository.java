@@ -53,4 +53,45 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
      * Find projects by location
      */
     List<Project> findByProjectLocationContainingIgnoreCaseAndActiveTrue(String location);
+
+    // ============================================================
+    // VISIBILITY/OWNERSHIP QUERIES
+    // ============================================================
+
+    /**
+     * Find projects created by a specific user (by ID)
+     */
+    List<Project> findByCreatedByIdAndActiveTrue(Long createdById);
+
+    /**
+     * Find projects by a list of IDs (for finding assigned projects)
+     */
+    @Query("SELECT p FROM Project p WHERE p.id IN :projectIds AND p.active = true")
+    List<Project> findByIdInAndActiveTrue(@Param("projectIds") List<Long> projectIds);
+
+    /**
+     * Find all projects visible to a user:
+     * - Projects they created (createdById matches)
+     * - Projects where they are assigned to any step (projectId in assignedList)
+     */
+    @Query("SELECT DISTINCT p FROM Project p WHERE p.active = true AND " +
+           "(p.createdById = :userId OR p.id IN :assignedProjectIds)")
+    List<Project> findVisibleToUser(@Param("userId") Long userId,
+                                     @Param("assignedProjectIds") List<Long> assignedProjectIds);
+
+    /**
+     * Search projects visible to a user
+     */
+    @Query("SELECT DISTINCT p FROM Project p WHERE p.active = true AND " +
+           "(p.createdById = :userId OR p.id IN :assignedProjectIds) AND " +
+           "(LOWER(p.projectName) LIKE LOWER(CONCAT('%', :searchTerm, '%')) OR " +
+           "LOWER(p.projectLocation) LIKE LOWER(CONCAT('%', :searchTerm, '%')))")
+    List<Project> searchVisibleToUser(@Param("userId") Long userId,
+                                       @Param("assignedProjectIds") List<Long> assignedProjectIds,
+                                       @Param("searchTerm") String searchTerm);
+
+    /**
+     * Count projects owned by a user
+     */
+    long countByCreatedByIdAndActiveTrue(Long createdById);
 }
