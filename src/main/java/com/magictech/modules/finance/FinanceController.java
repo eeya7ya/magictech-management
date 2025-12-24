@@ -15,6 +15,7 @@ import javafx.scene.control.*;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -86,12 +87,40 @@ public class FinanceController extends BaseStorageModuleController {
         showToastInfo("Finance: Bulk delete functionality will be implemented here");
     }
 
+    /**
+     * Add workflow requests as a separate tab
+     * FIXED: Properly extracts content area while preserving header with back button
+     */
     private void addWorkflowRequestsTab() {
         System.out.println("🔧 Adding workflow requests tab to Finance UI...");
 
         try {
             BorderPane rootPane = getRootPane();
             javafx.scene.Node centerNode = rootPane.getCenter();
+
+            // The center is a StackPane containing backgroundPane and contentPane
+            if (!(centerNode instanceof StackPane)) {
+                System.err.println("❌ Expected StackPane, got: " + centerNode.getClass().getName());
+                return;
+            }
+            StackPane stackRoot = (StackPane) centerNode;
+
+            // Find the contentPane (BorderPane) inside the StackPane
+            BorderPane contentPane = null;
+            for (javafx.scene.Node child : stackRoot.getChildren()) {
+                if (child instanceof BorderPane) {
+                    contentPane = (BorderPane) child;
+                    break;
+                }
+            }
+
+            if (contentPane == null) {
+                System.err.println("❌ Could not find contentPane in StackPane");
+                return;
+            }
+
+            // Get the actual content area (VBox with toolbar and table)
+            javafx.scene.Node mainContent = contentPane.getCenter();
 
             // Create TabPane
             TabPane tabPane = new TabPane();
@@ -100,7 +129,7 @@ public class FinanceController extends BaseStorageModuleController {
 
             // Tab 1: Storage Items (existing functionality)
             Tab storageTab = new Tab("📦 Storage Items");
-            storageTab.setContent(centerNode);
+            storageTab.setContent(mainContent); // Move only the content area to tab
             storageTab.setStyle("-fx-font-size: 14px; -fx-font-weight: bold;");
 
             // Tab 2: Bank Guarantee Requests (new dedicated tab)
@@ -113,9 +142,10 @@ public class FinanceController extends BaseStorageModuleController {
             // Set workflow tab as selected by default
             tabPane.getSelectionModel().select(workflowTab);
 
-            // Replace center content with TabPane
-            rootPane.setCenter(tabPane);
-            System.out.println("✅ Workflow requests tab added successfully");
+            // Replace only the center content of contentPane with TabPane
+            // This preserves the header (top) with back button
+            contentPane.setCenter(tabPane);
+            System.out.println("✅ Workflow requests tab added successfully (header preserved)");
 
             // Initial load
             loadPendingRequests();
