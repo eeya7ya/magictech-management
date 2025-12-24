@@ -1002,58 +1002,123 @@ public class WorkflowDialog extends Stage {
     private void showSelectionDesignRequestOptions() {
         Label question = new Label("Does it need a selection and design?");
         question.setFont(Font.font("System", FontWeight.NORMAL, 16));
+        question.setTextFill(Color.WHITE);
 
-        Button noButton = new Button("No");
+        // No button - skip this step
+        Button noButton = new Button("No - Skip this step");
         noButton.setStyle("-fx-background-color: #95a5a6; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20;");
         noButton.setOnAction(e -> {
-            System.out.println("\n🔘 'No' button clicked for Step 2");
             try {
                 workflowService.markSelectionDesignNotNeeded(workflow.getId(), currentUser);
-                System.out.println("✅ Successfully marked as not needed");
                 showSuccess("Marked as not needed");
                 refreshWorkflow();
                 loadCurrentStep();
             } catch (Exception ex) {
-                System.err.println("❌ Error marking as not needed: " + ex.getMessage());
                 ex.printStackTrace();
                 showError("Error: " + ex.getMessage());
             }
         });
 
-        Button yesButton = new Button("Yes - Request from Presales");
-        yesButton.setStyle("-fx-background-color: #3498db; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20;");
-        yesButton.setOnAction(e -> {
-            System.out.println("\n🔘 'Yes - Request from Presales' button clicked");
-            System.out.println("   Workflow ID: " + workflow.getId());
-            System.out.println("   Current User: " + currentUser.getUsername());
-            System.out.println("   Project ID: " + project.getId());
-            System.out.println("   Project Name: " + project.getProjectName());
+        // User selection for Presales team
+        VBox presalesRequestBox = new VBox(10);
+        presalesRequestBox.setAlignment(Pos.CENTER_LEFT);
+        presalesRequestBox.setPadding(new Insets(15));
+        presalesRequestBox.setStyle("-fx-background-color: rgba(17, 153, 142, 0.1); -fx-border-color: #11998e; -fx-border-width: 1; -fx-border-radius: 8; -fx-background-radius: 8;");
 
-            try {
-                System.out.println("   Calling workflowService.requestSelectionDesignFromPresales()...");
-                workflowService.requestSelectionDesignFromPresales(workflow.getId(), currentUser);
-                System.out.println("✅ Request sent successfully");
+        Label selectLabel = new Label("Yes - Assign to a Presales team member:");
+        selectLabel.setFont(Font.font("System", FontWeight.BOLD, 14));
+        selectLabel.setTextFill(Color.WHITE);
 
-                System.out.println("   Refreshing workflow...");
-                refreshWorkflow();
+        // Dropdown for Presales users
+        ComboBox<User> presalesUserCombo = new ComboBox<>();
+        presalesUserCombo.setPromptText("Select Presales user...");
+        presalesUserCombo.setPrefWidth(300);
 
-                System.out.println("   Reloading UI...");
-                loadCurrentStep();
+        // Load Presales team users
+        List<User> presalesUsers = userRepository.findByRoleAndActiveTrue(UserRole.PRESALES);
+        presalesUserCombo.getItems().addAll(presalesUsers);
 
-                System.out.println("✅ UI updated successfully - should now show pending state");
-            } catch (Exception ex) {
-                System.err.println("❌ ERROR in 'Yes - Request from Presales' button:");
-                System.err.println("   Error message: " + ex.getMessage());
-                System.err.println("   Error type: " + ex.getClass().getName());
-                ex.printStackTrace();
-                showError("Failed to send request: " + ex.getMessage());
+        // Custom cell factory
+        presalesUserCombo.setCellFactory(lv -> new ListCell<User>() {
+            @Override
+            protected void updateItem(User user, boolean empty) {
+                super.updateItem(user, empty);
+                setText(empty || user == null ? null : user.getUsername() +
+                    (user.getEmail() != null ? " (" + user.getEmail() + ")" : ""));
+            }
+        });
+        presalesUserCombo.setButtonCell(new ListCell<User>() {
+            @Override
+            protected void updateItem(User user, boolean empty) {
+                super.updateItem(user, empty);
+                setText(empty || user == null ? null : user.getUsername());
             }
         });
 
-        HBox buttons = new HBox(10, noButton, yesButton);
-        buttons.setAlignment(Pos.CENTER);
+        Button sendRequestButton = new Button("📧 Send Request to Selected User");
+        sendRequestButton.setStyle("-fx-background-color: #11998e; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20;");
+        sendRequestButton.setDisable(true);
 
-        stepContainer.getChildren().addAll(question, buttons);
+        presalesUserCombo.setOnAction(e -> sendRequestButton.setDisable(presalesUserCombo.getValue() == null));
+
+        sendRequestButton.setOnAction(e -> {
+            User selectedUser = presalesUserCombo.getValue();
+            if (selectedUser != null) {
+                handleSelectionDesignWithUser(selectedUser);
+            }
+        });
+
+        Label emailInfo = new Label("An email notification will be sent to request sizing/pricing.");
+        emailInfo.setFont(Font.font("System", FontWeight.NORMAL, 12));
+        emailInfo.setTextFill(Color.web("#94a3b8"));
+
+        presalesRequestBox.getChildren().addAll(selectLabel, presalesUserCombo, sendRequestButton, emailInfo);
+
+        VBox optionsBox = new VBox(20);
+        optionsBox.setAlignment(Pos.CENTER);
+        optionsBox.getChildren().addAll(question, noButton, presalesRequestBox);
+
+        stepContainer.getChildren().add(optionsBox);
+    }
+
+    /**
+     * Handle selection/design request with a specific assigned Presales user.
+     */
+    private void handleSelectionDesignWithUser(User assignedUser) {
+        try {
+            Optional<WorkflowStepCompletion> step2Opt = stepService.getStep(workflow.getId(), 2);
+            if (step2Opt.isEmpty()) {
+                showError("Could not find Step 2 for this workflow.");
+                return;
+            }
+
+            WorkflowStepCompletion step2 = step2Opt.get();
+
+            // Assign the selected user
+            stepService.assignUserToStep(step2, assignedUser, currentUser);
+            stepService.markNeedsExternalAction(step2, "PRESALES");
+
+            // Call original workflow service method
+            workflowService.requestSelectionDesignFromPresales(workflow.getId(), currentUser);
+
+            // Send email notification
+            boolean emailSent = workflowEmailService.sendStepAssignmentEmail(step2, assignedUser, currentUser, project);
+
+            String message = "Sizing/design request sent to " + assignedUser.getUsername() + "!";
+            if (emailSent) {
+                message += "\n\n📧 Email notification sent to " + assignedUser.getEmail();
+            } else {
+                message += "\n\n⚠️ Could not send email notification (SMTP not configured).";
+            }
+
+            showInfo(message);
+            refreshWorkflow();
+            loadCurrentStep();
+
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            showError("Failed to send request: " + ex.getMessage());
+        }
     }
 
     private void showSizingPricingCompleted(com.magictech.modules.sales.entity.SizingPricingData sizing) {
@@ -1202,31 +1267,125 @@ public class WorkflowDialog extends Stage {
     }
 
     private void showBankGuaranteeRequestOptions() {
-        Label question = new Label("Does project needs Bank Guarantee?");
+        Label question = new Label("Does project need Bank Guarantee?");
         question.setFont(Font.font("System", FontWeight.NORMAL, 16));
+        question.setTextFill(Color.WHITE);
 
-        Button noButton = new Button("No");
+        // No button - skip this step
+        Button noButton = new Button("No - Skip this step");
         noButton.setStyle("-fx-background-color: #95a5a6; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20;");
         noButton.setOnAction(e -> {
-            workflowService.markBankGuaranteeNotNeeded(workflow.getId(), currentUser);
-            showSuccess("Marked as not needed");
-            refreshWorkflow();
-            loadCurrentStep();
+            try {
+                workflowService.markBankGuaranteeNotNeeded(workflow.getId(), currentUser);
+                showSuccess("Marked as not needed");
+                refreshWorkflow();
+                loadCurrentStep();
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                showError("Error: " + ex.getMessage());
+            }
         });
 
-        Button yesButton = new Button("Yes - Request from Finance");
-        yesButton.setStyle("-fx-background-color: #3498db; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20;");
-        yesButton.setOnAction(e -> {
+        // User selection for Finance team
+        VBox financeRequestBox = new VBox(10);
+        financeRequestBox.setAlignment(Pos.CENTER_LEFT);
+        financeRequestBox.setPadding(new Insets(15));
+        financeRequestBox.setStyle("-fx-background-color: rgba(238, 156, 167, 0.1); -fx-border-color: #ee9ca7; -fx-border-width: 1; -fx-border-radius: 8; -fx-background-radius: 8;");
+
+        Label selectLabel = new Label("Yes - Assign to a Finance team member:");
+        selectLabel.setFont(Font.font("System", FontWeight.BOLD, 14));
+        selectLabel.setTextFill(Color.WHITE);
+
+        // Dropdown for Finance users
+        ComboBox<User> financeUserCombo = new ComboBox<>();
+        financeUserCombo.setPromptText("Select Finance user...");
+        financeUserCombo.setPrefWidth(300);
+
+        // Load Finance team users
+        List<User> financeUsers = userRepository.findByRoleAndActiveTrue(UserRole.FINANCE);
+        financeUserCombo.getItems().addAll(financeUsers);
+
+        // Custom cell factory
+        financeUserCombo.setCellFactory(lv -> new ListCell<User>() {
+            @Override
+            protected void updateItem(User user, boolean empty) {
+                super.updateItem(user, empty);
+                setText(empty || user == null ? null : user.getUsername() +
+                    (user.getEmail() != null ? " (" + user.getEmail() + ")" : ""));
+            }
+        });
+        financeUserCombo.setButtonCell(new ListCell<User>() {
+            @Override
+            protected void updateItem(User user, boolean empty) {
+                super.updateItem(user, empty);
+                setText(empty || user == null ? null : user.getUsername());
+            }
+        });
+
+        Button sendRequestButton = new Button("📧 Send Request to Selected User");
+        sendRequestButton.setStyle("-fx-background-color: #ee9ca7; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20;");
+        sendRequestButton.setDisable(true);
+
+        financeUserCombo.setOnAction(e -> sendRequestButton.setDisable(financeUserCombo.getValue() == null));
+
+        sendRequestButton.setOnAction(e -> {
+            User selectedUser = financeUserCombo.getValue();
+            if (selectedUser != null) {
+                handleBankGuaranteeWithUser(selectedUser);
+            }
+        });
+
+        Label emailInfo = new Label("An email notification will be sent to request bank guarantee.");
+        emailInfo.setFont(Font.font("System", FontWeight.NORMAL, 12));
+        emailInfo.setTextFill(Color.web("#94a3b8"));
+
+        financeRequestBox.getChildren().addAll(selectLabel, financeUserCombo, sendRequestButton, emailInfo);
+
+        VBox optionsBox = new VBox(20);
+        optionsBox.setAlignment(Pos.CENTER);
+        optionsBox.getChildren().addAll(question, noButton, financeRequestBox);
+
+        stepContainer.getChildren().add(optionsBox);
+    }
+
+    /**
+     * Handle bank guarantee request with a specific assigned Finance user.
+     */
+    private void handleBankGuaranteeWithUser(User assignedUser) {
+        try {
+            Optional<WorkflowStepCompletion> step3Opt = stepService.getStep(workflow.getId(), 3);
+            if (step3Opt.isEmpty()) {
+                showError("Could not find Step 3 for this workflow.");
+                return;
+            }
+
+            WorkflowStepCompletion step3 = step3Opt.get();
+
+            // Assign the selected user
+            stepService.assignUserToStep(step3, assignedUser, currentUser);
+            stepService.markNeedsExternalAction(step3, "FINANCE");
+
+            // Call original workflow service method
             workflowService.requestBankGuarantee(workflow.getId(), currentUser);
-            showInfo("Bank guarantee request sent to Finance Team");
+
+            // Send email notification
+            boolean emailSent = workflowEmailService.sendStepAssignmentEmail(step3, assignedUser, currentUser, project);
+
+            String message = "Bank guarantee request sent to " + assignedUser.getUsername() + "!";
+            if (emailSent) {
+                message += "\n\n📧 Email notification sent to " + assignedUser.getEmail();
+            } else {
+                message += "\n\n⚠️ Could not send email notification (SMTP not configured).";
+            }
+
+            showInfo(message);
             refreshWorkflow();
             loadCurrentStep();
-        });
 
-        HBox buttons = new HBox(10, noButton, yesButton);
-        buttons.setAlignment(Pos.CENTER);
-
-        stepContainer.getChildren().addAll(question, buttons);
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            showError("Failed to send request: " + ex.getMessage());
+        }
     }
 
     private void showBankGuaranteePendingUI(WorkflowStepCompletion step) {
