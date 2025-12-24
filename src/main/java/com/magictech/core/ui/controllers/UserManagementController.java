@@ -675,6 +675,14 @@ public class UserManagementController {
     }
 
     private void showEditUserDialog(UserViewModel userVM) {
+        // Load full user object to get SMTP settings
+        Optional<User> userOpt = authService.getUserById(userVM.getId());
+        if (userOpt.isEmpty()) {
+            showAlert(Alert.AlertType.ERROR, "Error", "User not found");
+            return;
+        }
+        User fullUser = userOpt.get();
+
         Dialog<UserFormData> dialog = new Dialog<>();
         dialog.setTitle("Edit User");
         dialog.setHeaderText("Update user information for: " + userVM.getUsername());
@@ -685,7 +693,7 @@ public class UserManagementController {
         dialogPane.setStyle("-fx-background-color: " + Styles.BG_PRIMARY + ";");
         dialogPane.setPrefWidth(400);
 
-        GridPane grid = createUserForm(userVM);
+        GridPane grid = createUserForm(userVM, fullUser);
         dialogPane.setContent(grid);
 
         Button okButton = (Button) dialogPane.lookupButton(ButtonType.OK);
@@ -729,6 +737,10 @@ public class UserManagementController {
     }
 
     private GridPane createUserForm(UserViewModel existingUser) {
+        return createUserForm(existingUser, null);
+    }
+
+    private GridPane createUserForm(UserViewModel existingUser, User fullUser) {
         GridPane grid = new GridPane();
         grid.setHgap(15);
         grid.setVgap(18);
@@ -817,6 +829,18 @@ public class UserManagementController {
         smtpProviderCombo.getItems().addAll("Gmail", "Outlook", "Hotmail", "Custom");
         smtpProviderCombo.setStyle("-fx-background-color: " + Styles.BG_SECONDARY + "; -fx-pref-width: 250;");
 
+        // Load existing SMTP provider
+        if (fullUser != null && fullUser.getSmtpProvider() != null) {
+            String provider = fullUser.getSmtpProvider();
+            // Capitalize first letter for display
+            String displayProvider = provider.substring(0, 1).toUpperCase() + provider.substring(1).toLowerCase();
+            if (smtpProviderCombo.getItems().contains(displayProvider)) {
+                smtpProviderCombo.setValue(displayProvider);
+            } else {
+                smtpProviderCombo.setValue("Custom");
+            }
+        }
+
         grid.add(smtpProviderLabel, 0, row);
         grid.add(smtpProviderCombo, 1, row);
         row++;
@@ -829,6 +853,11 @@ public class UserManagementController {
         smtpHostField.setPromptText("e.g., smtp.gmail.com");
         smtpHostField.setStyle(Styles.INPUT_FIELD);
 
+        // Load existing SMTP host
+        if (fullUser != null && fullUser.getSmtpHost() != null) {
+            smtpHostField.setText(fullUser.getSmtpHost());
+        }
+
         grid.add(smtpHostLabel, 0, row);
         grid.add(smtpHostField, 1, row);
         row++;
@@ -839,6 +868,11 @@ public class UserManagementController {
         TextField smtpPortField = new TextField("587");
         smtpPortField.setId("smtpPortField");
         smtpPortField.setStyle(Styles.INPUT_FIELD + " -fx-pref-width: 100;");
+
+        // Load existing SMTP port
+        if (fullUser != null && fullUser.getSmtpPort() != null) {
+            smtpPortField.setText(String.valueOf(fullUser.getSmtpPort()));
+        }
 
         grid.add(smtpPortLabel, 0, row);
         grid.add(smtpPortField, 1, row);
@@ -853,9 +887,15 @@ public class UserManagementController {
 
         PasswordField smtpPasswordField = new PasswordField();
         smtpPasswordField.setId("smtpPasswordField");
-        smtpPasswordField.setPromptText("Gmail/Outlook App Password");
         smtpPasswordField.setStyle(Styles.INPUT_FIELD);
         smtpPasswordField.setPrefWidth(150);
+
+        // Show appropriate prompt based on whether password exists
+        if (fullUser != null && fullUser.getSmtpPassword() != null && !fullUser.getSmtpPassword().isEmpty()) {
+            smtpPasswordField.setPromptText("Leave empty to keep current");
+        } else {
+            smtpPasswordField.setPromptText("Gmail/Outlook App Password");
+        }
 
         // Test SMTP Button - sends actual test email using form settings
         Button testSmtpBtn = new Button("Test SMTP");
@@ -1239,20 +1279,30 @@ public class UserManagementController {
             }
 
             // Update SMTP settings
-            if (data.hasSmtpConfig()) {
+            // Always update provider, host, and port if provided
+            if (data.smtpProvider != null && !data.smtpProvider.isEmpty()) {
                 user.setSmtpProvider(data.smtpProvider);
-                user.setSmtpHost(data.smtpHost);
-                user.setSmtpPort(data.smtpPort);
-                user.setSmtpPassword(data.smtpPassword);
-                user.setSmtpConfigured(true);
-            } else if (data.smtpPassword != null && data.smtpPassword.isEmpty()) {
-                // Clear SMTP settings if password is explicitly emptied
-                user.setSmtpProvider(null);
-                user.setSmtpHost(null);
-                user.setSmtpPort(587);
-                user.setSmtpPassword(null);
-                user.setSmtpConfigured(false);
             }
+            if (data.smtpHost != null && !data.smtpHost.isEmpty()) {
+                user.setSmtpHost(data.smtpHost);
+            }
+            if (data.smtpPort != null) {
+                user.setSmtpPort(data.smtpPort);
+            }
+
+            // Only update password if a new one is provided (leave empty to keep existing)
+            if (data.smtpPassword != null && !data.smtpPassword.isEmpty()) {
+                user.setSmtpPassword(data.smtpPassword);
+            }
+
+            // Calculate smtpConfigured based on all required fields being present
+            boolean hasEmail = user.getEmail() != null && !user.getEmail().isEmpty();
+            boolean hasHost = user.getSmtpHost() != null && !user.getSmtpHost().isEmpty();
+            boolean hasPassword = user.getSmtpPassword() != null && !user.getSmtpPassword().isEmpty();
+            user.setSmtpConfigured(hasEmail && hasHost && hasPassword);
+
+            System.out.println("📧 SMTP Update: email=" + hasEmail + ", host=" + hasHost +
+                ", password=" + hasPassword + ", configured=" + user.getSmtpConfigured());
 
             authService.updateUser(user);
             showAlert(Alert.AlertType.INFORMATION, "Success", "User updated successfully!");
