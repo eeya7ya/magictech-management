@@ -1,6 +1,8 @@
 package com.magictech.modules.sales.ui;
 
 import com.magictech.core.auth.User;
+import com.magictech.core.auth.UserRepository;
+import com.magictech.core.auth.UserRole;
 import com.magictech.core.ui.components.RoadmapProgressBar;
 import com.magictech.modules.projects.entity.Project;
 import com.magictech.modules.sales.entity.MissingItemRequest;
@@ -10,6 +12,7 @@ import com.magictech.modules.sales.entity.WorkflowStepCompletion;
 import com.magictech.modules.sales.repository.SiteSurveyDataRepository;
 import com.magictech.modules.sales.service.ProjectWorkflowService;
 import com.magictech.modules.sales.service.WorkflowStepService;
+import com.magictech.modules.sales.service.WorkflowEmailService;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.geometry.Rectangle2D;
@@ -71,6 +74,10 @@ public class WorkflowDialog extends Stage {
     private final User currentUser;
     private ProjectWorkflow workflow;
 
+    // New dependencies for role-based user assignment
+    private final UserRepository userRepository;
+    private final WorkflowEmailService workflowEmailService;
+
     // Callback for communicating with parent controller
     private WorkflowDialogCallback callback;
 
@@ -105,7 +112,9 @@ public class WorkflowDialog extends Stage {
                           WorkflowStepService stepService,
                           SiteSurveyDataRepository siteSurveyRepository,
                           com.magictech.modules.sales.repository.SizingPricingDataRepository sizingPricingRepository,
-                          com.magictech.modules.sales.repository.BankGuaranteeDataRepository bankGuaranteeRepository) {
+                          com.magictech.modules.sales.repository.BankGuaranteeDataRepository bankGuaranteeRepository,
+                          UserRepository userRepository,
+                          WorkflowEmailService workflowEmailService) {
         this.project = project;
         this.currentUser = currentUser;
         this.workflowService = workflowService;
@@ -113,6 +122,8 @@ public class WorkflowDialog extends Stage {
         this.siteSurveyRepository = siteSurveyRepository;
         this.sizingPricingRepository = sizingPricingRepository;
         this.bankGuaranteeRepository = bankGuaranteeRepository;
+        this.userRepository = userRepository;
+        this.workflowEmailService = workflowEmailService;
 
         // Use DECORATED style for window controls (minimize, maximize, close)
         initStyle(StageStyle.DECORATED);
@@ -566,22 +577,79 @@ public class WorkflowDialog extends Stage {
     }
 
     private void showSiteSurveyRequestOptions() {
-        // ORIGINAL FUNCTIONALITY - PRESERVED
         Label question = new Label("Does Project need site survey?");
         question.setFont(Font.font("System", FontWeight.NORMAL, 16));
+        question.setTextFill(Color.WHITE);
 
+        // Option 1: Do it yourself
         Button yesButton = new Button("Yes - I'll do it myself");
         yesButton.setStyle("-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20;");
         yesButton.setOnAction(e -> handleSiteSurveySales());
 
-        Button yesProjectButton = new Button("Yes - Request from Project Team");
-        yesProjectButton.setStyle("-fx-background-color: #3498db; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20;");
-        yesProjectButton.setOnAction(e -> handleSiteSurveyProject());
+        // Option 2: Request from a specific Project Team member
+        VBox projectRequestBox = new VBox(10);
+        projectRequestBox.setAlignment(Pos.CENTER_LEFT);
+        projectRequestBox.setPadding(new Insets(15));
+        projectRequestBox.setStyle("-fx-background-color: rgba(52, 152, 219, 0.1); -fx-border-color: #3498db; -fx-border-width: 1; -fx-border-radius: 8; -fx-background-radius: 8;");
 
-        HBox buttons = new HBox(10, yesButton, yesProjectButton);
-        buttons.setAlignment(Pos.CENTER);
+        Label selectLabel = new Label("Or assign to a specific Project Manager:");
+        selectLabel.setFont(Font.font("System", FontWeight.BOLD, 14));
+        selectLabel.setTextFill(Color.WHITE);
 
-        stepContainer.getChildren().addAll(question, buttons);
+        // Dropdown for Project team users
+        ComboBox<User> projectUserCombo = new ComboBox<>();
+        projectUserCombo.setPromptText("Select Project Manager...");
+        projectUserCombo.setPrefWidth(300);
+
+        // Load Project team users
+        List<User> projectUsers = userRepository.findByRoleAndActiveTrue(UserRole.PROJECTS);
+        // Also include PROJECT_SUPPLIER role
+        projectUsers.addAll(userRepository.findByRoleAndActiveTrue(UserRole.PROJECT_SUPPLIER));
+        projectUserCombo.getItems().addAll(projectUsers);
+
+        // Custom cell factory to show username
+        projectUserCombo.setCellFactory(lv -> new ListCell<User>() {
+            @Override
+            protected void updateItem(User user, boolean empty) {
+                super.updateItem(user, empty);
+                setText(empty || user == null ? null : user.getUsername() +
+                    (user.getEmail() != null ? " (" + user.getEmail() + ")" : ""));
+            }
+        });
+        projectUserCombo.setButtonCell(new ListCell<User>() {
+            @Override
+            protected void updateItem(User user, boolean empty) {
+                super.updateItem(user, empty);
+                setText(empty || user == null ? null : user.getUsername());
+            }
+        });
+
+        Button sendRequestButton = new Button("📧 Send Request to Selected User");
+        sendRequestButton.setStyle("-fx-background-color: #3498db; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20;");
+        sendRequestButton.setDisable(true);
+
+        // Enable button only when a user is selected
+        projectUserCombo.setOnAction(e -> sendRequestButton.setDisable(projectUserCombo.getValue() == null));
+
+        sendRequestButton.setOnAction(e -> {
+            User selectedUser = projectUserCombo.getValue();
+            if (selectedUser != null) {
+                handleSiteSurveyProjectWithUser(selectedUser);
+            }
+        });
+
+        // Email notification info
+        Label emailInfo = new Label("An email notification will be sent to the selected user.");
+        emailInfo.setFont(Font.font("System", FontWeight.NORMAL, 12));
+        emailInfo.setTextFill(Color.web("#94a3b8"));
+
+        projectRequestBox.getChildren().addAll(selectLabel, projectUserCombo, sendRequestButton, emailInfo);
+
+        VBox optionsBox = new VBox(20);
+        optionsBox.setAlignment(Pos.CENTER);
+        optionsBox.getChildren().addAll(question, yesButton, projectRequestBox);
+
+        stepContainer.getChildren().add(optionsBox);
     }
 
     /**
@@ -804,6 +872,52 @@ public class WorkflowDialog extends Stage {
         showInfo("Site survey request sent to Project Team. Waiting for their response...");
     }
 
+    /**
+     * NEW: Handle site survey request with a specific assigned user.
+     * Assigns the user to Step 1 and sends an email notification.
+     */
+    private void handleSiteSurveyProjectWithUser(User assignedUser) {
+        try {
+            // Get Step 1 completion record
+            Optional<WorkflowStepCompletion> step1Opt = stepService.getStep(workflow.getId(), 1);
+            if (step1Opt.isEmpty()) {
+                showError("Could not find Step 1 for this workflow.");
+                return;
+            }
+
+            WorkflowStepCompletion step1 = step1Opt.get();
+
+            // Assign the selected user to this step
+            stepService.assignUserToStep(step1, assignedUser, currentUser);
+
+            // Mark that this step needs external action
+            stepService.markNeedsExternalAction(step1, "PROJECT");
+
+            // Also call the original workflow service method for compatibility
+            workflowService.requestSiteSurveyFromProject(workflow.getId(), currentUser);
+
+            // Send email notification to the assigned user
+            boolean emailSent = workflowEmailService.sendStepAssignmentEmail(step1, assignedUser, currentUser, project);
+
+            String message = "Site survey request sent to " + assignedUser.getUsername() + "!";
+            if (emailSent) {
+                message += "\n\n📧 Email notification sent to " + assignedUser.getEmail();
+            } else {
+                message += "\n\n⚠️ Could not send email notification (SMTP not configured for user).";
+            }
+
+            showInfo(message);
+
+            // Refresh the UI to show pending state
+            refreshWorkflow();
+            loadCurrentStep();
+
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            showError("Failed to send site survey request: " + ex.getMessage());
+        }
+    }
+
     // STEP 2: Selection & Design
     private void loadStep2_SelectionDesign() {
         // CRITICAL FIX: Refresh workflow state from database first
@@ -888,58 +1002,123 @@ public class WorkflowDialog extends Stage {
     private void showSelectionDesignRequestOptions() {
         Label question = new Label("Does it need a selection and design?");
         question.setFont(Font.font("System", FontWeight.NORMAL, 16));
+        question.setTextFill(Color.WHITE);
 
-        Button noButton = new Button("No");
+        // No button - skip this step
+        Button noButton = new Button("No - Skip this step");
         noButton.setStyle("-fx-background-color: #95a5a6; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20;");
         noButton.setOnAction(e -> {
-            System.out.println("\n🔘 'No' button clicked for Step 2");
             try {
                 workflowService.markSelectionDesignNotNeeded(workflow.getId(), currentUser);
-                System.out.println("✅ Successfully marked as not needed");
                 showSuccess("Marked as not needed");
                 refreshWorkflow();
                 loadCurrentStep();
             } catch (Exception ex) {
-                System.err.println("❌ Error marking as not needed: " + ex.getMessage());
                 ex.printStackTrace();
                 showError("Error: " + ex.getMessage());
             }
         });
 
-        Button yesButton = new Button("Yes - Request from Presales");
-        yesButton.setStyle("-fx-background-color: #3498db; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20;");
-        yesButton.setOnAction(e -> {
-            System.out.println("\n🔘 'Yes - Request from Presales' button clicked");
-            System.out.println("   Workflow ID: " + workflow.getId());
-            System.out.println("   Current User: " + currentUser.getUsername());
-            System.out.println("   Project ID: " + project.getId());
-            System.out.println("   Project Name: " + project.getProjectName());
+        // User selection for Presales team
+        VBox presalesRequestBox = new VBox(10);
+        presalesRequestBox.setAlignment(Pos.CENTER_LEFT);
+        presalesRequestBox.setPadding(new Insets(15));
+        presalesRequestBox.setStyle("-fx-background-color: rgba(17, 153, 142, 0.1); -fx-border-color: #11998e; -fx-border-width: 1; -fx-border-radius: 8; -fx-background-radius: 8;");
 
-            try {
-                System.out.println("   Calling workflowService.requestSelectionDesignFromPresales()...");
-                workflowService.requestSelectionDesignFromPresales(workflow.getId(), currentUser);
-                System.out.println("✅ Request sent successfully");
+        Label selectLabel = new Label("Yes - Assign to a Presales team member:");
+        selectLabel.setFont(Font.font("System", FontWeight.BOLD, 14));
+        selectLabel.setTextFill(Color.WHITE);
 
-                System.out.println("   Refreshing workflow...");
-                refreshWorkflow();
+        // Dropdown for Presales users
+        ComboBox<User> presalesUserCombo = new ComboBox<>();
+        presalesUserCombo.setPromptText("Select Presales user...");
+        presalesUserCombo.setPrefWidth(300);
 
-                System.out.println("   Reloading UI...");
-                loadCurrentStep();
+        // Load Presales team users
+        List<User> presalesUsers = userRepository.findByRoleAndActiveTrue(UserRole.PRESALES);
+        presalesUserCombo.getItems().addAll(presalesUsers);
 
-                System.out.println("✅ UI updated successfully - should now show pending state");
-            } catch (Exception ex) {
-                System.err.println("❌ ERROR in 'Yes - Request from Presales' button:");
-                System.err.println("   Error message: " + ex.getMessage());
-                System.err.println("   Error type: " + ex.getClass().getName());
-                ex.printStackTrace();
-                showError("Failed to send request: " + ex.getMessage());
+        // Custom cell factory
+        presalesUserCombo.setCellFactory(lv -> new ListCell<User>() {
+            @Override
+            protected void updateItem(User user, boolean empty) {
+                super.updateItem(user, empty);
+                setText(empty || user == null ? null : user.getUsername() +
+                    (user.getEmail() != null ? " (" + user.getEmail() + ")" : ""));
+            }
+        });
+        presalesUserCombo.setButtonCell(new ListCell<User>() {
+            @Override
+            protected void updateItem(User user, boolean empty) {
+                super.updateItem(user, empty);
+                setText(empty || user == null ? null : user.getUsername());
             }
         });
 
-        HBox buttons = new HBox(10, noButton, yesButton);
-        buttons.setAlignment(Pos.CENTER);
+        Button sendRequestButton = new Button("📧 Send Request to Selected User");
+        sendRequestButton.setStyle("-fx-background-color: #11998e; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20;");
+        sendRequestButton.setDisable(true);
 
-        stepContainer.getChildren().addAll(question, buttons);
+        presalesUserCombo.setOnAction(e -> sendRequestButton.setDisable(presalesUserCombo.getValue() == null));
+
+        sendRequestButton.setOnAction(e -> {
+            User selectedUser = presalesUserCombo.getValue();
+            if (selectedUser != null) {
+                handleSelectionDesignWithUser(selectedUser);
+            }
+        });
+
+        Label emailInfo = new Label("An email notification will be sent to request sizing/pricing.");
+        emailInfo.setFont(Font.font("System", FontWeight.NORMAL, 12));
+        emailInfo.setTextFill(Color.web("#94a3b8"));
+
+        presalesRequestBox.getChildren().addAll(selectLabel, presalesUserCombo, sendRequestButton, emailInfo);
+
+        VBox optionsBox = new VBox(20);
+        optionsBox.setAlignment(Pos.CENTER);
+        optionsBox.getChildren().addAll(question, noButton, presalesRequestBox);
+
+        stepContainer.getChildren().add(optionsBox);
+    }
+
+    /**
+     * Handle selection/design request with a specific assigned Presales user.
+     */
+    private void handleSelectionDesignWithUser(User assignedUser) {
+        try {
+            Optional<WorkflowStepCompletion> step2Opt = stepService.getStep(workflow.getId(), 2);
+            if (step2Opt.isEmpty()) {
+                showError("Could not find Step 2 for this workflow.");
+                return;
+            }
+
+            WorkflowStepCompletion step2 = step2Opt.get();
+
+            // Assign the selected user
+            stepService.assignUserToStep(step2, assignedUser, currentUser);
+            stepService.markNeedsExternalAction(step2, "PRESALES");
+
+            // Call original workflow service method
+            workflowService.requestSelectionDesignFromPresales(workflow.getId(), currentUser);
+
+            // Send email notification
+            boolean emailSent = workflowEmailService.sendStepAssignmentEmail(step2, assignedUser, currentUser, project);
+
+            String message = "Sizing/design request sent to " + assignedUser.getUsername() + "!";
+            if (emailSent) {
+                message += "\n\n📧 Email notification sent to " + assignedUser.getEmail();
+            } else {
+                message += "\n\n⚠️ Could not send email notification (SMTP not configured).";
+            }
+
+            showInfo(message);
+            refreshWorkflow();
+            loadCurrentStep();
+
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            showError("Failed to send request: " + ex.getMessage());
+        }
     }
 
     private void showSizingPricingCompleted(com.magictech.modules.sales.entity.SizingPricingData sizing) {
@@ -1088,31 +1267,125 @@ public class WorkflowDialog extends Stage {
     }
 
     private void showBankGuaranteeRequestOptions() {
-        Label question = new Label("Does project needs Bank Guarantee?");
+        Label question = new Label("Does project need Bank Guarantee?");
         question.setFont(Font.font("System", FontWeight.NORMAL, 16));
+        question.setTextFill(Color.WHITE);
 
-        Button noButton = new Button("No");
+        // No button - skip this step
+        Button noButton = new Button("No - Skip this step");
         noButton.setStyle("-fx-background-color: #95a5a6; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20;");
         noButton.setOnAction(e -> {
-            workflowService.markBankGuaranteeNotNeeded(workflow.getId(), currentUser);
-            showSuccess("Marked as not needed");
-            refreshWorkflow();
-            loadCurrentStep();
+            try {
+                workflowService.markBankGuaranteeNotNeeded(workflow.getId(), currentUser);
+                showSuccess("Marked as not needed");
+                refreshWorkflow();
+                loadCurrentStep();
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                showError("Error: " + ex.getMessage());
+            }
         });
 
-        Button yesButton = new Button("Yes - Request from Finance");
-        yesButton.setStyle("-fx-background-color: #3498db; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20;");
-        yesButton.setOnAction(e -> {
+        // User selection for Finance team
+        VBox financeRequestBox = new VBox(10);
+        financeRequestBox.setAlignment(Pos.CENTER_LEFT);
+        financeRequestBox.setPadding(new Insets(15));
+        financeRequestBox.setStyle("-fx-background-color: rgba(238, 156, 167, 0.1); -fx-border-color: #ee9ca7; -fx-border-width: 1; -fx-border-radius: 8; -fx-background-radius: 8;");
+
+        Label selectLabel = new Label("Yes - Assign to a Finance team member:");
+        selectLabel.setFont(Font.font("System", FontWeight.BOLD, 14));
+        selectLabel.setTextFill(Color.WHITE);
+
+        // Dropdown for Finance users
+        ComboBox<User> financeUserCombo = new ComboBox<>();
+        financeUserCombo.setPromptText("Select Finance user...");
+        financeUserCombo.setPrefWidth(300);
+
+        // Load Finance team users
+        List<User> financeUsers = userRepository.findByRoleAndActiveTrue(UserRole.FINANCE);
+        financeUserCombo.getItems().addAll(financeUsers);
+
+        // Custom cell factory
+        financeUserCombo.setCellFactory(lv -> new ListCell<User>() {
+            @Override
+            protected void updateItem(User user, boolean empty) {
+                super.updateItem(user, empty);
+                setText(empty || user == null ? null : user.getUsername() +
+                    (user.getEmail() != null ? " (" + user.getEmail() + ")" : ""));
+            }
+        });
+        financeUserCombo.setButtonCell(new ListCell<User>() {
+            @Override
+            protected void updateItem(User user, boolean empty) {
+                super.updateItem(user, empty);
+                setText(empty || user == null ? null : user.getUsername());
+            }
+        });
+
+        Button sendRequestButton = new Button("📧 Send Request to Selected User");
+        sendRequestButton.setStyle("-fx-background-color: #ee9ca7; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20;");
+        sendRequestButton.setDisable(true);
+
+        financeUserCombo.setOnAction(e -> sendRequestButton.setDisable(financeUserCombo.getValue() == null));
+
+        sendRequestButton.setOnAction(e -> {
+            User selectedUser = financeUserCombo.getValue();
+            if (selectedUser != null) {
+                handleBankGuaranteeWithUser(selectedUser);
+            }
+        });
+
+        Label emailInfo = new Label("An email notification will be sent to request bank guarantee.");
+        emailInfo.setFont(Font.font("System", FontWeight.NORMAL, 12));
+        emailInfo.setTextFill(Color.web("#94a3b8"));
+
+        financeRequestBox.getChildren().addAll(selectLabel, financeUserCombo, sendRequestButton, emailInfo);
+
+        VBox optionsBox = new VBox(20);
+        optionsBox.setAlignment(Pos.CENTER);
+        optionsBox.getChildren().addAll(question, noButton, financeRequestBox);
+
+        stepContainer.getChildren().add(optionsBox);
+    }
+
+    /**
+     * Handle bank guarantee request with a specific assigned Finance user.
+     */
+    private void handleBankGuaranteeWithUser(User assignedUser) {
+        try {
+            Optional<WorkflowStepCompletion> step3Opt = stepService.getStep(workflow.getId(), 3);
+            if (step3Opt.isEmpty()) {
+                showError("Could not find Step 3 for this workflow.");
+                return;
+            }
+
+            WorkflowStepCompletion step3 = step3Opt.get();
+
+            // Assign the selected user
+            stepService.assignUserToStep(step3, assignedUser, currentUser);
+            stepService.markNeedsExternalAction(step3, "FINANCE");
+
+            // Call original workflow service method
             workflowService.requestBankGuarantee(workflow.getId(), currentUser);
-            showInfo("Bank guarantee request sent to Finance Team");
+
+            // Send email notification
+            boolean emailSent = workflowEmailService.sendStepAssignmentEmail(step3, assignedUser, currentUser, project);
+
+            String message = "Bank guarantee request sent to " + assignedUser.getUsername() + "!";
+            if (emailSent) {
+                message += "\n\n📧 Email notification sent to " + assignedUser.getEmail();
+            } else {
+                message += "\n\n⚠️ Could not send email notification (SMTP not configured).";
+            }
+
+            showInfo(message);
             refreshWorkflow();
             loadCurrentStep();
-        });
 
-        HBox buttons = new HBox(10, noButton, yesButton);
-        buttons.setAlignment(Pos.CENTER);
-
-        stepContainer.getChildren().addAll(question, buttons);
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            showError("Failed to send request: " + ex.getMessage());
+        }
     }
 
     private void showBankGuaranteePendingUI(WorkflowStepCompletion step) {
@@ -1458,21 +1731,74 @@ public class WorkflowDialog extends Stage {
         question.setTextFill(Color.WHITE);
 
         Label infoLabel = new Label(
-            "If the tender is accepted, the Project team will be notified to start work.\n" +
+            "If the tender is accepted, select a Project team member to execute the project.\n" +
             "If rejected, please provide a reason."
         );
         infoLabel.setFont(Font.font("System", FontWeight.NORMAL, 14));
         infoLabel.setWrapText(true);
         infoLabel.setTextFill(Color.web("#94a3b8"));
 
-        Button yesButton = new Button("Yes - Tender Accepted");
+        // ========== PROJECT USER SELECTION ==========
+        VBox selectionBox = new VBox(10);
+        selectionBox.setStyle("-fx-background-color: rgba(39, 174, 96, 0.1); -fx-border-color: #27ae60; -fx-border-width: 1; -fx-border-radius: 6; -fx-background-radius: 6; -fx-padding: 15;");
+
+        Label selectLabel = new Label("📋 Select Project Team Member to Execute:");
+        selectLabel.setFont(Font.font("System", FontWeight.BOLD, 14));
+        selectLabel.setTextFill(Color.web("#27ae60"));
+
+        ComboBox<User> projectUserCombo = new ComboBox<>();
+        projectUserCombo.setPromptText("Select a Project Manager...");
+        projectUserCombo.setPrefWidth(350);
+        projectUserCombo.setStyle("-fx-background-color: white; -fx-font-size: 14px;");
+
+        // Load PROJECT users
+        List<User> projectUsers = userRepository.findByRoleAndActiveTrue(UserRole.PROJECTS);
+        projectUserCombo.getItems().addAll(projectUsers);
+
+        // Custom cell factory to display user info
+        projectUserCombo.setCellFactory(lv -> new ListCell<User>() {
+            @Override
+            protected void updateItem(User user, boolean empty) {
+                super.updateItem(user, empty);
+                if (empty || user == null) {
+                    setText(null);
+                } else {
+                    setText(user.getUsername() + (user.getEmail() != null ? " (" + user.getEmail() + ")" : ""));
+                }
+            }
+        });
+        projectUserCombo.setButtonCell(new ListCell<User>() {
+            @Override
+            protected void updateItem(User user, boolean empty) {
+                super.updateItem(user, empty);
+                if (empty || user == null) {
+                    setText("Select a Project Manager...");
+                } else {
+                    setText(user.getUsername() + (user.getEmail() != null ? " (" + user.getEmail() + ")" : ""));
+                }
+            }
+        });
+
+        Label userCountLabel = new Label("👥 Available project managers: " + projectUsers.size());
+        userCountLabel.setFont(Font.font("System", FontWeight.NORMAL, 12));
+        userCountLabel.setTextFill(Color.web("#6b7280"));
+
+        selectionBox.getChildren().addAll(selectLabel, projectUserCombo, userCountLabel);
+
+        Button yesButton = new Button("Yes - Assign to Project Manager");
         yesButton.setStyle("-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20; -fx-font-weight: bold;");
+        yesButton.setDisable(true); // Disabled until user is selected
+
+        // Enable button only when user is selected
+        projectUserCombo.valueProperty().addListener((obs, oldVal, newVal) -> {
+            yesButton.setDisable(newVal == null);
+        });
+
         yesButton.setOnAction(e -> {
-            workflowService.markTenderAccepted(workflow.getId(), currentUser);
-            showSuccess("Tender accepted! Project team has been notified to start work.");
-            // CRITICAL FIX: Refresh and reload to show pending state
-            refreshWorkflow();
-            loadCurrentStep();
+            User selectedUser = projectUserCombo.getValue();
+            if (selectedUser != null) {
+                handleTenderAcceptedWithUser(selectedUser);
+            }
         });
 
         Button noButton = new Button("No - Tender Rejected");
@@ -1483,7 +1809,47 @@ public class WorkflowDialog extends Stage {
         buttons.setAlignment(Pos.CENTER);
         buttons.setPadding(new Insets(20, 0, 0, 0));
 
-        stepContainer.getChildren().addAll(question, infoLabel, buttons);
+        stepContainer.getChildren().addAll(question, infoLabel, selectionBox, buttons);
+    }
+
+    /**
+     * Handle tender acceptance with assigned Project user
+     */
+    private void handleTenderAcceptedWithUser(User assignedUser) {
+        try {
+            // Get Step 5 and assign the selected user
+            Optional<WorkflowStepCompletion> step5Opt = stepService.getStep(workflow.getId(), 5);
+            if (step5Opt.isPresent()) {
+                WorkflowStepCompletion step5 = step5Opt.get();
+
+                // Assign the project user to this step
+                stepService.assignUserToStep(step5, assignedUser, currentUser);
+
+                // Set target role for tracking
+                step5.setTargetRole("PROJECTS");
+
+                // Mark tender as accepted (this sets external action needed)
+                workflowService.markTenderAccepted(workflow.getId(), currentUser);
+
+                // Send email notification to assigned user
+                boolean emailSent = workflowEmailService.sendStepAssignmentEmail(step5, assignedUser, currentUser, project);
+
+                String successMsg = "Tender accepted! Assigned to " + assignedUser.getUsername() + " for project execution.";
+                if (emailSent) {
+                    successMsg += "\n📧 Email notification sent.";
+                } else {
+                    successMsg += "\n⚠️ Could not send email (SMTP not configured for user).";
+                }
+                showSuccess(successMsg);
+
+                // Refresh and reload to show pending state
+                refreshWorkflow();
+                loadCurrentStep();
+            }
+        } catch (Exception ex) {
+            showError("Failed to assign project execution: " + ex.getMessage());
+            ex.printStackTrace();
+        }
     }
 
     /**
@@ -1499,16 +1865,37 @@ public class WorkflowDialog extends Stage {
         statusLabel.setFont(Font.font("System", FontWeight.BOLD, 18));
         statusLabel.setTextFill(Color.web("#92400e"));
 
-        Label messageLabel = new Label("Tender has been accepted! The Project team has been notified to start work.");
+        // Show assigned user info
+        String assignedInfo = "Tender has been accepted!";
+        if (step.getAssignedUsername() != null) {
+            assignedInfo += " Assigned to: " + step.getAssignedUsername();
+            if (step.getAssignedUserEmail() != null) {
+                assignedInfo += " (" + step.getAssignedUserEmail() + ")";
+            }
+        } else {
+            assignedInfo += " The Project team has been notified to start work.";
+        }
+        Label messageLabel = new Label(assignedInfo);
         messageLabel.setFont(Font.font("System", FontWeight.NORMAL, 14));
         messageLabel.setWrapText(true);
 
-        Label infoLabel = new Label("📋 The Project team will execute the project and notify you when completed.");
+        // Show email status
+        if (step.getAssignedUsername() != null) {
+            String emailStatus = Boolean.TRUE.equals(step.getEmailSent())
+                ? "📧 Email notification sent successfully"
+                : "⚠️ Email notification not sent";
+            Label emailLabel = new Label(emailStatus);
+            emailLabel.setFont(Font.font("System", FontWeight.NORMAL, 12));
+            emailLabel.setTextFill(Color.web("#78350f"));
+            pendingBox.getChildren().add(emailLabel);
+        }
+
+        Label infoLabel = new Label("📋 " + (step.getAssignedUsername() != null ? step.getAssignedUsername() : "The Project team") + " will execute the project and notify you when completed.");
         infoLabel.setFont(Font.font("System", FontWeight.NORMAL, 14));
         infoLabel.setWrapText(true);
         infoLabel.setTextFill(Color.web("#78350f"));
 
-        Label dateLabel = new Label("📅 Accepted: " + formatDateTime(step.getCreatedAt()));
+        Label dateLabel = new Label("📅 Accepted: " + formatDateTime(step.getAssignedAt() != null ? step.getAssignedAt() : step.getCreatedAt()));
         dateLabel.setFont(Font.font("System", FontWeight.NORMAL, 12));
         dateLabel.setTextFill(Color.web("#78350f"));
 
@@ -1522,7 +1909,7 @@ public class WorkflowDialog extends Stage {
 
         pendingBox.getChildren().addAll(statusLabel, messageLabel, infoLabel, dateLabel, refreshButton);
 
-        Label waitingInfo = new Label("💡 Click 'Check Status' to see if the Project team has completed the work. The workflow will automatically advance once they confirm completion.");
+        Label waitingInfo = new Label("💡 Click 'Check Status' to see if " + (step.getAssignedUsername() != null ? step.getAssignedUsername() : "the Project team") + " has completed the work. The workflow will automatically advance once they confirm completion.");
         waitingInfo.setFont(Font.font("System", FontWeight.NORMAL, 12));
         waitingInfo.setTextFill(Color.web("#6b7280"));
         waitingInfo.setPadding(new Insets(15, 0, 0, 0));
@@ -1547,11 +1934,20 @@ public class WorkflowDialog extends Stage {
         statusLabel.setFont(Font.font("System", FontWeight.BOLD, 18));
         statusLabel.setTextFill(Color.web("#065f46"));
 
-        Label messageLabel = new Label("The tender was accepted and the Project team has completed their work.");
+        // Show who was assigned
+        String assignedInfo = "The tender was accepted";
+        if (step.getAssignedUsername() != null) {
+            assignedInfo += " and assigned to " + step.getAssignedUsername();
+        }
+        assignedInfo += ". Work has been completed.";
+        Label messageLabel = new Label(assignedInfo);
         messageLabel.setFont(Font.font("System", FontWeight.NORMAL, 14));
         messageLabel.setWrapText(true);
 
-        Label completedLabel = new Label("✓ Completed by: " + (step.getCompletedBy() != null ? step.getCompletedBy() : "Project Team"));
+        // Show completed by (may be different from assigned)
+        String completedBy = step.getCompletedBy() != null ? step.getCompletedBy() :
+                            (step.getAssignedUsername() != null ? step.getAssignedUsername() : "Project Team");
+        Label completedLabel = new Label("✓ Completed by: " + completedBy);
         completedLabel.setFont(Font.font("System", FontWeight.NORMAL, 14));
         completedLabel.setTextFill(Color.web("#065f46"));
 
@@ -1671,52 +2067,275 @@ public class WorkflowDialog extends Stage {
 
     // STEP 7: After Sales
     private void loadStep7_AfterSales() {
-        Label question = new Label("After Sales check?");
-        question.setFont(Font.font("System", FontWeight.NORMAL, 16));
+        VBox contentBox = new VBox(15);
+        contentBox.setAlignment(Pos.CENTER_LEFT);
+        contentBox.setPadding(new Insets(10));
 
-        Button noButton = new Button("No");
-        noButton.setStyle("-fx-background-color: #95a5a6; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20;");
+        Label question = new Label("After Sales Support Required?");
+        question.setFont(Font.font("System", FontWeight.BOLD, 18));
+        question.setTextFill(Color.WHITE);
+
+        Label infoLabel = new Label(
+            "If after-sales support is needed, select a QA team member to handle the request."
+        );
+        infoLabel.setFont(Font.font("System", FontWeight.NORMAL, 14));
+        infoLabel.setWrapText(true);
+        infoLabel.setTextFill(Color.web("#94a3b8"));
+
+        // ========== QA USER SELECTION ==========
+        VBox selectionBox = new VBox(10);
+        selectionBox.setStyle("-fx-background-color: rgba(156, 39, 176, 0.1); -fx-border-color: #9c27b0; -fx-border-width: 1; -fx-border-radius: 6; -fx-background-radius: 6; -fx-padding: 15;");
+
+        Label selectLabel = new Label("🔍 Select Quality Assurance Team Member:");
+        selectLabel.setFont(Font.font("System", FontWeight.BOLD, 14));
+        selectLabel.setTextFill(Color.web("#9c27b0"));
+
+        ComboBox<User> qaUserCombo = new ComboBox<>();
+        qaUserCombo.setPromptText("Select a QA team member...");
+        qaUserCombo.setPrefWidth(350);
+        qaUserCombo.setStyle("-fx-background-color: white; -fx-font-size: 14px;");
+
+        // Load QUALITY_ASSURANCE users
+        List<User> qaUsers = userRepository.findByRoleAndActiveTrue(UserRole.QUALITY_ASSURANCE);
+        qaUserCombo.getItems().addAll(qaUsers);
+
+        // Custom cell factory to display user info
+        qaUserCombo.setCellFactory(lv -> new ListCell<User>() {
+            @Override
+            protected void updateItem(User user, boolean empty) {
+                super.updateItem(user, empty);
+                if (empty || user == null) {
+                    setText(null);
+                } else {
+                    setText(user.getUsername() + (user.getEmail() != null ? " (" + user.getEmail() + ")" : ""));
+                }
+            }
+        });
+        qaUserCombo.setButtonCell(new ListCell<User>() {
+            @Override
+            protected void updateItem(User user, boolean empty) {
+                super.updateItem(user, empty);
+                if (empty || user == null) {
+                    setText("Select a QA team member...");
+                } else {
+                    setText(user.getUsername() + (user.getEmail() != null ? " (" + user.getEmail() + ")" : ""));
+                }
+            }
+        });
+
+        Label userCountLabel = new Label("👥 Available QA team members: " + qaUsers.size());
+        userCountLabel.setFont(Font.font("System", FontWeight.NORMAL, 12));
+        userCountLabel.setTextFill(Color.web("#6b7280"));
+
+        selectionBox.getChildren().addAll(selectLabel, qaUserCombo, userCountLabel);
+
+        Button noButton = new Button("No - Not Needed");
+        noButton.setStyle("-fx-background-color: #95a5a6; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20; -fx-font-weight: bold;");
         noButton.setOnAction(e -> {
             workflowService.markAfterSalesNotNeeded(workflow.getId(), currentUser);
-            showSuccess("Marked as not needed");
+            showSuccess("Marked as not needed. Advancing to completion...");
             refreshWorkflow();
             loadCurrentStep();
         });
 
-        Button yesButton = new Button("Yes - Request QA Check");
-        yesButton.setStyle("-fx-background-color: #3498db; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20;");
-        yesButton.setOnAction(e -> {
-            workflowService.requestAfterSalesCheck(workflow.getId(), currentUser);
-            showInfo("After-sales check request sent to Quality Assurance Team");
+        Button yesButton = new Button("Yes - Assign to QA");
+        yesButton.setStyle("-fx-background-color: #9c27b0; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20; -fx-font-weight: bold;");
+        yesButton.setDisable(true); // Disabled until user is selected
+
+        // Enable button only when user is selected
+        qaUserCombo.valueProperty().addListener((obs, oldVal, newVal) -> {
+            yesButton.setDisable(newVal == null);
         });
 
-        HBox buttons = new HBox(10, noButton, yesButton);
-        buttons.setAlignment(Pos.CENTER);
+        yesButton.setOnAction(e -> {
+            User selectedUser = qaUserCombo.getValue();
+            if (selectedUser != null) {
+                handleAfterSalesWithUser(selectedUser);
+            }
+        });
 
-        stepContainer.getChildren().addAll(question, buttons);
+        HBox buttons = new HBox(15, noButton, yesButton);
+        buttons.setAlignment(Pos.CENTER);
+        buttons.setPadding(new Insets(20, 0, 0, 0));
+
+        contentBox.getChildren().addAll(question, infoLabel, selectionBox, buttons);
+        stepContainer.getChildren().add(contentBox);
+    }
+
+    /**
+     * Handle after-sales check with assigned QA user
+     */
+    private void handleAfterSalesWithUser(User assignedUser) {
+        try {
+            // Get Step 7 and assign the selected QA user
+            Optional<WorkflowStepCompletion> step7Opt = stepService.getStep(workflow.getId(), 7);
+            if (step7Opt.isPresent()) {
+                WorkflowStepCompletion step7 = step7Opt.get();
+
+                // Assign the QA user to this step
+                stepService.assignUserToStep(step7, assignedUser, currentUser);
+
+                // Set target role for tracking
+                step7.setTargetRole("QUALITY_ASSURANCE");
+
+                // Mark as needing QA check
+                workflowService.requestAfterSalesCheck(workflow.getId(), currentUser);
+
+                // Send email notification to assigned user
+                boolean emailSent = workflowEmailService.sendStepAssignmentEmail(step7, assignedUser, currentUser, project);
+
+                String successMsg = "After-sales check assigned to " + assignedUser.getUsername() + ".";
+                if (emailSent) {
+                    successMsg += "\n📧 Email notification sent.";
+                } else {
+                    successMsg += "\n⚠️ Could not send email (SMTP not configured for user).";
+                }
+                showInfo(successMsg);
+
+                refreshWorkflow();
+                loadCurrentStep();
+            }
+        } catch (Exception ex) {
+            showError("Failed to assign after-sales check: " + ex.getMessage());
+            ex.printStackTrace();
+        }
     }
 
     // STEP 8: Completion
     private void loadStep8_Completion() {
-        Label question = new Label("Complete the workflow?");
-        question.setFont(Font.font("System", FontWeight.NORMAL, 16));
+        VBox contentBox = new VBox(15);
+        contentBox.setAlignment(Pos.CENTER_LEFT);
+        contentBox.setPadding(new Insets(10));
 
-        Label info = new Label("All project data will be pushed to storage analysis.");
+        Label question = new Label("Complete the Workflow?");
+        question.setFont(Font.font("System", FontWeight.BOLD, 18));
+        question.setTextFill(Color.WHITE);
+
+        Label info = new Label("All project data will be pushed to storage analysis.\nSelect a Manager/Master for final sign-off approval.");
         info.setFont(Font.font("System", FontWeight.NORMAL, 14));
-        info.setTextFill(Color.web("#7f8c8d"));
+        info.setTextFill(Color.web("#94a3b8"));
+        info.setWrapText(true);
 
-        Button completeButton = new Button("✓ Complete Workflow");
-        completeButton.setStyle("-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-size: 16px; -fx-padding: 15 30;");
+        // ========== MASTER USER SELECTION ==========
+        VBox selectionBox = new VBox(10);
+        selectionBox.setStyle("-fx-background-color: rgba(255, 193, 7, 0.1); -fx-border-color: #ffc107; -fx-border-width: 1; -fx-border-radius: 6; -fx-background-radius: 6; -fx-padding: 15;");
+
+        Label selectLabel = new Label("👑 Select Manager for Final Approval:");
+        selectLabel.setFont(Font.font("System", FontWeight.BOLD, 14));
+        selectLabel.setTextFill(Color.web("#f57c00"));
+
+        ComboBox<User> masterUserCombo = new ComboBox<>();
+        masterUserCombo.setPromptText("Select a Manager...");
+        masterUserCombo.setPrefWidth(350);
+        masterUserCombo.setStyle("-fx-background-color: white; -fx-font-size: 14px;");
+
+        // Load MASTER users
+        List<User> masterUsers = userRepository.findByRoleAndActiveTrue(UserRole.MASTER);
+        masterUserCombo.getItems().addAll(masterUsers);
+
+        // Custom cell factory to display user info
+        masterUserCombo.setCellFactory(lv -> new ListCell<User>() {
+            @Override
+            protected void updateItem(User user, boolean empty) {
+                super.updateItem(user, empty);
+                if (empty || user == null) {
+                    setText(null);
+                } else {
+                    setText(user.getUsername() + (user.getEmail() != null ? " (" + user.getEmail() + ")" : ""));
+                }
+            }
+        });
+        masterUserCombo.setButtonCell(new ListCell<User>() {
+            @Override
+            protected void updateItem(User user, boolean empty) {
+                super.updateItem(user, empty);
+                if (empty || user == null) {
+                    setText("Select a Manager...");
+                } else {
+                    setText(user.getUsername() + (user.getEmail() != null ? " (" + user.getEmail() + ")" : ""));
+                }
+            }
+        });
+
+        Label userCountLabel = new Label("👥 Available managers: " + masterUsers.size());
+        userCountLabel.setFont(Font.font("System", FontWeight.NORMAL, 12));
+        userCountLabel.setTextFill(Color.web("#6b7280"));
+
+        selectionBox.getChildren().addAll(selectLabel, masterUserCombo, userCountLabel);
+
+        // Complete button - requires master selection
+        Button completeButton = new Button("✓ Request Final Approval");
+        completeButton.setStyle("-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-size: 16px; -fx-padding: 15 30; -fx-font-weight: bold;");
+        completeButton.setDisable(true); // Disabled until user is selected
+
+        // Enable button only when user is selected
+        masterUserCombo.valueProperty().addListener((obs, oldVal, newVal) -> {
+            completeButton.setDisable(newVal == null);
+        });
+
         completeButton.setOnAction(e -> {
+            User selectedUser = masterUserCombo.getValue();
+            if (selectedUser != null) {
+                handleCompletionWithUser(selectedUser);
+            }
+        });
+
+        // Skip approval option (for MASTER users)
+        Button selfCompleteButton = new Button("Complete Without Approval");
+        selfCompleteButton.setStyle("-fx-background-color: #6c757d; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20;");
+        selfCompleteButton.setVisible(currentUser.getRole() == UserRole.MASTER);
+        selfCompleteButton.setOnAction(e -> {
             workflowService.completeWorkflow(workflow.getId(), currentUser);
             showSuccess("Workflow completed! All data pushed to storage analysis.");
             close();
         });
 
-        VBox content = new VBox(15, question, info, completeButton);
-        content.setAlignment(Pos.CENTER);
+        HBox buttons = new HBox(15, completeButton, selfCompleteButton);
+        buttons.setAlignment(Pos.CENTER);
+        buttons.setPadding(new Insets(20, 0, 0, 0));
 
-        stepContainer.getChildren().add(content);
+        contentBox.getChildren().addAll(question, info, selectionBox, buttons);
+        stepContainer.getChildren().add(contentBox);
+    }
+
+    /**
+     * Handle workflow completion with manager approval request
+     */
+    private void handleCompletionWithUser(User approver) {
+        try {
+            // Get Step 8 and assign the selected manager
+            Optional<WorkflowStepCompletion> step8Opt = stepService.getStep(workflow.getId(), 8);
+            if (step8Opt.isPresent()) {
+                WorkflowStepCompletion step8 = step8Opt.get();
+
+                // Assign the master user for final approval
+                stepService.assignUserToStep(step8, approver, currentUser);
+
+                // Set target role for tracking
+                step8.setTargetRole("MASTER");
+
+                // Mark as needing external action (manager approval)
+                stepService.markNeedsExternalAction(step8, "MASTER");
+
+                // Send email notification to manager
+                boolean emailSent = workflowEmailService.sendStepAssignmentEmail(step8, approver, currentUser, project);
+
+                String successMsg = "Workflow completion request sent to " + approver.getUsername() + " for final approval.";
+                if (emailSent) {
+                    successMsg += "\n📧 Email notification sent.";
+                } else {
+                    successMsg += "\n⚠️ Could not send email (SMTP not configured for user).";
+                }
+                showSuccess(successMsg);
+
+                // Don't close - show waiting state
+                refreshWorkflow();
+                loadCurrentStep();
+            }
+        } catch (Exception ex) {
+            showError("Failed to request completion approval: " + ex.getMessage());
+            ex.printStackTrace();
+        }
     }
 
     private void handleNext() {
