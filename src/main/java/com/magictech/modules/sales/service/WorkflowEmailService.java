@@ -342,4 +342,212 @@ public class WorkflowEmailService {
             default -> "linear-gradient(135deg, #667eea 0%, #764ba2 100%)";
         };
     }
+
+    // ============================================================
+    // DOCUMENT UPLOAD EMAIL NOTIFICATIONS
+    // ============================================================
+
+    /**
+     * Send email notification when site survey is uploaded by Project team.
+     * Notifies the Sales user who created the workflow that the site survey is ready.
+     *
+     * @param salesUser The sales user to notify (workflow creator)
+     * @param uploadedBy The project user who uploaded the survey
+     * @param project The project
+     * @return true if email was sent successfully
+     */
+    public boolean sendSiteSurveyUploadedEmail(User salesUser, User uploadedBy, Project project) {
+        if (!emailService.isUserEmailConfigured(salesUser)) {
+            System.out.println("Cannot send site survey email - recipient " +
+                             salesUser.getUsername() + " has no email configured");
+            return false;
+        }
+
+        String subject = "📋 Site Survey Ready - " + project.getProjectName();
+        String htmlContent = buildDocumentUploadEmailHtml(
+            salesUser.getUsername(),
+            "Site Survey",
+            project,
+            uploadedBy.getUsername(),
+            "The site survey document has been uploaded and is ready for your review. " +
+            "You can now proceed with the next steps in the workflow.",
+            "#667eea", "#764ba2" // Purple gradient
+        );
+
+        try {
+            emailService.sendEmailFromUser(salesUser, salesUser.getEmail(), subject, htmlContent);
+            System.out.println("✅ Site survey upload email sent to " + salesUser.getEmail());
+            return true;
+        } catch (EmailException e) {
+            System.err.println("Failed to send site survey upload email: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Send email notification when sizing/pricing sheet is uploaded by Presales.
+     * Notifies the Sales user who requested it.
+     *
+     * @param salesUser The sales user to notify (workflow creator)
+     * @param presalesUser The presales user who uploaded the document
+     * @param project The project
+     * @return true if email was sent successfully
+     */
+    public boolean sendSizingPricingUploadedEmail(User salesUser, User presalesUser, Project project) {
+        if (!emailService.isUserEmailConfigured(salesUser)) {
+            System.out.println("Cannot send sizing/pricing email - recipient " +
+                             salesUser.getUsername() + " has no email configured");
+            return false;
+        }
+
+        String subject = "📊 Sizing & Pricing Sheet Ready - " + project.getProjectName();
+        String htmlContent = buildDocumentUploadEmailHtml(
+            salesUser.getUsername(),
+            "Sizing & Pricing Sheet",
+            project,
+            presalesUser.getUsername(),
+            "The sizing and pricing document has been prepared by the Presales team. " +
+            "Please review the document and proceed with the bank guarantee request if needed.",
+            "#11998e", "#38ef7d" // Green gradient
+        );
+
+        try {
+            emailService.sendEmailFromUser(salesUser, salesUser.getEmail(), subject, htmlContent);
+            System.out.println("✅ Sizing/pricing upload email sent to " + salesUser.getEmail());
+            return true;
+        } catch (EmailException e) {
+            System.err.println("Failed to send sizing/pricing upload email: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Send email notification when bank guarantee is uploaded by Finance.
+     * Notifies the Sales user who requested it.
+     *
+     * @param salesUser The sales user to notify (workflow creator)
+     * @param financeUser The finance user who uploaded the document
+     * @param project The project
+     * @return true if email was sent successfully
+     */
+    public boolean sendBankGuaranteeUploadedEmail(User salesUser, User financeUser, Project project) {
+        if (!emailService.isUserEmailConfigured(salesUser)) {
+            System.out.println("Cannot send bank guarantee email - recipient " +
+                             salesUser.getUsername() + " has no email configured");
+            return false;
+        }
+
+        String subject = "🏦 Bank Guarantee Ready - " + project.getProjectName();
+        String htmlContent = buildDocumentUploadEmailHtml(
+            salesUser.getUsername(),
+            "Bank Guarantee Document",
+            project,
+            financeUser.getUsername(),
+            "The bank guarantee document has been prepared by the Finance team. " +
+            "Please review and proceed with the missing items check and tender acceptance.",
+            "#ee9ca7", "#ffdde1" // Pink gradient
+        );
+
+        try {
+            emailService.sendEmailFromUser(salesUser, salesUser.getEmail(), subject, htmlContent);
+            System.out.println("✅ Bank guarantee upload email sent to " + salesUser.getEmail());
+            return true;
+        } catch (EmailException e) {
+            System.err.println("Failed to send bank guarantee upload email: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Build HTML email content for document upload notifications
+     */
+    private String buildDocumentUploadEmailHtml(String recipientName, String documentType,
+                                                 Project project, String uploadedBy,
+                                                 String actionMessage, String gradientStart, String gradientEnd) {
+        String timestamp = LocalDateTime.now().format(DATE_FORMAT);
+
+        return """
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <style>
+                    body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f4f4f4; }
+                    .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+                    .header { background: linear-gradient(135deg, %s 0%%, %s 100%%); color: white; padding: 20px; border-radius: 10px 10px 0 0; margin: -30px -30px 30px -30px; text-align: center; }
+                    .doc-icon { font-size: 48px; margin-bottom: 10px; }
+                    h1 { margin: 0; font-size: 24px; }
+                    .content { color: #333; line-height: 1.6; }
+                    .success-box { background-color: #e8f5e9; border-left: 4px solid #4caf50; padding: 15px; margin: 20px 0; border-radius: 0 5px 5px 0; }
+                    .info-box { background-color: #e3f2fd; border-left: 4px solid #2196f3; padding: 15px; margin: 20px 0; border-radius: 0 5px 5px 0; }
+                    .project-details { background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0; }
+                    .project-details table { width: 100%%; border-collapse: collapse; }
+                    .project-details td { padding: 8px 0; }
+                    .project-details td:first-child { font-weight: bold; width: 40%%; }
+                    .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; color: #666; font-size: 12px; text-align: center; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <div class="doc-icon">📄</div>
+                        <h1>%s Ready</h1>
+                    </div>
+                    <div class="content">
+                        <p>Hello <strong>%s</strong>,</p>
+
+                        <div class="success-box">
+                            <strong>Good news!</strong><br>
+                            The <strong>%s</strong> for your project has been uploaded by <strong>%s</strong>.
+                        </div>
+
+                        <div class="project-details">
+                            <h3 style="margin-top: 0;">Project Details</h3>
+                            <table>
+                                <tr>
+                                    <td>Project Name:</td>
+                                    <td>%s</td>
+                                </tr>
+                                <tr>
+                                    <td>Location:</td>
+                                    <td>%s</td>
+                                </tr>
+                                <tr>
+                                    <td>Uploaded By:</td>
+                                    <td>%s</td>
+                                </tr>
+                                <tr>
+                                    <td>Uploaded At:</td>
+                                    <td>%s</td>
+                                </tr>
+                            </table>
+                        </div>
+
+                        <div class="info-box">
+                            <strong>Next Steps:</strong><br>
+                            %s
+                        </div>
+
+                        <p>Please log in to the MagicTech Management System to view the document and continue with the workflow.</p>
+                    </div>
+                    <div class="footer">
+                        <p>This is an automated notification from MagicTech Management System.</p>
+                        <p>&copy; MagicTech Management System</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """.formatted(
+                gradientStart,
+                gradientEnd,
+                documentType,
+                recipientName,
+                documentType,
+                uploadedBy,
+                project.getProjectName(),
+                project.getProjectLocation() != null ? project.getProjectLocation() : "Not specified",
+                uploadedBy,
+                timestamp,
+                actionMessage
+            );
+    }
 }
