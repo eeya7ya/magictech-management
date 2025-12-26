@@ -194,7 +194,7 @@ public class JordanMapPane extends StackPane {
             "L 250 60 " +  // Golan area
             "L 285 15 Z";  // Back to start
 
-        Path jordanBorder = new Path();
+        SVGPath jordanBorder = new SVGPath();
         jordanBorder.setContent(jordanPathData);
 
         // Jordan fill with gradient
@@ -237,7 +237,7 @@ public class JordanMapPane extends StackPane {
 
     private void drawDeadSea() {
         // Dead Sea shape
-        Path deadSea = new Path();
+        SVGPath deadSea = new SVGPath();
         deadSea.setContent(
             "M 200 250 " +
             "Q 190 280 195 320 " +
@@ -257,7 +257,7 @@ public class JordanMapPane extends StackPane {
         deadSeaLabel.setFont(Font.font("Arial", FontWeight.BOLD, 10));
 
         // Gulf of Aqaba
-        Path aqabaGulf = new Path();
+        SVGPath aqabaGulf = new SVGPath();
         aqabaGulf.setContent(
             "M 275 655 " +
             "L 285 680 " +

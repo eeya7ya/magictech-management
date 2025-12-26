@@ -1733,7 +1733,7 @@ public class SalesStorageController extends BaseModuleController
         header.getChildren().addAll(titleLabel, addItemsBtn, clearBtn);
 
         TableView<OrderItemRow> itemsTable = new TableView<>();
-        itemsTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+        itemsTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         VBox.setVgrow(itemsTable, Priority.ALWAYS);
         itemsTable.setStyle(
                 "-fx-background-color: rgba(15, 23, 42, 0.9);" +
@@ -1890,7 +1890,7 @@ public class SalesStorageController extends BaseModuleController
 
         TableView<StorageItem> storageTable = new TableView<>();
         storageTable.setPrefHeight(500);
-        storageTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+        storageTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         storageTable.setStyle(
                 "-fx-background-color: rgba(30, 41, 59, 0.6);" +
                 "-fx-background-radius: 12;" +
@@ -2117,7 +2117,7 @@ public class SalesStorageController extends BaseModuleController
 
         // Items Table
         TableView<OrderItemRow> itemsTable = new TableView<>();
-        itemsTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+        itemsTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         VBox.setVgrow(itemsTable, Priority.ALWAYS);
         itemsTable.setStyle(
                 "-fx-background-color: rgba(15, 23, 42, 0.9);" +
@@ -2288,7 +2288,7 @@ public class SalesStorageController extends BaseModuleController
         header.getChildren().addAll(titleLabel, addItemsBtn, clearBtn);
 
         TableView<OrderItemRow> itemsTable = new TableView<>();
-        itemsTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+        itemsTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         VBox.setVgrow(itemsTable, Priority.ALWAYS);
         itemsTable.setStyle(
                 "-fx-background-color: rgba(15, 23, 42, 0.9);" +
@@ -3343,7 +3343,7 @@ public class SalesStorageController extends BaseModuleController
 
         TableView<StorageItem> storageTable = new TableView<>();
         storageTable.setPrefHeight(500);
-        storageTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+        storageTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         storageTable.setStyle(
                 "-fx-background-color: #0f172a;" +
                         "-fx-control-inner-background: #0f172a;"
@@ -3951,7 +3951,7 @@ public class SalesStorageController extends BaseModuleController
 
         TableView<StorageItem> storageTable = new TableView<>();
         storageTable.setPrefHeight(500);
-        storageTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+        storageTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         storageTable.setStyle(
                 "-fx-background-color: #0f172a;" +
                         "-fx-control-inner-background: #0f172a;"

@@ -306,7 +306,7 @@ public class UserManagementController {
     private void initializeUserTable() {
         userTable = new TableView<>();
         userTable.setStyle("-fx-background-color: " + Styles.BG_SECONDARY + ";");
-        userTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+        userTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
 
         // Initialize data lists
         users = FXCollections.observableArrayList();
