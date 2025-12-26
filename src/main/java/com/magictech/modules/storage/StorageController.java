@@ -1,17 +1,18 @@
 package com.magictech.modules.storage;
 
 import com.magictech.core.auth.User;
+import com.magictech.core.auth.UserRole;
 import com.magictech.core.module.BaseModuleController;
 import com.magictech.core.ui.SceneManager;
-import com.magictech.modules.projects.ProjectDetailViewController;
-import com.magictech.modules.projects.entity.Project;
-import com.magictech.modules.projects.model.ProjectViewModel;
-import com.magictech.modules.projects.service.ProjectService;
 import com.magictech.modules.storage.entity.StorageItem;
-import com.magictech.modules.storage.model.StorageItemViewModel;
+import com.magictech.modules.storage.entity.StorageLocation;
+import com.magictech.modules.storage.entity.StorageItemLocation;
+import com.magictech.modules.storage.model.StorageItemLocationViewModel;
 import com.magictech.modules.storage.service.StorageService;
-import com.magictech.modules.storage.service.ExcelImportService;
-import com.magictech.modules.storage.service.ExcelExportService;
+import com.magictech.modules.storage.service.StorageLocationService;
+import com.magictech.modules.storage.service.StorageLocationService.LocationSummary;
+import com.magictech.modules.storage.service.StorageItemLocationService;
+import com.magictech.modules.storage.ui.JordanMapPane;
 import javafx.application.Platform;
 import javafx.beans.property.*;
 import javafx.collections.FXCollections;
@@ -31,16 +32,19 @@ import org.springframework.stereotype.Component;
 
 import java.io.File;
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * Storage Module - MASTER CONTROL with Dual Tables
- * Tab 1: Storage Items Table (with Price & Quantity)
- * Tab 2: Projects Table (project management)
+ * Storage Module Controller - Advanced Multi-Location Storage Management
+ *
+ * Features:
+ * - Road Map View: Interactive Jordan map with storage location pins
+ * - Location Sheet View: Items at a specific storage location
+ * - Total Sheet View: All items across all locations
+ * - Navigation with breadcrumb and return path
  */
 @Component
 public class StorageController extends BaseModuleController {
@@ -49,44 +53,51 @@ public class StorageController extends BaseModuleController {
     private StorageService storageService;
 
     @Autowired
-    private ProjectService projectService;
+    private StorageLocationService locationService;
 
     @Autowired
-    private ExcelImportService excelImportService;
+    private StorageItemLocationService itemLocationService;
 
-    @Autowired
-    private ExcelExportService excelExportService;
+    // View modes
+    private enum ViewMode { ROAD_MAP, LOCATION_SHEET, TOTAL_SHEET }
+    private ViewMode currentViewMode = ViewMode.ROAD_MAP;
 
-    @Autowired
-    private com.magictech.modules.storage.service.AnalyticsService analyticsService;
+    // Current location being viewed (for LOCATION_SHEET mode)
+    private LocationSummary currentLocation;
 
-    @Autowired
-    private AnalysisDashboardController analysisDashboardController;
-
-    // Active table tracker
-    private enum ActiveTable { STORAGE, ANALYTICS }
-    private ActiveTable currentTable = ActiveTable.STORAGE;
+    // Navigation history for breadcrumb
+    private Stack<ViewMode> navigationHistory = new Stack<>();
 
     // UI Components
-    private TableView<StorageItemViewModel> storageTable;
-    private ScrollPane analyticsView;
-    private StackPane tableContainer;
+    private StackPane mainContainer;
+    private JordanMapPane jordanMap;
+    private VBox locationSheetView;
+    private VBox totalSheetView;
+    private HBox breadcrumbBar;
+    private Label breadcrumbLabel;
+
+    // Table components
+    private TableView<StorageItemLocationViewModel> itemTable;
+    private ObservableList<StorageItemLocationViewModel> tableItems;
+    private FilteredList<StorageItemLocationViewModel> filteredItems;
+    private Map<StorageItemLocationViewModel, BooleanProperty> selectionMap = new HashMap<>();
+
+    // Toolbar components
     private TextField searchField;
     private Button addButton, editButton, deleteButton, refreshButton;
-    private Button importButton, exportButton, columnsButton, openProjectButton;
-    private Button storageTabButton, projectsTabButton;
-    private com.magictech.core.ui.components.DashboardBackgroundPane backgroundPane;
-    private ProgressIndicator loadingIndicator;
+    private Button transferButton, importButton, exportButton;
     private Label selectedCountLabel;
     private CheckBox selectAllCheckbox;
+    private ProgressIndicator loadingIndicator;
 
-    // Storage Data
-    private ObservableList<StorageItemViewModel> storageItems;
-    private FilteredList<StorageItemViewModel> filteredStorage;
-    private Map<StorageItemViewModel, BooleanProperty> storageSelectionMap = new HashMap<>();
+    // Background
+    private com.magictech.core.ui.components.DashboardBackgroundPane backgroundPane;
 
     @Override
     protected void setupUI() {
+        // Initialize default locations if needed
+        locationService.initializeDefaultLocations();
+
         StackPane stackRoot = new StackPane();
         backgroundPane = new com.magictech.core.ui.components.DashboardBackgroundPane();
 
@@ -96,8 +107,18 @@ public class StorageController extends BaseModuleController {
         VBox header = createHeader();
         contentPane.setTop(header);
 
-        VBox content = createMainContent();
-        contentPane.setCenter(content);
+        mainContainer = new StackPane();
+        mainContainer.setStyle("-fx-background-color: transparent;");
+
+        // Create all views
+        jordanMap = createRoadMapView();
+        locationSheetView = createSheetView(false);
+        totalSheetView = createSheetView(true);
+
+        // Initially show road map
+        mainContainer.getChildren().add(jordanMap);
+
+        contentPane.setCenter(mainContainer);
 
         stackRoot.getChildren().addAll(backgroundPane, contentPane);
 
@@ -108,14 +129,10 @@ public class StorageController extends BaseModuleController {
 
     @Override
     protected void loadData() {
-        // Initialize Storage
-        storageItems = FXCollections.observableArrayList();
-        filteredStorage = new FilteredList<>(storageItems, p -> true);
-        storageTable.setItems(filteredStorage);
-
-        // Load storage data
-        loadStorageData();
+        loadRoadMapData();
     }
+
+    // ==================== HEADER ====================
 
     private VBox createHeader() {
         VBox headerContainer = new VBox();
@@ -126,19 +143,19 @@ public class StorageController extends BaseModuleController {
         headerBar.setSpacing(20);
         headerBar.setPadding(new Insets(20, 30, 20, 30));
         headerBar.setStyle(
-                "-fx-background-color: linear-gradient(to right, #ef4444, #dc2626);" +
-                        "-fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.3), 15, 0, 0, 3);"
+            "-fx-background-color: linear-gradient(to right, #ef4444, #dc2626);" +
+            "-fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.3), 15, 0, 0, 3);"
         );
 
         Button backButton = new Button("← Back");
         backButton.setStyle(
-                "-fx-background-color: rgba(255, 255, 255, 0.2);" +
-                        "-fx-text-fill: white;" +
-                        "-fx-font-size: 14px;" +
-                        "-fx-font-weight: bold;" +
-                        "-fx-padding: 10 20;" +
-                        "-fx-background-radius: 8;" +
-                        "-fx-cursor: hand;"
+            "-fx-background-color: rgba(255, 255, 255, 0.2);" +
+            "-fx-text-fill: white;" +
+            "-fx-font-size: 14px;" +
+            "-fx-font-weight: bold;" +
+            "-fx-padding: 10 20;" +
+            "-fx-background-radius: 8;" +
+            "-fx-cursor: hand;"
         );
         backButton.setOnAction(e -> handleBack());
 
@@ -156,325 +173,334 @@ public class StorageController extends BaseModuleController {
 
         headerBar.getChildren().addAll(backButton, titleBox, userLabel);
 
-        // Subtitle bar
-        HBox subtitleBar = new HBox(20);
-        subtitleBar.setAlignment(Pos.CENTER);
-        subtitleBar.setPadding(new Insets(12, 30, 12, 30));
-        subtitleBar.setStyle(
-                "-fx-background-color: rgba(20, 30, 45, 0.4);" +
-                        "-fx-border-color: rgba(255, 255, 255, 0.1);" +
-                        "-fx-border-width: 0 0 1 0;"
+        // Breadcrumb bar
+        breadcrumbBar = new HBox(10);
+        breadcrumbBar.setAlignment(Pos.CENTER_LEFT);
+        breadcrumbBar.setPadding(new Insets(12, 30, 12, 30));
+        breadcrumbBar.setStyle(
+            "-fx-background-color: rgba(20, 30, 45, 0.6);" +
+            "-fx-border-color: rgba(255, 255, 255, 0.1);" +
+            "-fx-border-width: 0 0 1 0;"
         );
 
-        Label subtitleLabel = new Label("Master Control • Storage Management + Business Analytics");
-        subtitleLabel.setStyle("-fx-text-fill: rgba(255, 255, 255, 0.7); -fx-font-size: 14px;");
+        breadcrumbLabel = new Label("🗺️ Road Map");
+        breadcrumbLabel.setStyle("-fx-text-fill: white; -fx-font-size: 14px; -fx-font-weight: bold;");
 
         selectedCountLabel = new Label();
         selectedCountLabel.setStyle("-fx-text-fill: #22c55e; -fx-font-size: 14px; -fx-font-weight: bold;");
         selectedCountLabel.setVisible(false);
 
-        subtitleBar.getChildren().addAll(subtitleLabel, selectedCountLabel);
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        headerContainer.getChildren().addAll(headerBar, subtitleBar);
+        breadcrumbBar.getChildren().addAll(breadcrumbLabel, spacer, selectedCountLabel);
+
+        headerContainer.getChildren().addAll(headerBar, breadcrumbBar);
         return headerContainer;
     }
 
-    private VBox createMainContent() {
-        VBox content = new VBox(15);
-        content.setPadding(new Insets(30));
-        content.setStyle("-fx-background-color: transparent;");
+    private void updateBreadcrumb() {
+        String breadcrumbText;
+        switch (currentViewMode) {
+            case ROAD_MAP:
+                breadcrumbText = "🗺️ Road Map";
+                break;
+            case LOCATION_SHEET:
+                breadcrumbText = "🗺️ Road Map  ›  📍 " +
+                    (currentLocation != null ? currentLocation.getLocationName() : "Location");
+                break;
+            case TOTAL_SHEET:
+                breadcrumbText = "🗺️ Road Map  ›  📊 Total Sheet (All Locations)";
+                break;
+            default:
+                breadcrumbText = "🗺️ Road Map";
+        }
+        breadcrumbLabel.setText(breadcrumbText);
+    }
 
-        // ✅ FIXED: Use proper TabPane instead of button switcher
-        TabPane tabPane = new TabPane();
-        tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
-        tabPane.setStyle("-fx-background-color: transparent;");
-        VBox.setVgrow(tabPane, Priority.ALWAYS);
+    // ==================== ROAD MAP VIEW ====================
 
-        // Tab 1: Storage Management
-        Tab storageTab = new Tab("📦 Storage Management");
-        VBox storageTabContent = new VBox(15);
-        storageTabContent.setPadding(new Insets(15));
-        storageTabContent.setStyle("-fx-background-color: transparent;");
+    private JordanMapPane createRoadMapView() {
+        JordanMapPane map = new JordanMapPane();
 
-        HBox storageToolbar = createStorageToolbar();
-        storageTable = createStorageTable();
+        map.setOnLocationClick(location -> {
+            currentLocation = location;
+            navigateToView(ViewMode.LOCATION_SHEET);
+        });
+
+        map.setOnTotalClick(v -> {
+            navigateToView(ViewMode.TOTAL_SHEET);
+        });
+
+        return map;
+    }
+
+    private void loadRoadMapData() {
+        Task<List<LocationSummary>> loadTask = new Task<>() {
+            @Override
+            protected List<LocationSummary> call() {
+                return locationService.getAllLocationSummaries();
+            }
+        };
+
+        loadTask.setOnSucceeded(e -> {
+            List<LocationSummary> summaries = loadTask.getValue();
+            Platform.runLater(() -> {
+                jordanMap.setLocations(summaries);
+                System.out.println("✓ Loaded " + summaries.size() + " storage locations on map");
+            });
+        });
+
+        loadTask.setOnFailed(e -> {
+            showError("Failed to load locations: " + loadTask.getException().getMessage());
+        });
+
+        new Thread(loadTask).start();
+    }
+
+    // ==================== SHEET VIEW (Location & Total) ====================
+
+    private VBox createSheetView(boolean isTotalView) {
+        VBox sheetView = new VBox(15);
+        sheetView.setPadding(new Insets(20));
+        sheetView.setStyle("-fx-background-color: transparent;");
+
+        // Back to map button
+        Button backToMapButton = createStyledButton("← Back to Map", "#6366f1", "#4f46e5");
+        backToMapButton.setOnAction(e -> navigateToView(ViewMode.ROAD_MAP));
+
+        // Toolbar
+        HBox toolbar = createSheetToolbar(isTotalView);
+
+        // Table
+        itemTable = createItemTable(isTotalView);
+
+        // Loading indicator
         loadingIndicator = new ProgressIndicator();
         loadingIndicator.setVisible(false);
         loadingIndicator.setMaxSize(60, 60);
 
-        tableContainer = new StackPane(storageTable, loadingIndicator);
+        StackPane tableContainer = new StackPane(itemTable, loadingIndicator);
         VBox.setVgrow(tableContainer, Priority.ALWAYS);
 
-        storageTabContent.getChildren().addAll(storageToolbar, tableContainer);
-        storageTab.setContent(storageTabContent);
+        HBox topBar = new HBox(15);
+        topBar.setAlignment(Pos.CENTER_LEFT);
+        topBar.getChildren().add(backToMapButton);
 
-        // Tab 2: Analytics Dashboard
-        Tab analyticsTab = new Tab("📊 Analytics Dashboard");
-        analyticsView = createAnalyticsView();
-        VBox.setVgrow(analyticsView, Priority.ALWAYS);
-        analyticsTab.setContent(analyticsView);
-
-        // Listen for tab changes to refresh data
-        tabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
-            if (newTab == analyticsTab) {
-                currentTable = ActiveTable.ANALYTICS;
-                refreshAnalytics();
-                updateButtonVisibility(false);
-            } else {
-                currentTable = ActiveTable.STORAGE;
-                updateButtonVisibility(true);
-            }
-        });
-
-        tabPane.getTabs().addAll(storageTab, analyticsTab);
-
-        content.getChildren().add(tabPane);
-        return content;
+        sheetView.getChildren().addAll(topBar, toolbar, tableContainer);
+        return sheetView;
     }
 
-    // ✅ OLD TAB SWITCHER METHODS REMOVED - Now using proper TabPane
-
-    // ✅ Helper method to show/hide buttons based on active tab
-    private void updateButtonVisibility(boolean showStorageButtons) {
-        if (showStorageButtons) {
-            addButton.setVisible(true);
-            addButton.setManaged(true);
-            editButton.setVisible(true);
-            editButton.setManaged(true);
-            deleteButton.setVisible(true);
-            deleteButton.setManaged(true);
-            importButton.setVisible(true);
-            importButton.setManaged(true);
-            exportButton.setVisible(true);
-            exportButton.setManaged(true);
-            columnsButton.setVisible(true);
-            columnsButton.setManaged(true);
-        } else {
-            addButton.setVisible(false);
-            addButton.setManaged(false);
-            editButton.setVisible(false);
-            editButton.setManaged(false);
-            deleteButton.setVisible(false);
-            deleteButton.setManaged(false);
-            importButton.setVisible(false);
-            importButton.setManaged(false);
-            exportButton.setVisible(false);
-            exportButton.setManaged(false);
-            columnsButton.setVisible(false);
-            columnsButton.setManaged(false);
-        }
-    }
-
-    private HBox createStorageToolbar() {
+    private HBox createSheetToolbar(boolean isTotalView) {
         HBox toolbar = new HBox(12);
         toolbar.setAlignment(Pos.CENTER_LEFT);
-        toolbar.setPadding(new Insets(0, 0, 15, 0));
+        toolbar.setPadding(new Insets(0, 0, 10, 0));
 
-        addButton = createStyledButton("+ Add", "#22c55e", "#16a34a");
-        addButton.setOnAction(e -> handleAdd());
+        // Only show edit buttons for MASTER and STORAGE roles
+        boolean canEdit = currentUser != null &&
+            (currentUser.getRole() == UserRole.MASTER || currentUser.getRole() == UserRole.STORAGE);
 
-        openProjectButton = createStyledButton("📂 Open", "#6366f1", "#4f46e5");
-        openProjectButton.setOnAction(e -> {
-            showWarning("Open Project feature is not available in Storage module. Please use the Projects module.");
-        });
-        openProjectButton.setDisable(true);
-        openProjectButton.setVisible(false);
-        openProjectButton.setManaged(false);
+        if (canEdit) {
+            addButton = createStyledButton("+ Add Item", "#22c55e", "#16a34a");
+            addButton.setOnAction(e -> handleAddItem());
 
-        editButton = createStyledButton("✏️ Edit", "#3b82f6", "#2563eb");
-        editButton.setOnAction(e -> handleEdit());
-        editButton.setDisable(true);
+            editButton = createStyledButton("✏️ Edit", "#3b82f6", "#2563eb");
+            editButton.setOnAction(e -> handleEditItem());
+            editButton.setDisable(true);
 
-        deleteButton = createStyledButton("🗑️ Delete", "#ef4444", "#dc2626");
-        deleteButton.setOnAction(e -> handleDelete());
-        deleteButton.setDisable(true);
+            deleteButton = createStyledButton("🗑️ Delete", "#ef4444", "#dc2626");
+            deleteButton.setOnAction(e -> handleDeleteItems());
+            deleteButton.setDisable(true);
 
-        importButton = createStyledButton("📤 Import", "#f59e0b", "#d97706");
-        importButton.setOnAction(e -> handleExcelImport());
+            transferButton = createStyledButton("🔄 Transfer", "#f59e0b", "#d97706");
+            transferButton.setOnAction(e -> handleTransferItem());
+            transferButton.setDisable(true);
 
-        exportButton = createStyledButton("📥 Export", "#8b5cf6", "#7c3aed");
-        exportButton.setOnAction(e -> handleExcelExport());
-
-        columnsButton = createStyledButton("⚙️ Columns", "#6366f1", "#4f46e5");
-        columnsButton.setOnAction(e -> {
-            Alert info = new Alert(Alert.AlertType.INFORMATION);
-            info.setTitle("Column Management");
-            info.setHeaderText("Feature Coming Soon");
-            info.setContentText("Column management coming soon!");
-            info.showAndWait();
-        });
+            toolbar.getChildren().addAll(addButton, editButton, deleteButton, transferButton);
+        }
 
         refreshButton = createStyledButton("↻ Refresh", "#10b981", "#059669");
         refreshButton.setOnAction(e -> refresh());
+
+        exportButton = createStyledButton("📥 Export", "#8b5cf6", "#7c3aed");
+        exportButton.setOnAction(e -> handleExcelExport());
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
         searchField = new TextField();
-        searchField.setPromptText("🔍 Search...");
+        searchField.setPromptText("🔍 Search items...");
         searchField.setPrefWidth(280);
         searchField.setStyle(
-                "-fx-background-color: rgba(30, 41, 59, 0.6);" +
-                        "-fx-text-fill: white;" +
-                        "-fx-prompt-text-fill: rgba(255, 255, 255, 0.5);" +
-                        "-fx-background-radius: 8;" +
-                        "-fx-border-color: rgba(139, 92, 246, 0.3);" +
-                        "-fx-border-radius: 8;" +
-                        "-fx-border-width: 1;" +
-                        "-fx-padding: 8 12;"
+            "-fx-background-color: rgba(30, 41, 59, 0.6);" +
+            "-fx-text-fill: white;" +
+            "-fx-prompt-text-fill: rgba(255, 255, 255, 0.5);" +
+            "-fx-background-radius: 8;" +
+            "-fx-border-color: rgba(139, 92, 246, 0.3);" +
+            "-fx-border-radius: 8;" +
+            "-fx-border-width: 1;" +
+            "-fx-padding: 8 12;"
         );
         searchField.textProperty().addListener((obs, old, newVal) -> handleSearch(newVal));
 
-        toolbar.getChildren().addAll(addButton, openProjectButton, editButton, deleteButton,
-                importButton, exportButton, columnsButton, refreshButton, spacer, searchField);
+        toolbar.getChildren().addAll(refreshButton, exportButton, spacer, searchField);
         return toolbar;
     }
 
-    private Button createStyledButton(String text, String bgColor, String hoverColor) {
-        Button button = new Button(text);
-        button.setStyle(
-                "-fx-background-color: " + bgColor + ";" +
-                        "-fx-text-fill: white;" +
-                        "-fx-font-size: 13px;" +
-                        "-fx-font-weight: bold;" +
-                        "-fx-padding: 10 18;" +
-                        "-fx-background-radius: 8;" +
-                        "-fx-cursor: hand;" +
-                        "-fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.2), 5, 0, 0, 2);"
-        );
-
-        button.setOnMouseEntered(e -> button.setStyle(
-                "-fx-background-color: " + hoverColor + ";" +
-                        "-fx-text-fill: white;" +
-                        "-fx-font-size: 13px;" +
-                        "-fx-font-weight: bold;" +
-                        "-fx-padding: 10 18;" +
-                        "-fx-background-radius: 8;" +
-                        "-fx-cursor: hand;" +
-                        "-fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.3), 8, 0, 0, 3);"
-        ));
-
-        button.setOnMouseExited(e -> button.setStyle(
-                "-fx-background-color: " + bgColor + ";" +
-                        "-fx-text-fill: white;" +
-                        "-fx-font-size: 13px;" +
-                        "-fx-font-weight: bold;" +
-                        "-fx-padding: 10 18;" +
-                        "-fx-background-radius: 8;" +
-                        "-fx-cursor: hand;" +
-                        "-fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.2), 5, 0, 0, 2);"
-        ));
-
-        return button;
-    }
-
-    // ==================== STORAGE TABLE ====================
-
-    private TableView<StorageItemViewModel> createStorageTable() {
-        TableView<StorageItemViewModel> table = new TableView<>();
+    private TableView<StorageItemLocationViewModel> createItemTable(boolean showLocationColumn) {
+        TableView<StorageItemLocationViewModel> table = new TableView<>();
         table.setStyle(
-                "-fx-background-color: rgba(30, 41, 59, 0.5);" +
-                        "-fx-background-radius: 12;" +
-                        "-fx-border-color: rgba(239, 68, 68, 0.3);" +
-                        "-fx-border-radius: 12;" +
-                        "-fx-border-width: 2;"
+            "-fx-background-color: rgba(30, 41, 59, 0.5);" +
+            "-fx-background-radius: 12;" +
+            "-fx-border-color: rgba(239, 68, 68, 0.3);" +
+            "-fx-border-radius: 12;" +
+            "-fx-border-width: 2;"
         );
         table.setEditable(true);
-        buildStorageColumns(table);
+
+        buildTableColumns(table, showLocationColumn);
         return table;
     }
 
-    private void buildStorageColumns(TableView<StorageItemViewModel> table) {
+    private void buildTableColumns(TableView<StorageItemLocationViewModel> table, boolean showLocationColumn) {
         table.getColumns().clear();
         table.setColumnResizePolicy(TableView.UNCONSTRAINED_RESIZE_POLICY);
 
-        // Checkbox
-        TableColumn<StorageItemViewModel, Boolean> selectCol = new TableColumn<>();
+        // Checkbox column
+        TableColumn<StorageItemLocationViewModel, Boolean> selectCol = new TableColumn<>();
         selectCol.setPrefWidth(40);
         selectCol.setMaxWidth(40);
         selectCol.setMinWidth(40);
         selectCol.setResizable(false);
         selectCol.setEditable(true);
 
-        CheckBox storageSelectAll = new CheckBox();
-        storageSelectAll.setOnAction(e -> {
-            boolean selectAll = storageSelectAll.isSelected();
-            for (StorageItemViewModel item : filteredStorage) {
-                storageSelectionMap.get(item).set(selectAll);
+        selectAllCheckbox = new CheckBox();
+        selectAllCheckbox.setOnAction(e -> {
+            boolean selectAll = selectAllCheckbox.isSelected();
+            for (StorageItemLocationViewModel item : filteredItems) {
+                selectionMap.get(item).set(selectAll);
             }
         });
-        selectCol.setGraphic(storageSelectAll);
+        selectCol.setGraphic(selectAllCheckbox);
 
         selectCol.setCellValueFactory(cellData -> {
-            StorageItemViewModel item = cellData.getValue();
-            return storageSelectionMap.computeIfAbsent(item, k -> {
+            StorageItemLocationViewModel item = cellData.getValue();
+            return selectionMap.computeIfAbsent(item, k -> {
                 BooleanProperty prop = new SimpleBooleanProperty(false);
                 prop.addListener((obs, oldVal, newVal) -> {
                     updateSelectedCount();
-                    Platform.runLater(() -> storageTable.refresh());
+                    Platform.runLater(() -> table.refresh());
                 });
                 return prop;
             });
         });
 
-        // ✅ FIXED: Proper CheckBoxTableCell with index callback
         selectCol.setCellFactory(col -> new CheckBoxTableCell<>(index -> {
-            StorageItemViewModel item = storageTable.getItems().get(index);
-            return storageSelectionMap.get(item);
+            StorageItemLocationViewModel item = table.getItems().get(index);
+            return selectionMap.get(item);
         }));
 
         table.getColumns().add(selectCol);
 
-        // ID
-        TableColumn<StorageItemViewModel, String> idCol = new TableColumn<>("ID");
+        // ID Column
+        TableColumn<StorageItemLocationViewModel, String> idCol = new TableColumn<>("ID");
         idCol.setPrefWidth(60);
-        idCol.setCellValueFactory(cellData -> new SimpleStringProperty(String.valueOf(cellData.getValue().getId())));
+        idCol.setCellValueFactory(cellData ->
+            new SimpleStringProperty(String.valueOf(cellData.getValue().getItemId())));
         idCol.setStyle("-fx-alignment: CENTER;");
         table.getColumns().add(idCol);
 
-        // Manufacture
-        TableColumn<StorageItemViewModel, String> mfgCol = new TableColumn<>("Manufacture");
+        // Location Column (only for Total Sheet)
+        if (showLocationColumn) {
+            TableColumn<StorageItemLocationViewModel, String> locationCol = new TableColumn<>("Location");
+            locationCol.setPrefWidth(140);
+            locationCol.setCellValueFactory(new PropertyValueFactory<>("locationName"));
+            locationCol.setCellFactory(col -> new TableCell<>() {
+                @Override
+                protected void updateItem(String item, boolean empty) {
+                    super.updateItem(item, empty);
+                    if (empty || item == null) {
+                        setText(null);
+                        setStyle("");
+                    } else {
+                        setText(item);
+                        setStyle("-fx-alignment: CENTER; -fx-text-fill: #6366f1; -fx-font-weight: bold;");
+                    }
+                }
+            });
+            table.getColumns().add(locationCol);
+        }
+
+        // Manufacture Column
+        TableColumn<StorageItemLocationViewModel, String> mfgCol = new TableColumn<>("Manufacture");
         mfgCol.setPrefWidth(150);
         mfgCol.setCellValueFactory(new PropertyValueFactory<>("manufacture"));
         mfgCol.setStyle("-fx-alignment: CENTER-LEFT; -fx-padding: 0 10 0 10;");
         table.getColumns().add(mfgCol);
 
-        // Product Name
-        TableColumn<StorageItemViewModel, String> productCol = new TableColumn<>("Product Name");
+        // Product Name Column
+        TableColumn<StorageItemLocationViewModel, String> productCol = new TableColumn<>("Product Name");
         productCol.setPrefWidth(200);
         productCol.setCellValueFactory(new PropertyValueFactory<>("productName"));
         productCol.setStyle("-fx-alignment: CENTER-LEFT; -fx-padding: 0 10 0 10;");
         table.getColumns().add(productCol);
 
-        // Code
-        TableColumn<StorageItemViewModel, String> codeCol = new TableColumn<>("Code");
+        // Code Column
+        TableColumn<StorageItemLocationViewModel, String> codeCol = new TableColumn<>("Code");
         codeCol.setPrefWidth(120);
         codeCol.setCellValueFactory(new PropertyValueFactory<>("code"));
         codeCol.setStyle("-fx-alignment: CENTER;");
         table.getColumns().add(codeCol);
 
-        // Serial Number
-        TableColumn<StorageItemViewModel, String> serialCol = new TableColumn<>("Serial Number");
-        serialCol.setPrefWidth(150);
+        // Serial Number Column
+        TableColumn<StorageItemLocationViewModel, String> serialCol = new TableColumn<>("Serial Number");
+        serialCol.setPrefWidth(130);
         serialCol.setCellValueFactory(new PropertyValueFactory<>("serialNumber"));
         serialCol.setStyle("-fx-alignment: CENTER;");
         table.getColumns().add(serialCol);
 
-        // Quantity (SHOWN in Storage module)
-        TableColumn<StorageItemViewModel, String> qtyCol = new TableColumn<>("Quantity");
+        // Quantity Column
+        TableColumn<StorageItemLocationViewModel, String> qtyCol = new TableColumn<>("Quantity");
         qtyCol.setPrefWidth(100);
-        qtyCol.setCellValueFactory(cellData -> new SimpleStringProperty(String.valueOf(cellData.getValue().getQuantity())));
-        qtyCol.setStyle("-fx-alignment: CENTER; -fx-font-weight: bold;");
+        qtyCol.setCellValueFactory(cellData ->
+            new SimpleStringProperty(String.valueOf(cellData.getValue().getQuantity())));
+        qtyCol.setCellFactory(col -> new TableCell<>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                    setStyle("");
+                } else {
+                    setText(item);
+                    int qty = Integer.parseInt(item);
+                    if (qty <= 0) {
+                        setStyle("-fx-alignment: CENTER; -fx-text-fill: #ef4444; -fx-font-weight: bold;");
+                    } else if (qty < 10) {
+                        setStyle("-fx-alignment: CENTER; -fx-text-fill: #f59e0b; -fx-font-weight: bold;");
+                    } else {
+                        setStyle("-fx-alignment: CENTER; -fx-text-fill: #22c55e; -fx-font-weight: bold;");
+                    }
+                }
+            }
+        });
         table.getColumns().add(qtyCol);
 
-        // Price (SHOWN in Storage module)
-        TableColumn<StorageItemViewModel, String> priceCol = new TableColumn<>("Price");
-        priceCol.setPrefWidth(120);
+        // Bin Location Column
+        TableColumn<StorageItemLocationViewModel, String> binCol = new TableColumn<>("Bin Location");
+        binCol.setPrefWidth(150);
+        binCol.setCellValueFactory(new PropertyValueFactory<>("binLocation"));
+        binCol.setStyle("-fx-alignment: CENTER;");
+        table.getColumns().add(binCol);
+
+        // Price Column
+        TableColumn<StorageItemLocationViewModel, String> priceCol = new TableColumn<>("Price");
+        priceCol.setPrefWidth(100);
         priceCol.setCellValueFactory(cellData -> {
             BigDecimal price = cellData.getValue().getPrice();
-            return new SimpleStringProperty(String.format("$%.2f", price.doubleValue()));
+            return new SimpleStringProperty(String.format("$%.2f", price != null ? price.doubleValue() : 0));
         });
-        priceCol.setCellFactory(col -> new TableCell<StorageItemViewModel, String>() {
+        priceCol.setCellFactory(col -> new TableCell<>() {
             @Override
             protected void updateItem(String item, boolean empty) {
                 super.updateItem(item, empty);
@@ -484,39 +510,44 @@ public class StorageController extends BaseModuleController {
                 } else {
                     setText(item);
                     setStyle("-fx-alignment: CENTER-RIGHT; -fx-padding: 0 15 0 0; " +
-                            "-fx-text-fill: #22c55e; -fx-font-weight: bold; -fx-font-size: 13px;");
+                            "-fx-text-fill: #22c55e; -fx-font-weight: bold;");
                 }
             }
         });
         table.getColumns().add(priceCol);
 
-        // Row factory with selection highlighting
+        // Row factory
         table.setRowFactory(tv -> {
-            TableRow<StorageItemViewModel> row = new TableRow<StorageItemViewModel>() {
+            TableRow<StorageItemLocationViewModel> row = new TableRow<>() {
                 @Override
-                protected void updateItem(StorageItemViewModel item, boolean empty) {
+                protected void updateItem(StorageItemLocationViewModel item, boolean empty) {
                     super.updateItem(item, empty);
                     if (empty || item == null) {
                         setStyle("");
                     } else {
-                        BooleanProperty selected = storageSelectionMap.get(item);
+                        BooleanProperty selected = selectionMap.get(item);
                         if (selected != null) {
-                            selected.addListener((obs, oldVal, newVal) -> updateStorageRowStyle(this, newVal));
-                            updateStorageRowStyle(this, selected.get());
+                            selected.addListener((obs, oldVal, newVal) -> updateRowStyle(this, newVal));
+                            updateRowStyle(this, selected.get());
                         }
                     }
                 }
             };
+            row.setOnMouseClicked(event -> {
+                if (event.getClickCount() == 2 && !row.isEmpty()) {
+                    handleEditItem();
+                }
+            });
             return row;
         });
     }
 
-    private void updateStorageRowStyle(TableRow<StorageItemViewModel> row, boolean isSelected) {
+    private void updateRowStyle(TableRow<StorageItemLocationViewModel> row, boolean isSelected) {
         if (isSelected) {
             row.setStyle(
-                    "-fx-background-color: rgba(34, 197, 94, 0.2);" +
-                            "-fx-border-color: rgba(34, 197, 94, 0.6);" +
-                            "-fx-border-width: 0 0 0 4;"
+                "-fx-background-color: rgba(34, 197, 94, 0.2);" +
+                "-fx-border-color: rgba(34, 197, 94, 0.6);" +
+                "-fx-border-width: 0 0 0 4;"
             );
         } else {
             int index = row.getIndex();
@@ -528,282 +559,210 @@ public class StorageController extends BaseModuleController {
         }
     }
 
-    // ==================== ANALYSIS DASHBOARD ====================
+    // ==================== NAVIGATION ====================
 
-    private ScrollPane createAnalyticsView() {
-        ScrollPane scrollPane = new ScrollPane();
-        scrollPane.setFitToWidth(true);
-        scrollPane.setStyle(
-                "-fx-background: transparent;" +
-                        "-fx-background-color: transparent;"
-        );
-
-        // Embed the analytics dashboard directly
-        VBox content;
-        if (analysisDashboardController != null) {
-            content = analysisDashboardController.createEmbeddedView();
-        } else {
-            // Fallback if controller is not available
-            content = new VBox(30);
-            content.setPadding(new Insets(30));
-            content.setAlignment(Pos.CENTER);
-            content.setStyle("-fx-background-color: transparent;");
-
-            Label errorLabel = new Label("❌ Analysis Dashboard is not available");
-            errorLabel.setStyle("-fx-text-fill: #ef4444; -fx-font-size: 18px; -fx-font-weight: bold;");
-            content.getChildren().add(errorLabel);
+    private void navigateToView(ViewMode newMode) {
+        // Save current view to history (for back navigation)
+        if (currentViewMode != newMode) {
+            navigationHistory.push(currentViewMode);
         }
 
-        scrollPane.setContent(content);
-        return scrollPane;
-    }
+        currentViewMode = newMode;
+        updateBreadcrumb();
 
-    // DEPRECATED: Old analytics view removed - replaced with AnalysisDashboardController
-    private void loadAnalyticsData() {
-        // This method is now deprecated and has been replaced with AnalysisDashboardController
-        // All analytics functionality is now handled by the Analysis Dashboard
-        // No-op method kept for compatibility
-    }
-
-    private void refreshAnalytics() {
         Platform.runLater(() -> {
-            try {
-                // Get metrics
-                com.magictech.modules.storage.service.AnalyticsService.BusinessMetricsDTO metrics =
-                    analyticsService.getBusinessMetrics();
+            mainContainer.getChildren().clear();
 
-                // Update metrics cards
-                HBox metricsCards = (HBox) analyticsView.lookup("#metricsCards");
-                if (metricsCards != null) {
-                    metricsCards.getChildren().clear();
-                    metricsCards.getChildren().addAll(
-                        createMetricCard("Projects", String.valueOf(metrics.getTotalProjects()), "#6366f1"),
-                        createMetricCard("Completed", String.valueOf(metrics.getCompletedProjects()), "#22c55e"),
-                        createMetricCard("Active", String.valueOf(metrics.getActiveProjects()), "#f59e0b"),
-                        createMetricCard("Customers", String.valueOf(metrics.getTotalCustomers()), "#8b5cf6"),
-                        createMetricCard("Revenue", String.format("$%.0f", metrics.getTotalRevenue()), "#ef4444")
-                    );
-                }
+            switch (newMode) {
+                case ROAD_MAP:
+                    mainContainer.getChildren().add(jordanMap);
+                    loadRoadMapData();
+                    break;
 
-                // Load projects analytics
-                List<com.magictech.modules.storage.dto.ProjectAnalyticsDTO> projectAnalytics =
-                    analyticsService.getProjectAnalytics();
-                TableView<com.magictech.modules.storage.dto.ProjectAnalyticsDTO> projectsTable =
-                    (TableView<com.magictech.modules.storage.dto.ProjectAnalyticsDTO>) analyticsView.lookup("#projectsAnalyticsTable");
-                if (projectsTable != null) {
-                    projectsTable.getItems().setAll(projectAnalytics);
-                }
+                case LOCATION_SHEET:
+                    // Recreate the sheet view with correct toolbar
+                    locationSheetView = createSheetView(false);
+                    mainContainer.getChildren().add(locationSheetView);
+                    loadLocationSheetData();
+                    break;
 
-                // Load customers analytics
-                List<com.magictech.modules.storage.dto.CustomerAnalyticsDTO> customerAnalytics =
-                    analyticsService.getCustomerAnalytics();
-                TableView<com.magictech.modules.storage.dto.CustomerAnalyticsDTO> customersTable =
-                    (TableView<com.magictech.modules.storage.dto.CustomerAnalyticsDTO>) analyticsView.lookup("#customersAnalyticsTable");
-                if (customersTable != null) {
-                    customersTable.getItems().setAll(customerAnalytics);
-                }
-
-                System.out.println("✓ Analytics refreshed successfully");
-            } catch (Exception ex) {
-                System.err.println("Error refreshing analytics: " + ex.getMessage());
-                ex.printStackTrace();
+                case TOTAL_SHEET:
+                    // Recreate the sheet view with location column
+                    totalSheetView = createSheetView(true);
+                    mainContainer.getChildren().add(totalSheetView);
+                    loadTotalSheetData();
+                    break;
             }
         });
     }
 
-    private VBox createMetricCard(String label, String value, String color) {
-        VBox card = new VBox(10);
-        card.setAlignment(Pos.CENTER);
-        card.setPadding(new Insets(20));
-        card.setStyle(
-                "-fx-background-color: rgba(30, 41, 59, 0.6);" +
-                        "-fx-background-radius: 12;" +
-                        "-fx-border-color: " + color + ";" +
-                        "-fx-border-width: 2;" +
-                        "-fx-border-radius: 12;" +
-                        "-fx-min-width: 150px;" +
-                        "-fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.3), 10, 0, 0, 3);"
-        );
+    private void loadLocationSheetData() {
+        if (currentLocation == null) return;
 
-        Label valueLabel = new Label(value);
-        valueLabel.setStyle("-fx-text-fill: " + color + "; -fx-font-size: 32px; -fx-font-weight: bold;");
+        showLoading(true);
+        tableItems = FXCollections.observableArrayList();
+        filteredItems = new FilteredList<>(tableItems, p -> true);
+        itemTable.setItems(filteredItems);
+        selectionMap.clear();
 
-        Label labelText = new Label(label);
-        labelText.setStyle("-fx-text-fill: rgba(255, 255, 255, 0.7); -fx-font-size: 14px;");
-
-        card.getChildren().addAll(valueLabel, labelText);
-        return card;
-    }
-
-    // ==================== DATA LOADING ====================
-
-    private void loadStorageData() {
-        Task<List<StorageItem>> loadTask = new Task<>() {
+        Task<List<StorageItemLocation>> loadTask = new Task<>() {
             @Override
-            protected List<StorageItem> call() {
-                return storageService.getAllItems();
+            protected List<StorageItemLocation> call() {
+                return itemLocationService.getItemsInLocation(currentLocation.getLocationId());
             }
         };
 
         loadTask.setOnSucceeded(e -> {
-            List<StorageItem> items = loadTask.getValue();
-            storageItems.clear();
-            storageSelectionMap.clear();
-
-            for (StorageItem entity : items) {
-                StorageItemViewModel vm = convertStorageToViewModel(entity);
-                storageItems.add(vm);
-                BooleanProperty prop = new SimpleBooleanProperty(false);
-                prop.addListener((obs, oldVal, newVal) -> {
-                    updateSelectedCount();
-                    Platform.runLater(() -> storageTable.refresh());
-                });
-                storageSelectionMap.put(vm, prop);
-            }
-
-            System.out.println("✓ Loaded " + items.size() + " storage items");
+            List<StorageItemLocation> items = loadTask.getValue();
+            Platform.runLater(() -> {
+                for (StorageItemLocation sil : items) {
+                    StorageItemLocationViewModel vm = new StorageItemLocationViewModel(sil);
+                    tableItems.add(vm);
+                    BooleanProperty prop = new SimpleBooleanProperty(false);
+                    prop.addListener((obs, oldVal, newVal) -> updateSelectedCount());
+                    selectionMap.put(vm, prop);
+                }
+                showLoading(false);
+                System.out.println("✓ Loaded " + items.size() + " items for " + currentLocation.getLocationName());
+            });
         });
 
         loadTask.setOnFailed(e -> {
-            showError("Failed to load storage items: " + loadTask.getException().getMessage());
+            showLoading(false);
+            showError("Failed to load items: " + loadTask.getException().getMessage());
         });
 
         new Thread(loadTask).start();
     }
 
-    private StorageItemViewModel convertStorageToViewModel(StorageItem entity) {
-        StorageItemViewModel vm = new StorageItemViewModel();
-        vm.setId(entity.getId());
-        vm.setManufacture(entity.getManufacture() != null ? entity.getManufacture() : "");
-        vm.setProductName(entity.getProductName());
-        vm.setCode(entity.getCode() != null ? entity.getCode() : "");
-        vm.setSerialNumber(entity.getSerialNumber() != null ? entity.getSerialNumber() : "");
-        vm.setQuantity(entity.getQuantity() != null ? entity.getQuantity() : 0);
-        vm.setPrice(entity.getPrice() != null ? entity.getPrice() : BigDecimal.ZERO);
-        vm.setDateAdded(entity.getDateAdded().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")));
-        return vm;
-    }
+    private void loadTotalSheetData() {
+        showLoading(true);
+        tableItems = FXCollections.observableArrayList();
+        filteredItems = new FilteredList<>(tableItems, p -> true);
+        itemTable.setItems(filteredItems);
+        selectionMap.clear();
 
-    private ProjectViewModel convertProjectToViewModel(Project entity) {
-        ProjectViewModel vm = new ProjectViewModel();
-        vm.setId(entity.getId());
-        vm.setProjectName(entity.getProjectName());
-        vm.setProjectLocation(entity.getProjectLocation() != null ? entity.getProjectLocation() : "");
-        vm.setDateOfIssue(entity.getDateOfIssue() != null ?
-                entity.getDateOfIssue().format(DateTimeFormatter.ofPattern("yyyy-MM-dd")) : "");
-        vm.setDateOfCompletion(entity.getDateOfCompletion() != null ?
-                entity.getDateOfCompletion().format(DateTimeFormatter.ofPattern("yyyy-MM-dd")) : "");
-        vm.setStatus(entity.getStatus() != null ? entity.getStatus() : "Planning");
-        vm.setDateAdded(entity.getDateAdded().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")));
-        return vm;
+        Task<List<StorageItemLocation>> loadTask = new Task<>() {
+            @Override
+            protected List<StorageItemLocation> call() {
+                return itemLocationService.getAllItemLocations();
+            }
+        };
+
+        loadTask.setOnSucceeded(e -> {
+            List<StorageItemLocation> items = loadTask.getValue();
+            Platform.runLater(() -> {
+                for (StorageItemLocation sil : items) {
+                    StorageItemLocationViewModel vm = new StorageItemLocationViewModel(sil);
+                    tableItems.add(vm);
+                    BooleanProperty prop = new SimpleBooleanProperty(false);
+                    prop.addListener((obs, oldVal, newVal) -> updateSelectedCount());
+                    selectionMap.put(vm, prop);
+                }
+                showLoading(false);
+                System.out.println("✓ Loaded " + items.size() + " total items across all locations");
+            });
+        });
+
+        loadTask.setOnFailed(e -> {
+            showLoading(false);
+            showError("Failed to load items: " + loadTask.getException().getMessage());
+        });
+
+        new Thread(loadTask).start();
     }
 
     // ==================== HANDLERS ====================
 
-    private void handleAdd() {
-        if (currentTable == ActiveTable.STORAGE) {
-            handleAddStorageItem();
-        } else {
-            showWarning("Add is only available in Storage view");
-        }
-    }
-
-    private void handleEdit() {
-        if (currentTable == ActiveTable.STORAGE) {
-            handleEditStorageItem();
-        } else {
-            showWarning("Edit is only available in Storage view");
-        }
-    }
-
-    private void handleDelete() {
-        if (currentTable == ActiveTable.STORAGE) {
-            handleDeleteStorageItems();
-        } else {
-            showWarning("Delete is only available in Storage view");
-        }
-    }
-
     private void handleSearch(String searchText) {
-        if (currentTable == ActiveTable.STORAGE) {
-            filteredStorage.setPredicate(item -> {
-                if (searchText == null || searchText.isEmpty()) return true;
-                String lower = searchText.toLowerCase();
-                return (item.getManufacture() != null && item.getManufacture().toLowerCase().contains(lower)) ||
-                        (item.getProductName() != null && item.getProductName().toLowerCase().contains(lower)) ||
-                        (item.getCode() != null && item.getCode().toLowerCase().contains(lower)) ||
-                        (item.getSerialNumber() != null && item.getSerialNumber().toLowerCase().contains(lower));
-            });
-        }
+        if (filteredItems == null) return;
+
+        filteredItems.setPredicate(item -> {
+            if (searchText == null || searchText.isEmpty()) return true;
+            String lower = searchText.toLowerCase();
+            return (item.getManufacture() != null && item.getManufacture().toLowerCase().contains(lower)) ||
+                   (item.getProductName() != null && item.getProductName().toLowerCase().contains(lower)) ||
+                   (item.getCode() != null && item.getCode().toLowerCase().contains(lower)) ||
+                   (item.getSerialNumber() != null && item.getSerialNumber().toLowerCase().contains(lower)) ||
+                   (item.getLocationName() != null && item.getLocationName().toLowerCase().contains(lower));
+        });
     }
 
     private void updateSelectedCount() {
-        long count;
-        if (currentTable == ActiveTable.STORAGE) {
-            count = storageSelectionMap.values().stream().filter(BooleanProperty::get).count();
-        } else {
-            count = 0; // Analytics view doesn't have selections
-        }
+        long count = selectionMap.values().stream()
+                .filter(BooleanProperty::get)
+                .count();
 
         Platform.runLater(() -> {
             if (count > 0) {
                 selectedCountLabel.setText("✓ " + count + " item(s) selected");
                 selectedCountLabel.setVisible(true);
-                deleteButton.setDisable(false);
-                editButton.setDisable(count != 1);
-                openProjectButton.setDisable(true); // Project button always disabled
+                if (deleteButton != null) deleteButton.setDisable(false);
+                if (editButton != null) editButton.setDisable(count != 1);
+                if (transferButton != null) transferButton.setDisable(count != 1);
             } else {
                 selectedCountLabel.setVisible(false);
-                deleteButton.setDisable(true);
-                editButton.setDisable(true);
-                openProjectButton.setDisable(true);
+                if (deleteButton != null) deleteButton.setDisable(true);
+                if (editButton != null) editButton.setDisable(true);
+                if (transferButton != null) transferButton.setDisable(true);
             }
         });
     }
 
-    // ==================== STORAGE CRUD ====================
+    private List<StorageItemLocationViewModel> getSelectedItems() {
+        return selectionMap.entrySet().stream()
+                .filter(entry -> entry.getValue().get())
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toList());
+    }
 
-    private void handleAddStorageItem() {
-        Dialog<StorageItemViewModel> dialog = createStorageDialog(null);
-        Optional<StorageItemViewModel> result = dialog.showAndWait();
+    private void handleAddItem() {
+        if (currentViewMode != ViewMode.LOCATION_SHEET || currentLocation == null) {
+            showWarning("Please select a storage location first from the Road Map");
+            return;
+        }
+
+        Dialog<StorageItemLocationViewModel> dialog = createItemDialog(null);
+        Optional<StorageItemLocationViewModel> result = dialog.showAndWait();
 
         result.ifPresent(vm -> {
-            Task<StorageItem> saveTask = new Task<>() {
+            Task<StorageItemLocation> saveTask = new Task<>() {
                 @Override
-                protected StorageItem call() {
-                    StorageItem entity = new StorageItem();
-                    entity.setManufacture(vm.getManufacture());
-                    entity.setProductName(vm.getProductName());
-                    entity.setCode(vm.getCode());
-                    entity.setSerialNumber(vm.getSerialNumber());
-                    entity.setQuantity(vm.getQuantity());
-                    entity.setPrice(vm.getPrice());
-                    entity.setCreatedBy(currentUser != null ? currentUser.getUsername() : "system");
-                    return storageService.createItem(entity);
+                protected StorageItemLocation call() {
+                    // First create or get the storage item
+                    StorageItem item = new StorageItem();
+                    item.setManufacture(vm.getManufacture());
+                    item.setProductName(vm.getProductName());
+                    item.setCode(vm.getCode());
+                    item.setSerialNumber(vm.getSerialNumber());
+                    item.setPrice(vm.getPrice());
+                    item.setCreatedBy(currentUser != null ? currentUser.getUsername() : "system");
+                    StorageItem savedItem = storageService.createItem(item);
+
+                    // Then add it to the location
+                    return itemLocationService.addItemToLocation(
+                        savedItem.getId(),
+                        currentLocation.getLocationId(),
+                        vm.getQuantity(),
+                        currentUser != null ? currentUser.getUsername() : "system"
+                    );
                 }
             };
 
             saveTask.setOnSucceeded(e -> {
-                StorageItem saved = saveTask.getValue();
-                StorageItemViewModel savedVM = convertStorageToViewModel(saved);
                 Platform.runLater(() -> {
-                    storageItems.add(savedVM);
-                    storageSelectionMap.put(savedVM, new SimpleBooleanProperty(false));
-                    showSuccess("✓ Storage item created!");
+                    showSuccess("✓ Item added to " + currentLocation.getLocationName());
+                    loadLocationSheetData();
                 });
             });
 
-            saveTask.setOnFailed(e -> showError("Failed to save: " + saveTask.getException().getMessage()));
+            saveTask.setOnFailed(e -> showError("Failed to add item: " + saveTask.getException().getMessage()));
             new Thread(saveTask).start();
         });
     }
 
-    private void handleEditStorageItem() {
-        List<StorageItemViewModel> selected = storageSelectionMap.entrySet().stream()
-                .filter(e -> e.getValue().get())
-                .map(Map.Entry::getKey)
-                .collect(Collectors.toList());
-
+    private void handleEditItem() {
+        List<StorageItemLocationViewModel> selected = getSelectedItems();
         if (selected.isEmpty()) {
             showWarning("Please select an item to edit");
             return;
@@ -813,35 +772,39 @@ public class StorageController extends BaseModuleController {
             return;
         }
 
-        StorageItemViewModel item = selected.get(0);
-        Dialog<StorageItemViewModel> dialog = createStorageDialog(item);
-        Optional<StorageItemViewModel> result = dialog.showAndWait();
+        StorageItemLocationViewModel item = selected.get(0);
+        Dialog<StorageItemLocationViewModel> dialog = createItemDialog(item);
+        Optional<StorageItemLocationViewModel> result = dialog.showAndWait();
 
         result.ifPresent(updated -> {
-            Task<StorageItem> updateTask = new Task<>() {
+            Task<Void> updateTask = new Task<>() {
                 @Override
-                protected StorageItem call() {
-                    StorageItem entity = new StorageItem();
+                protected Void call() {
+                    // Update storage item
+                    StorageItem entity = storageService.findById(item.getItemId())
+                            .orElseThrow(() -> new RuntimeException("Item not found"));
                     entity.setManufacture(updated.getManufacture());
                     entity.setProductName(updated.getProductName());
                     entity.setCode(updated.getCode());
                     entity.setSerialNumber(updated.getSerialNumber());
-                    entity.setQuantity(updated.getQuantity());
                     entity.setPrice(updated.getPrice());
-                    return storageService.updateItem(item.getId(), entity);
+                    storageService.updateItem(entity.getId(), entity);
+
+                    // Update quantity in location
+                    itemLocationService.setItemQuantityInLocation(
+                        item.getItemId(),
+                        item.getLocationId(),
+                        updated.getQuantity(),
+                        currentUser != null ? currentUser.getUsername() : "system"
+                    );
+                    return null;
                 }
             };
 
             updateTask.setOnSucceeded(e -> {
                 Platform.runLater(() -> {
-                    item.setManufacture(updated.getManufacture());
-                    item.setProductName(updated.getProductName());
-                    item.setCode(updated.getCode());
-                    item.setSerialNumber(updated.getSerialNumber());
-                    item.setQuantity(updated.getQuantity());
-                    item.setPrice(updated.getPrice());
-                    storageTable.refresh();
-                    showSuccess("✓ Storage item updated!");
+                    showSuccess("✓ Item updated");
+                    refresh();
                 });
             });
 
@@ -850,12 +813,8 @@ public class StorageController extends BaseModuleController {
         });
     }
 
-    private void handleDeleteStorageItems() {
-        List<StorageItemViewModel> selected = storageSelectionMap.entrySet().stream()
-                .filter(e -> e.getValue().get())
-                .map(Map.Entry::getKey)
-                .collect(Collectors.toList());
-
+    private void handleDeleteItems() {
+        List<StorageItemLocationViewModel> selected = getSelectedItems();
         if (selected.isEmpty()) {
             showWarning("Please select items to delete");
             return;
@@ -863,27 +822,25 @@ public class StorageController extends BaseModuleController {
 
         Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
         confirm.setTitle("⚠️ DELETE");
-        confirm.setHeaderText("DELETE " + selected.size() + " storage item(s)?");
-        confirm.setContentText("This action cannot be undone!");
+        confirm.setHeaderText("Remove " + selected.size() + " item(s) from this location?");
+        confirm.setContentText("This will remove the items from this location only. The items will still exist in other locations.");
 
         Optional<ButtonType> result = confirm.showAndWait();
         if (result.isPresent() && result.get() == ButtonType.OK) {
             Task<Void> deleteTask = new Task<>() {
                 @Override
                 protected Void call() {
-                    List<Long> ids = selected.stream().map(StorageItemViewModel::getId).collect(Collectors.toList());
-                    storageService.deleteItems(ids);
+                    for (StorageItemLocationViewModel vm : selected) {
+                        itemLocationService.removeItemFromLocation(vm.getItemId(), vm.getLocationId());
+                    }
                     return null;
                 }
             };
 
             deleteTask.setOnSucceeded(e -> {
                 Platform.runLater(() -> {
-                    for (StorageItemViewModel item : selected) {
-                        storageItems.remove(item);
-                        storageSelectionMap.remove(item);
-                    }
-                    showSuccess("✓ Deleted " + selected.size() + " storage item(s)");
+                    showSuccess("✓ Removed " + selected.size() + " item(s) from location");
+                    refresh();
                 });
             });
 
@@ -892,99 +849,93 @@ public class StorageController extends BaseModuleController {
         }
     }
 
-    private void handleExcelImport() {
-        FileChooser fileChooser = new FileChooser();
-        fileChooser.setTitle("Import Excel");
-        fileChooser.getExtensionFilters().add(
-                new FileChooser.ExtensionFilter("Excel Files", "*.xlsx", "*.xls")
-        );
-
-        File file = fileChooser.showOpenDialog(rootPane.getScene().getWindow());
-
-        if (file != null) {
-            Task<List<StorageItem>> importTask = new Task<>() {
-                @Override
-                protected List<StorageItem> call() throws Exception {
-                    List<StorageItem> items = excelImportService.importFromExcel(file);
-                    List<StorageItem> saved = new ArrayList<>();
-                    for (StorageItem item : items) {
-                        item.setCreatedBy(currentUser != null ? currentUser.getUsername() : "system");
-                        saved.add(storageService.createItem(item));
-                    }
-                    return saved;
-                }
-            };
-
-            importTask.setOnSucceeded(e -> {
-                List<StorageItem> saved = importTask.getValue();
-                Platform.runLater(() -> {
-                    for (StorageItem entity : saved) {
-                        StorageItemViewModel vm = convertStorageToViewModel(entity);
-                        storageItems.add(vm);
-                        storageSelectionMap.put(vm, new SimpleBooleanProperty(false));
-                    }
-                    showSuccess("✓ Imported " + saved.size() + " items!");
-                });
-            });
-
-            importTask.setOnFailed(e -> showError("Import failed: " + importTask.getException().getMessage()));
-            new Thread(importTask).start();
+    private void handleTransferItem() {
+        List<StorageItemLocationViewModel> selected = getSelectedItems();
+        if (selected.isEmpty() || selected.size() > 1) {
+            showWarning("Please select exactly ONE item to transfer");
+            return;
         }
+
+        StorageItemLocationViewModel item = selected.get(0);
+
+        // Show transfer dialog
+        Dialog<Long> transferDialog = createTransferDialog(item);
+        Optional<Long> result = transferDialog.showAndWait();
+
+        result.ifPresent(targetLocationId -> {
+            // Ask for quantity
+            TextInputDialog qtyDialog = new TextInputDialog(String.valueOf(item.getQuantity()));
+            qtyDialog.setTitle("Transfer Quantity");
+            qtyDialog.setHeaderText("How many units to transfer?");
+            qtyDialog.setContentText("Quantity (max " + item.getQuantity() + "):");
+
+            Optional<String> qtyResult = qtyDialog.showAndWait();
+            qtyResult.ifPresent(qtyStr -> {
+                try {
+                    int qty = Integer.parseInt(qtyStr);
+                    if (qty <= 0 || qty > item.getQuantity()) {
+                        showError("Invalid quantity. Must be between 1 and " + item.getQuantity());
+                        return;
+                    }
+
+                    Task<Void> transferTask = new Task<>() {
+                        @Override
+                        protected Void call() {
+                            itemLocationService.transferItem(
+                                item.getItemId(),
+                                item.getLocationId(),
+                                targetLocationId,
+                                qty,
+                                currentUser != null ? currentUser.getUsername() : "system"
+                            );
+                            return null;
+                        }
+                    };
+
+                    transferTask.setOnSucceeded(e -> {
+                        Platform.runLater(() -> {
+                            showSuccess("✓ Transferred " + qty + " unit(s)");
+                            refresh();
+                        });
+                    });
+
+                    transferTask.setOnFailed(e -> showError("Transfer failed: " + transferTask.getException().getMessage()));
+                    new Thread(transferTask).start();
+                } catch (NumberFormatException ex) {
+                    showError("Please enter a valid number");
+                }
+            });
+        });
     }
 
     private void handleExcelExport() {
-        if (storageItems.isEmpty()) {
+        if (tableItems == null || tableItems.isEmpty()) {
             showWarning("No items to export!");
             return;
         }
 
         FileChooser fileChooser = new FileChooser();
-        fileChooser.setTitle("Export Excel");
-        fileChooser.setInitialFileName("storage_" +
+        fileChooser.setTitle("Export to Excel");
+        String prefix = currentViewMode == ViewMode.TOTAL_SHEET ? "all_locations" :
+            (currentLocation != null ? currentLocation.getLocationCode() : "storage");
+        fileChooser.setInitialFileName(prefix + "_" +
                 LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")) + ".xlsx");
         fileChooser.getExtensionFilters().add(
                 new FileChooser.ExtensionFilter("Excel", "*.xlsx")
         );
 
         File file = fileChooser.showSaveDialog(rootPane.getScene().getWindow());
-
         if (file != null) {
-            Task<File> exportTask = new Task<>() {
-                @Override
-                protected File call() throws Exception {
-                    return excelExportService.exportToExcel(storageService.getAllItems(), file.getAbsolutePath());
-                }
-            };
-
-            exportTask.setOnSucceeded(e -> showSuccess("✓ Exported " + storageItems.size() + " items!"));
-            exportTask.setOnFailed(e -> showError("Export failed: " + exportTask.getException().getMessage()));
-            new Thread(exportTask).start();
+            // TODO: Implement Excel export for item locations
+            showSuccess("✓ Export functionality coming soon!");
         }
     }
 
-    // ==================== PROJECT CRUD ====================
-
-    // NOTE: Project management methods removed - use the dedicated Projects module instead
-    // These are commented out as the StorageController now only handles STORAGE and ANALYTICS views
-    /*
-    private void handleAddProject() {
-        // Removed - use Projects module
-    }
-
-    private void handleEditProject() {
-        // Removed - use Projects module
-    }
-
-    private void handleDeleteProjects() {
-        // Removed - use Projects module
-    }
-    */
-
     // ==================== DIALOGS ====================
 
-    private Dialog<StorageItemViewModel> createStorageDialog(StorageItemViewModel existing) {
-        Dialog<StorageItemViewModel> dialog = new Dialog<>();
-        dialog.setTitle(existing == null ? "Add Storage Item" : "Edit Storage Item");
+    private Dialog<StorageItemLocationViewModel> createItemDialog(StorageItemLocationViewModel existing) {
+        Dialog<StorageItemLocationViewModel> dialog = new Dialog<>();
+        dialog.setTitle(existing == null ? "Add Item to Location" : "Edit Item");
 
         ButtonType saveBtn = new ButtonType("Save", ButtonBar.ButtonData.OK_DONE);
         dialog.getDialogPane().getButtonTypes().addAll(saveBtn, ButtonType.CANCEL);
@@ -1032,7 +983,7 @@ public class StorageController extends BaseModuleController {
 
         dialog.setResultConverter(btn -> {
             if (btn == saveBtn && !nameField.getText().trim().isEmpty()) {
-                StorageItemViewModel vm = new StorageItemViewModel();
+                StorageItemLocationViewModel vm = new StorageItemLocationViewModel();
                 vm.setManufacture(mfgField.getText().trim());
                 vm.setProductName(nameField.getText().trim());
                 vm.setCode(codeField.getText().trim());
@@ -1051,63 +1002,46 @@ public class StorageController extends BaseModuleController {
         return dialog;
     }
 
-    private Dialog<ProjectViewModel> createProjectDialog(ProjectViewModel existing) {
-        Dialog<ProjectViewModel> dialog = new Dialog<>();
-        dialog.setTitle(existing == null ? "Add Project" : "Edit Project");
+    private Dialog<Long> createTransferDialog(StorageItemLocationViewModel item) {
+        Dialog<Long> dialog = new Dialog<>();
+        dialog.setTitle("Transfer Item");
+        dialog.setHeaderText("Transfer '" + item.getProductName() + "' to another location");
 
-        ButtonType saveBtn = new ButtonType("Save", ButtonBar.ButtonData.OK_DONE);
-        dialog.getDialogPane().getButtonTypes().addAll(saveBtn, ButtonType.CANCEL);
+        ButtonType transferBtn = new ButtonType("Transfer", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(transferBtn, ButtonType.CANCEL);
 
-        GridPane grid = new GridPane();
-        grid.setHgap(10);
-        grid.setVgap(12);
-        grid.setPadding(new Insets(20));
-        grid.setPrefWidth(500);
+        VBox content = new VBox(15);
+        content.setPadding(new Insets(20));
 
-        TextField nameField = new TextField(existing != null ? existing.getProjectName() : "");
-        nameField.setPromptText("Project Name (Required)");
+        Label currentLabel = new Label("From: " + item.getLocationName());
+        currentLabel.setStyle("-fx-font-weight: bold;");
 
-        TextField locationField = new TextField(existing != null ? existing.getProjectLocation() : "");
-        locationField.setPromptText("Project Location");
+        ComboBox<StorageLocation> locationCombo = new ComboBox<>();
+        List<StorageLocation> locations = locationService.getAllActiveLocations();
+        locations.removeIf(loc -> loc.getId().equals(item.getLocationId())); // Remove current location
+        locationCombo.getItems().addAll(locations);
+        locationCombo.setPromptText("Select destination location...");
+        locationCombo.setCellFactory(lv -> new ListCell<>() {
+            @Override
+            protected void updateItem(StorageLocation loc, boolean empty) {
+                super.updateItem(loc, empty);
+                setText(empty || loc == null ? null : loc.getName() + " (" + loc.getCity() + ")");
+            }
+        });
+        locationCombo.setButtonCell(new ListCell<>() {
+            @Override
+            protected void updateItem(StorageLocation loc, boolean empty) {
+                super.updateItem(loc, empty);
+                setText(empty || loc == null ? null : loc.getName());
+            }
+        });
 
-        DatePicker issueDate = new DatePicker();
-        if (existing != null && !existing.getDateOfIssue().isEmpty()) {
-            issueDate.setValue(LocalDate.parse(existing.getDateOfIssue()));
-        }
-
-        DatePicker completionDate = new DatePicker();
-        if (existing != null && !existing.getDateOfCompletion().isEmpty()) {
-            completionDate.setValue(LocalDate.parse(existing.getDateOfCompletion()));
-        }
-
-        ComboBox<String> statusBox = new ComboBox<>();
-        statusBox.getItems().addAll("Planning", "In Progress", "On Hold", "Completed");
-        statusBox.setValue(existing != null ? existing.getStatus() : "Planning");
-
-        grid.add(new Label("Project Name:*"), 0, 0);
-        grid.add(nameField, 1, 0);
-        grid.add(new Label("Location:"), 0, 1);
-        grid.add(locationField, 1, 1);
-        grid.add(new Label("Date of Issue:"), 0, 2);
-        grid.add(issueDate, 1, 2);
-        grid.add(new Label("Date of Completion:"), 0, 3);
-        grid.add(completionDate, 1, 3);
-        grid.add(new Label("Status:"), 0, 4);
-        grid.add(statusBox, 1, 4);
-
-        dialog.getDialogPane().setContent(grid);
+        content.getChildren().addAll(currentLabel, new Label("To:"), locationCombo);
+        dialog.getDialogPane().setContent(content);
 
         dialog.setResultConverter(btn -> {
-            if (btn == saveBtn && !nameField.getText().trim().isEmpty()) {
-                ProjectViewModel vm = new ProjectViewModel();
-                vm.setProjectName(nameField.getText().trim());
-                vm.setProjectLocation(locationField.getText().trim());
-                vm.setDateOfIssue(issueDate.getValue() != null ?
-                        issueDate.getValue().format(DateTimeFormatter.ofPattern("yyyy-MM-dd")) : "");
-                vm.setDateOfCompletion(completionDate.getValue() != null ?
-                        completionDate.getValue().format(DateTimeFormatter.ofPattern("yyyy-MM-dd")) : "");
-                vm.setStatus(statusBox.getValue());
-                return vm;
+            if (btn == transferBtn && locationCombo.getValue() != null) {
+                return locationCombo.getValue().getId();
             }
             return null;
         });
@@ -1115,13 +1049,73 @@ public class StorageController extends BaseModuleController {
         return dialog;
     }
 
+    // ==================== HELPERS ====================
+
+    private Button createStyledButton(String text, String bgColor, String hoverColor) {
+        Button button = new Button(text);
+        button.setStyle(
+            "-fx-background-color: " + bgColor + ";" +
+            "-fx-text-fill: white;" +
+            "-fx-font-size: 13px;" +
+            "-fx-font-weight: bold;" +
+            "-fx-padding: 10 18;" +
+            "-fx-background-radius: 8;" +
+            "-fx-cursor: hand;" +
+            "-fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.2), 5, 0, 0, 2);"
+        );
+
+        button.setOnMouseEntered(e -> button.setStyle(
+            "-fx-background-color: " + hoverColor + ";" +
+            "-fx-text-fill: white;" +
+            "-fx-font-size: 13px;" +
+            "-fx-font-weight: bold;" +
+            "-fx-padding: 10 18;" +
+            "-fx-background-radius: 8;" +
+            "-fx-cursor: hand;" +
+            "-fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.3), 8, 0, 0, 3);"
+        ));
+
+        button.setOnMouseExited(e -> button.setStyle(
+            "-fx-background-color: " + bgColor + ";" +
+            "-fx-text-fill: white;" +
+            "-fx-font-size: 13px;" +
+            "-fx-font-weight: bold;" +
+            "-fx-padding: 10 18;" +
+            "-fx-background-radius: 8;" +
+            "-fx-cursor: hand;" +
+            "-fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.2), 5, 0, 0, 2);"
+        ));
+
+        return button;
+    }
+
+    private void showLoading(boolean show) {
+        Platform.runLater(() -> {
+            if (loadingIndicator != null) {
+                loadingIndicator.setVisible(show);
+            }
+            if (itemTable != null) {
+                itemTable.setDisable(show);
+            }
+        });
+    }
+
     // ==================== LIFECYCLE ====================
 
     private void handleBack() {
-        if (backgroundPane != null) {
-            backgroundPane.stopAnimation();
+        if (currentViewMode != ViewMode.ROAD_MAP) {
+            // Go back to road map
+            navigateToView(ViewMode.ROAD_MAP);
+        } else {
+            // Go back to dashboard
+            if (backgroundPane != null) {
+                backgroundPane.stopAnimation();
+            }
+            if (jordanMap != null) {
+                jordanMap.cleanup();
+            }
+            SceneManager.getInstance().showMainDashboard();
         }
-        SceneManager.getInstance().showMainDashboard();
     }
 
     public void immediateCleanup() {
@@ -1129,16 +1123,27 @@ public class StorageController extends BaseModuleController {
             backgroundPane.stopAnimation();
             backgroundPane = null;
         }
-        System.out.println("✓ Storage master controller cleaned up");
+        if (jordanMap != null) {
+            jordanMap.cleanup();
+            jordanMap = null;
+        }
+        System.out.println("✓ Storage controller cleaned up");
     }
 
     @Override
     public void refresh() {
-        if (currentTable == ActiveTable.STORAGE) {
-            storageSelectionMap.clear();
-            loadStorageData();
-        } else {
-            refreshAnalytics();
+        switch (currentViewMode) {
+            case ROAD_MAP:
+                loadRoadMapData();
+                break;
+            case LOCATION_SHEET:
+                selectionMap.clear();
+                loadLocationSheetData();
+                break;
+            case TOTAL_SHEET:
+                selectionMap.clear();
+                loadTotalSheetData();
+                break;
         }
     }
 }
