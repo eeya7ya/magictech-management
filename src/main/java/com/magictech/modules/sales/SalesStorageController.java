@@ -3134,6 +3134,25 @@ public class SalesStorageController extends BaseModuleController
         Task<List<Project>> loadTask = new Task<>() {
             @Override
             protected List<Project> call() {
+                // Filter projects based on user role
+                // MASTER and SALES_MANAGER can see all projects
+                // SALES users can only see projects they created
+                if (currentUser != null) {
+                    com.magictech.core.auth.UserRole role = currentUser.getRole();
+                    if (role == com.magictech.core.auth.UserRole.MASTER ||
+                        role == com.magictech.core.auth.UserRole.SALES_MANAGER) {
+                        // MASTER and SALES_MANAGER see all projects
+                        System.out.println("📊 Loading ALL projects for " + role + " user: " + currentUser.getUsername());
+                        return projectService.getAllProjects();
+                    } else {
+                        // SALES users only see their own projects (created by them)
+                        System.out.println("📊 Loading filtered projects for SALES user: " + currentUser.getUsername());
+                        List<Project> userProjects = projectService.getProjectsByUser(currentUser.getUsername());
+                        System.out.println("   Found " + userProjects.size() + " projects created by " + currentUser.getUsername());
+                        return userProjects;
+                    }
+                }
+                // Fallback: return all projects if no user context
                 return projectService.getAllProjects();
             }
         };

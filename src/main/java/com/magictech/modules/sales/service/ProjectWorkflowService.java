@@ -72,6 +72,9 @@ public class ProjectWorkflowService {
     @Autowired
     private com.magictech.modules.projects.repository.ProjectElementRepository projectElementRepository;
 
+    @Autowired
+    private WorkflowEmailService workflowEmailService;
+
     /**
      * Create new workflow for a project
      */
@@ -382,6 +385,15 @@ public class ProjectWorkflowService {
         System.out.println("🔔 Notification sent to Sales user: " + salesUser.getUsername() +
                          " about site survey completion for project: " + project.getProjectName());
 
+        // Send email notification to sales user
+        try {
+            workflowEmailService.sendSiteSurveyUploadedEmail(salesUser, projectUser, project);
+            System.out.println("📧 Email sent to Sales user: " + salesUser.getEmail());
+        } catch (Exception emailEx) {
+            System.err.println("⚠️ Failed to send site survey email: " + emailEx.getMessage());
+            // Don't fail the workflow if email fails
+        }
+
         // NOTE: Step 2 (Selection & Design) is now OPTIONAL
         // User will be prompted to choose whether to request from Presales or skip
         System.out.println("✅ Step 1 completed. User will now choose whether to request from Presales in Step 2.");
@@ -432,6 +444,15 @@ public class ProjectWorkflowService {
 
         System.out.println("🔔 Notification sent to Sales user: " + salesUser.getUsername() +
                          " about site survey completion for project: " + project.getProjectName());
+
+        // Send email notification to sales user
+        try {
+            workflowEmailService.sendSiteSurveyUploadedEmail(salesUser, projectUser, project);
+            System.out.println("📧 Email sent to Sales user: " + salesUser.getEmail());
+        } catch (Exception emailEx) {
+            System.err.println("⚠️ Failed to send site survey email: " + emailEx.getMessage());
+            // Don't fail the workflow if email fails
+        }
 
         System.out.println("✅ Step 1 completed via completeSiteSurveyFromProject. Workflow now at Step " + workflow.getCurrentStep());
     }
@@ -559,6 +580,15 @@ public class ProjectWorkflowService {
 
         System.out.println("🔔 Notification sent to Sales user about presales completion");
 
+        // Send email notification to sales user
+        try {
+            workflowEmailService.sendSizingPricingUploadedEmail(salesUser, presalesUser, project);
+            System.out.println("📧 Email sent to Sales user: " + salesUser.getEmail());
+        } catch (Exception emailEx) {
+            System.err.println("⚠️ Failed to send sizing/pricing email: " + emailEx.getMessage());
+            // Don't fail the workflow if email fails
+        }
+
         // NOTE: Step 3 (Bank Guarantee) is now OPTIONAL
         // User will be prompted to choose whether to request bank guarantee or skip
         System.out.println("✅ Step 2 completed. User will now choose whether to request bank guarantee in Step 3.");
@@ -657,6 +687,15 @@ public class ProjectWorkflowService {
         User salesUser = getUserById(workflow.getCreatedById());
         notificationService.notifyBankGuaranteeCompleted(project, financeUser, salesUser);
         System.out.println("🔔 Notification sent to Sales user about bank guarantee completion");
+
+        // Send email notification to sales user
+        try {
+            workflowEmailService.sendBankGuaranteeUploadedEmail(salesUser, financeUser, project);
+            System.out.println("📧 Email sent to Sales user: " + salesUser.getEmail());
+        } catch (Exception emailEx) {
+            System.err.println("⚠️ Failed to send bank guarantee email: " + emailEx.getMessage());
+            // Don't fail the workflow if email fails
+        }
     }
 
     /**
