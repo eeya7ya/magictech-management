@@ -163,58 +163,52 @@ public class JordanMapPane extends StackPane {
     }
 
     private void drawJordanMap() {
-        // Accurate Jordan border based on real geographic shape
-        // Reference: Jordan has a distinctive shape with pointed northwest,
-        // angular eastern border with Iraq, and narrow southern access to Aqaba
+        // Accurate Jordan border from GeoJSON coordinates (Natural Earth data)
+        // Source: https://github.com/johan/world.geo.json
+        // Coordinates converted from [lon, lat] to SVG coordinates
+        // Bounds: lon [34.92, 39.20], lat [29.20, 33.38]
+        // Scale: 120 pixels per degree, offset for centering
 
-        // Jordan SVG path - accurate border representation matching real Jordan shape
+        // Jordan SVG path - accurate geographic border
         String jordanPathData =
-            // Start at northwest corner (Umm Qais area near Syria/Israel border)
-            "M 200 60 " +
-            // North border with Syria - relatively straight going east
-            "L 240 45 " +
-            "L 280 35 " +
-            "L 320 30 " +
-            // Northeast - continuing along Syria border
-            "L 380 28 " +
-            // Eastern border with Iraq - distinctive angled segments
-            "L 420 35 " +
-            "L 460 55 " +
-            // Iraq border - the characteristic angular eastern border
-            "L 490 90 " +
-            "L 510 140 " +
-            "L 520 200 " +
-            // Continue southeast along Iraq/Saudi border
-            "L 515 260 " +
-            "L 500 320 " +
-            // Saudi Arabia border - angles southwest
-            "L 470 380 " +
-            "L 430 440 " +
-            "L 380 500 " +
-            // Continue toward Aqaba
-            "L 320 560 " +
-            "L 270 610 " +
-            // Aqaba - narrow access point to Gulf
-            "L 235 650 " +
-            "L 220 665 " +  // Aqaba tip (southernmost point)
-            "L 205 650 " +
-            // Western border - Wadi Araba going north
-            "L 195 600 " +
-            "L 180 540 " +
-            // Dead Sea southern end (Lisan Peninsula area)
-            "L 165 480 " +
-            "L 150 420 " +
-            // Dead Sea western shore
-            "L 145 360 " +
-            "L 150 300 " +
-            // Dead Sea northern end
-            "L 155 250 " +
-            // Jordan Valley going north
-            "L 160 200 " +
-            "L 170 150 " +
-            // Northwest toward Lake Tiberias
-            "L 185 100 " +
-            "L 200 60 Z";  // Back to start
+            // Point 1: Northwest (near Umm Qais) [35.545665, 32.393992]
+            "M 125 148 " +
+            // Point 2: [35.719918, 32.709192]
+            "L 146 110 " +
+            // Point 3: [36.834062, 32.312938]
+            "L 279 158 " +
+            // Point 4: Northeast corner (Syria/Iraq) [38.792341, 33.378686]
+            "L 514 30 " +
+            // Point 5: East (Iraq border) [39.195468, 32.161009]
+            "L 563 176 " +
+            // Point 6: [39.004886, 32.010217]
+            "L 540 194 " +
+            // Point 7: [37.002166, 31.508413]
+            "L 300 254 " +
+            // Point 8: [37.998849, 30.5085]
+            "L 419 374 " +
+            // Point 9: [37.66812, 30.338665]
+            "L 379 395 " +
+            // Point 10: [37.503582, 30.003776]
+            "L 360 435 " +
+            // Point 11: [36.740528, 29.865283]
+            "L 268 452 " +
+            // Point 12: [36.501214, 29.505254]
+            "L 240 495 " +
+            // Point 13: Southernmost (near Aqaba) [36.068941, 29.197495]
+            "L 188 532 " +
+            // Point 14: Aqaba west [34.956037, 29.356555]
+            "L 54 513 " +
+            // Point 15: Aqaba tip [34.922603, 29.501326]
+            "L 50 495 " +
+            // Point 16: Dead Sea south [35.420918, 31.100066]
+            "L 110 303 " +
+            // Point 17: Dead Sea middle [35.397561, 31.489086]
+            "L 107 257 " +
+            // Point 18: Dead Sea north [35.545252, 31.782505]
+            "L 125 222 " +
+            // Close path back to start
+            "L 125 148 Z";
 
         SVGPath jordanBorder = new SVGPath();
         jordanBorder.setContent(jordanPathData);
@@ -258,14 +252,14 @@ public class JordanMapPane extends StackPane {
     }
 
     private void drawDeadSea() {
-        // Dead Sea shape - positioned along western border
+        // Dead Sea shape - positioned along western border (between points 16-18)
         SVGPath deadSea = new SVGPath();
         deadSea.setContent(
-            "M 155 260 " +
-            "Q 145 300 148 340 " +
-            "Q 150 380 160 410 " +
-            "Q 170 380 165 340 " +
-            "Q 160 300 155 260 Z"
+            "M 115 230 " +
+            "Q 100 260 105 290 " +
+            "Q 108 310 115 330 " +
+            "Q 125 310 120 290 " +
+            "Q 118 260 115 230 Z"
         );
         deadSea.setFill(Color.web("#0ea5e9", 0.5));
         deadSea.setStroke(Color.web("#0ea5e9", 0.7));
@@ -273,26 +267,26 @@ public class JordanMapPane extends StackPane {
 
         // Dead Sea label
         Text deadSeaLabel = new Text("Dead Sea");
-        deadSeaLabel.setX(95);
-        deadSeaLabel.setY(340);
+        deadSeaLabel.setX(40);
+        deadSeaLabel.setY(280);
         deadSeaLabel.setFill(Color.web("#0ea5e9", 0.8));
         deadSeaLabel.setFont(Font.font("Arial", FontWeight.BOLD, 10));
 
-        // Gulf of Aqaba - at the southern tip
+        // Gulf of Aqaba - at the southern tip (around point 15)
         SVGPath aqabaGulf = new SVGPath();
         aqabaGulf.setContent(
-            "M 210 660 " +
-            "L 220 690 " +
-            "L 230 660 " +
-            "Q 220 665 210 660 Z"
+            "M 45 500 " +
+            "L 40 530 " +
+            "L 55 520 " +
+            "Q 50 510 45 500 Z"
         );
         aqabaGulf.setFill(Color.web("#0ea5e9", 0.6));
         aqabaGulf.setStroke(Color.web("#0ea5e9", 0.8));
         aqabaGulf.setStrokeWidth(1);
 
         Text aqabaLabel = new Text("Gulf of\nAqaba");
-        aqabaLabel.setX(160);
-        aqabaLabel.setY(680);
+        aqabaLabel.setX(5);
+        aqabaLabel.setY(545);
         aqabaLabel.setFill(Color.web("#0ea5e9", 0.7));
         aqabaLabel.setFont(Font.font("Arial", 9));
 
@@ -300,72 +294,96 @@ public class JordanMapPane extends StackPane {
     }
 
     private void addGeographicalLabels() {
-        // City labels will be added with pins
-        // Add region labels - centered within the new border shape
+        // City labels - positioned based on actual GeoJSON coordinates
+        // Amman: approximately [35.93, 31.95] -> SVG ~(170, 201)
 
         Text ammanRegion = new Text("AMMAN");
-        ammanRegion.setX(280);
+        ammanRegion.setX(170);
         ammanRegion.setY(200);
-        ammanRegion.setFill(Color.web("#ffffff", 0.2));
-        ammanRegion.setFont(Font.font("Arial", FontWeight.BOLD, 16));
+        ammanRegion.setFill(Color.web("#ffffff", 0.25));
+        ammanRegion.setFont(Font.font("Arial", FontWeight.BOLD, 14));
 
+        // Wadi Rum: approximately [35.4, 29.6] -> SVG ~(107, 483)
         Text wadiRum = new Text("Wadi Rum");
-        wadiRum.setX(280);
-        wadiRum.setY(570);
+        wadiRum.setX(120);
+        wadiRum.setY(470);
         wadiRum.setFill(Color.web("#f59e0b", 0.4));
         wadiRum.setFont(Font.font("Arial", FontWeight.NORMAL, 10));
 
-        // Add more geographical reference points
+        // Madaba: approximately [35.8, 31.72] -> SVG ~(155, 229)
         Text madaba = new Text("Madaba");
-        madaba.setX(200);
-        madaba.setY(250);
+        madaba.setX(140);
+        madaba.setY(240);
         madaba.setFill(Color.web("#ffffff", 0.15));
         madaba.setFont(Font.font("Arial", FontWeight.NORMAL, 9));
 
+        // Kerak: approximately [35.7, 31.18] -> SVG ~(143, 294)
         Text kerak = new Text("Kerak");
-        kerak.setX(200);
-        kerak.setY(380);
+        kerak.setX(135);
+        kerak.setY(310);
         kerak.setFill(Color.web("#ffffff", 0.15));
         kerak.setFont(Font.font("Arial", FontWeight.NORMAL, 9));
 
+        // Petra: approximately [35.44, 30.33] -> SVG ~(112, 396)
         Text petra = new Text("Petra");
-        petra.setX(220);
-        petra.setY(500);
+        petra.setX(130);
+        petra.setY(400);
         petra.setFill(Color.web("#ffffff", 0.15));
         petra.setFont(Font.font("Arial", FontWeight.NORMAL, 9));
 
-        mapGroup.getChildren().addAll(ammanRegion, wadiRum, madaba, kerak, petra);
+        // Aqaba: approximately [35.0, 29.53] -> SVG ~(59, 492)
+        Text aqaba = new Text("Aqaba");
+        aqaba.setX(60);
+        aqaba.setY(505);
+        aqaba.setFill(Color.web("#ffffff", 0.15));
+        aqaba.setFont(Font.font("Arial", FontWeight.NORMAL, 9));
+
+        // Irbid: approximately [35.85, 32.55] -> SVG ~(161, 129)
+        Text irbid = new Text("Irbid");
+        irbid.setX(155);
+        irbid.setY(130);
+        irbid.setFill(Color.web("#ffffff", 0.15));
+        irbid.setFont(Font.font("Arial", FontWeight.NORMAL, 9));
+
+        // Jerash: approximately [35.9, 32.28] -> SVG ~(167, 161)
+        Text jerash = new Text("Jerash");
+        jerash.setX(165);
+        jerash.setY(165);
+        jerash.setFill(Color.web("#ffffff", 0.15));
+        jerash.setFont(Font.font("Arial", FontWeight.NORMAL, 9));
+
+        mapGroup.getChildren().addAll(ammanRegion, wadiRum, madaba, kerak, petra, aqaba, irbid, jerash);
     }
 
     private void addNeighborLabels() {
         // Neighboring countries - positioned outside the new border shape
         Text syria = new Text("SYRIA");
-        syria.setX(280);
-        syria.setY(15);
+        syria.setX(200);
+        syria.setY(60);
         syria.setFill(Color.web("#64748b", 0.5));
         syria.setFont(Font.font("Arial", FontWeight.BOLD, 12));
 
         Text iraq = new Text("IRAQ");
-        iraq.setX(540);
-        iraq.setY(150);
+        iraq.setX(480);
+        iraq.setY(120);
         iraq.setFill(Color.web("#64748b", 0.5));
         iraq.setFont(Font.font("Arial", FontWeight.BOLD, 12));
 
         Text saudiArabia = new Text("SAUDI ARABIA");
-        saudiArabia.setX(380);
-        saudiArabia.setY(550);
+        saudiArabia.setX(300);
+        saudiArabia.setY(480);
         saudiArabia.setFill(Color.web("#64748b", 0.5));
         saudiArabia.setFont(Font.font("Arial", FontWeight.BOLD, 12));
 
         Text israel = new Text("ISRAEL");
-        israel.setX(70);
-        israel.setY(320);
+        israel.setX(20);
+        israel.setY(350);
         israel.setFill(Color.web("#64748b", 0.5));
         israel.setFont(Font.font("Arial", FontWeight.BOLD, 11));
 
         Text palestine = new Text("WEST\nBANK");
-        palestine.setX(90);
-        palestine.setY(220);
+        palestine.setX(50);
+        palestine.setY(200);
         palestine.setFill(Color.web("#64748b", 0.4));
         palestine.setFont(Font.font("Arial", 9));
 
@@ -412,8 +430,8 @@ public class JordanMapPane extends StackPane {
         wLabel.setFont(Font.font("Arial", 10));
 
         compass.getChildren().addAll(compassBg, arrow, nLabel, sLabel, eLabel, wLabel);
-        compass.setTranslateX(540);
-        compass.setTranslateY(70);
+        compass.setTranslateX(550);
+        compass.setTranslateY(50);
 
         mapGroup.getChildren().add(compass);
     }
@@ -443,8 +461,8 @@ public class JordanMapPane extends StackPane {
         scaleLabel.setFont(Font.font("Arial", 9));
 
         scale.getChildren().addAll(scaleBar, div1, div2, div3, scaleLabel);
-        scale.setTranslateX(480);
-        scale.setTranslateY(670);
+        scale.setTranslateX(500);
+        scale.setTranslateY(580);
 
         mapGroup.getChildren().add(scale);
     }
