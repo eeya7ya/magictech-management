@@ -164,26 +164,32 @@ public class StorageLocationService {
 
     /**
      * Initialize default Jordan storage locations if none exist
+     * Most locations are in Amman (industrial areas) with a few in other cities
      */
     public void initializeDefaultLocations() {
         if (locationRepository.countByActiveTrue() == 0) {
             System.out.println("Initializing default storage locations...");
 
-            // Jordan main cities with approximate map positions (0-100 scale)
-            createDefaultLocation("Amman", "AMN", "Amman", 60.0, 45.0, "#3b82f6", "🏢", 1);
-            createDefaultLocation("Irbid", "IRB", "Irbid", 55.0, 20.0, "#22c55e", "🏭", 2);
-            createDefaultLocation("Zarqa", "ZRQ", "Zarqa", 65.0, 42.0, "#f59e0b", "📦", 3);
-            createDefaultLocation("Ajloun", "AJL", "Ajloun", 52.0, 25.0, "#8b5cf6", "🏔️", 4);
-            createDefaultLocation("Jerash", "JRS", "Jerash", 56.0, 28.0, "#ef4444", "🏛️", 5);
-            createDefaultLocation("Mafraq", "MFQ", "Mafraq", 70.0, 22.0, "#06b6d4", "🌾", 6);
-            createDefaultLocation("Balqa", "BLQ", "Balqa", 52.0, 43.0, "#ec4899", "⛰️", 7);
-            createDefaultLocation("Madaba", "MDB", "Madaba", 57.0, 52.0, "#14b8a6", "🏺", 8);
-            createDefaultLocation("Karak", "KRK", "Karak", 55.0, 68.0, "#f97316", "🏰", 9);
-            createDefaultLocation("Tafilah", "TFL", "Tafilah", 52.0, 75.0, "#a855f7", "🌄", 10);
-            createDefaultLocation("Ma'an", "MAN", "Ma'an", 55.0, 85.0, "#64748b", "🏜️", 11);
-            createDefaultLocation("Aqaba", "AQB", "Aqaba", 50.0, 95.0, "#0ea5e9", "⚓", 12);
+            // Map positions are approximate (0-100 scale on Jordan map)
+            // Amman area is roughly at X: 55-65, Y: 40-50
 
-            System.out.println("✓ Default storage locations initialized");
+            // === AMMAN LOCATIONS (8 locations) ===
+            createDefaultLocation("Sahab Industrial", "SAH", "Amman", 63.0, 48.0, "#3b82f6", "🏭", 1);
+            createDefaultLocation("Marka Warehouse", "MRK", "Amman", 61.0, 43.0, "#22c55e", "📦", 2);
+            createDefaultLocation("Airport Free Zone", "AFZ", "Amman", 66.0, 46.0, "#f59e0b", "✈️", 3);
+            createDefaultLocation("Abu Alanda", "ABA", "Amman", 58.0, 46.0, "#8b5cf6", "🏢", 4);
+            createDefaultLocation("Khalda Center", "KHL", "Amman", 56.0, 44.0, "#ec4899", "🏬", 5);
+            createDefaultLocation("Al-Qastal", "QST", "Amman", 64.0, 52.0, "#14b8a6", "🏗️", 6);
+            createDefaultLocation("Tabarbour", "TBR", "Amman", 60.0, 41.0, "#6366f1", "📦", 7);
+            createDefaultLocation("Al-Juwaideh", "JWD", "Amman", 62.0, 50.0, "#84cc16", "🏭", 8);
+
+            // === OTHER CITIES (4 locations) ===
+            createDefaultLocation("Zarqa Industrial", "ZRQ", "Zarqa", 68.0, 42.0, "#ef4444", "🏭", 9);
+            createDefaultLocation("Irbid Branch", "IRB", "Irbid", 55.0, 20.0, "#06b6d4", "📦", 10);
+            createDefaultLocation("Aqaba Port", "AQB", "Aqaba", 50.0, 95.0, "#0ea5e9", "⚓", 11);
+            createDefaultLocation("Mafraq Depot", "MFQ", "Mafraq", 70.0, 25.0, "#64748b", "🌾", 12);
+
+            System.out.println("✓ Default storage locations initialized (8 in Amman, 4 in other cities)");
         }
     }
 
