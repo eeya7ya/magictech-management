@@ -4,6 +4,7 @@ import com.magictech.modules.storage.entity.StorageItemLocation;
 import com.magictech.modules.storage.entity.StorageLocation;
 import com.magictech.modules.storage.entity.StorageItem;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -76,10 +77,12 @@ public interface StorageItemLocationRepository extends JpaRepository<StorageItem
     List<Object[]> getLocationSummary();
 
     // Delete all records for a location (soft delete)
+    @Modifying
     @Query("UPDATE StorageItemLocation sil SET sil.active = false WHERE sil.storageLocation.id = :locationId")
     void softDeleteByLocationId(@Param("locationId") Long locationId);
 
     // Delete all records for an item (soft delete)
+    @Modifying
     @Query("UPDATE StorageItemLocation sil SET sil.active = false WHERE sil.storageItem.id = :itemId")
     void softDeleteByItemId(@Param("itemId") Long itemId);
 }

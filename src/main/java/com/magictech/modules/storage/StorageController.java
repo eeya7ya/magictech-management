@@ -1017,7 +1017,7 @@ public class StorageController extends BaseModuleController {
         currentLabel.setStyle("-fx-font-weight: bold;");
 
         ComboBox<StorageLocation> locationCombo = new ComboBox<>();
-        List<StorageLocation> locations = locationService.getAllActiveLocations();
+        List<StorageLocation> locations = new ArrayList<>(locationService.getAllActiveLocations());
         locations.removeIf(loc -> loc.getId().equals(item.getLocationId())); // Remove current location
         locationCombo.getItems().addAll(locations);
         locationCombo.setPromptText("Select destination location...");
