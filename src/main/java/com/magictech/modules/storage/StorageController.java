@@ -12,7 +12,7 @@ import com.magictech.modules.storage.service.StorageService;
 import com.magictech.modules.storage.service.StorageLocationService;
 import com.magictech.modules.storage.service.StorageLocationService.LocationSummary;
 import com.magictech.modules.storage.service.StorageItemLocationService;
-import com.magictech.modules.storage.ui.JordanMapPane;
+import com.magictech.modules.storage.ui.LocationCardsPane;
 import javafx.application.Platform;
 import javafx.beans.property.*;
 import javafx.collections.FXCollections;
@@ -59,8 +59,8 @@ public class StorageController extends BaseModuleController {
     private StorageItemLocationService itemLocationService;
 
     // View modes
-    private enum ViewMode { ROAD_MAP, LOCATION_SHEET, TOTAL_SHEET }
-    private ViewMode currentViewMode = ViewMode.ROAD_MAP;
+    private enum ViewMode { CARDS, LOCATION_SHEET, TOTAL_SHEET }
+    private ViewMode currentViewMode = ViewMode.CARDS;
 
     // Current location being viewed (for LOCATION_SHEET mode)
     private LocationSummary currentLocation;
@@ -70,7 +70,7 @@ public class StorageController extends BaseModuleController {
 
     // UI Components
     private StackPane mainContainer;
-    private JordanMapPane jordanMap;
+    private LocationCardsPane locationCards;
     private VBox locationSheetView;
     private VBox totalSheetView;
     private HBox breadcrumbBar;
@@ -111,12 +111,12 @@ public class StorageController extends BaseModuleController {
         mainContainer.setStyle("-fx-background-color: transparent;");
 
         // Create all views
-        jordanMap = createRoadMapView();
+        locationCards = createCardsView();
         locationSheetView = createSheetView(false);
         totalSheetView = createSheetView(true);
 
-        // Initially show road map
-        mainContainer.getChildren().add(jordanMap);
+        // Initially show cards view
+        mainContainer.getChildren().add(locationCards);
 
         contentPane.setCenter(mainContainer);
 
@@ -129,7 +129,7 @@ public class StorageController extends BaseModuleController {
 
     @Override
     protected void loadData() {
-        loadRoadMapData();
+        loadCardsData();
     }
 
     // ==================== HEADER ====================
@@ -183,7 +183,7 @@ public class StorageController extends BaseModuleController {
             "-fx-border-width: 0 0 1 0;"
         );
 
-        breadcrumbLabel = new Label("🗺️ Road Map");
+        breadcrumbLabel = new Label("📦 Storage Locations");
         breadcrumbLabel.setStyle("-fx-text-fill: white; -fx-font-size: 14px; -fx-font-weight: bold;");
 
         selectedCountLabel = new Label();
@@ -202,40 +202,40 @@ public class StorageController extends BaseModuleController {
     private void updateBreadcrumb() {
         String breadcrumbText;
         switch (currentViewMode) {
-            case ROAD_MAP:
-                breadcrumbText = "🗺️ Road Map";
+            case CARDS:
+                breadcrumbText = "📦 Storage Locations";
                 break;
             case LOCATION_SHEET:
-                breadcrumbText = "🗺️ Road Map  ›  📍 " +
+                breadcrumbText = "📦 Locations  ›  📍 " +
                     (currentLocation != null ? currentLocation.getLocationName() : "Location");
                 break;
             case TOTAL_SHEET:
-                breadcrumbText = "🗺️ Road Map  ›  📊 Total Sheet (All Locations)";
+                breadcrumbText = "📦 Locations  ›  📊 Total Sheet (All Locations)";
                 break;
             default:
-                breadcrumbText = "🗺️ Road Map";
+                breadcrumbText = "📦 Storage Locations";
         }
         breadcrumbLabel.setText(breadcrumbText);
     }
 
-    // ==================== ROAD MAP VIEW ====================
+    // ==================== CARDS VIEW ====================
 
-    private JordanMapPane createRoadMapView() {
-        JordanMapPane map = new JordanMapPane();
+    private LocationCardsPane createCardsView() {
+        LocationCardsPane cards = new LocationCardsPane();
 
-        map.setOnLocationClick(location -> {
+        cards.setOnLocationClick(location -> {
             currentLocation = location;
             navigateToView(ViewMode.LOCATION_SHEET);
         });
 
-        map.setOnTotalClick(v -> {
+        cards.setOnTotalClick(v -> {
             navigateToView(ViewMode.TOTAL_SHEET);
         });
 
-        return map;
+        return cards;
     }
 
-    private void loadRoadMapData() {
+    private void loadCardsData() {
         Task<List<LocationSummary>> loadTask = new Task<>() {
             @Override
             protected List<LocationSummary> call() {
@@ -246,8 +246,8 @@ public class StorageController extends BaseModuleController {
         loadTask.setOnSucceeded(e -> {
             List<LocationSummary> summaries = loadTask.getValue();
             Platform.runLater(() -> {
-                jordanMap.setLocations(summaries);
-                System.out.println("✓ Loaded " + summaries.size() + " storage locations on map");
+                locationCards.setLocations(summaries);
+                System.out.println("✓ Loaded " + summaries.size() + " storage locations");
             });
         });
 
@@ -265,9 +265,9 @@ public class StorageController extends BaseModuleController {
         sheetView.setPadding(new Insets(20));
         sheetView.setStyle("-fx-background-color: transparent;");
 
-        // Back to map button
-        Button backToMapButton = createStyledButton("← Back to Map", "#6366f1", "#4f46e5");
-        backToMapButton.setOnAction(e -> navigateToView(ViewMode.ROAD_MAP));
+        // Back to locations button
+        Button backToLocationsButton = createStyledButton("← Back to Locations", "#6366f1", "#4f46e5");
+        backToLocationsButton.setOnAction(e -> navigateToView(ViewMode.CARDS));
 
         // Toolbar
         HBox toolbar = createSheetToolbar(isTotalView);
@@ -285,7 +285,7 @@ public class StorageController extends BaseModuleController {
 
         HBox topBar = new HBox(15);
         topBar.setAlignment(Pos.CENTER_LEFT);
-        topBar.getChildren().add(backToMapButton);
+        topBar.getChildren().add(backToLocationsButton);
 
         sheetView.getChildren().addAll(topBar, toolbar, tableContainer);
         return sheetView;
@@ -574,9 +574,9 @@ public class StorageController extends BaseModuleController {
             mainContainer.getChildren().clear();
 
             switch (newMode) {
-                case ROAD_MAP:
-                    mainContainer.getChildren().add(jordanMap);
-                    loadRoadMapData();
+                case CARDS:
+                    mainContainer.getChildren().add(locationCards);
+                    loadCardsData();
                     break;
 
                 case LOCATION_SHEET:
@@ -1103,16 +1103,16 @@ public class StorageController extends BaseModuleController {
     // ==================== LIFECYCLE ====================
 
     private void handleBack() {
-        if (currentViewMode != ViewMode.ROAD_MAP) {
-            // Go back to road map
-            navigateToView(ViewMode.ROAD_MAP);
+        if (currentViewMode != ViewMode.CARDS) {
+            // Go back to cards view
+            navigateToView(ViewMode.CARDS);
         } else {
             // Go back to dashboard
             if (backgroundPane != null) {
                 backgroundPane.stopAnimation();
             }
-            if (jordanMap != null) {
-                jordanMap.cleanup();
+            if (locationCards != null) {
+                locationCards.cleanup();
             }
             SceneManager.getInstance().showMainDashboard();
         }
@@ -1123,9 +1123,9 @@ public class StorageController extends BaseModuleController {
             backgroundPane.stopAnimation();
             backgroundPane = null;
         }
-        if (jordanMap != null) {
-            jordanMap.cleanup();
-            jordanMap = null;
+        if (locationCards != null) {
+            locationCards.cleanup();
+            locationCards = null;
         }
         System.out.println("✓ Storage controller cleaned up");
     }
@@ -1133,8 +1133,8 @@ public class StorageController extends BaseModuleController {
     @Override
     public void refresh() {
         switch (currentViewMode) {
-            case ROAD_MAP:
-                loadRoadMapData();
+            case CARDS:
+                loadCardsData();
                 break;
             case LOCATION_SHEET:
                 selectionMap.clear();
