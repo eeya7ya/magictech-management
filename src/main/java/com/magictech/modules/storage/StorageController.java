@@ -832,8 +832,8 @@ public class StorageController extends BaseModuleController {
 
         Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
         confirm.setTitle("⚠️ DELETE");
-        confirm.setHeaderText("Remove " + selected.size() + " item(s) from this location?");
-        confirm.setContentText("This will remove the items from this location only. The items will still exist in other locations.");
+        confirm.setHeaderText("Permanently delete " + selected.size() + " item(s) from this location?");
+        confirm.setContentText("This will permanently remove these item-location records from the database. This action cannot be undone.");
 
         Optional<ButtonType> result = confirm.showAndWait();
         if (result.isPresent() && result.get() == ButtonType.OK) {
@@ -841,7 +841,8 @@ public class StorageController extends BaseModuleController {
                 @Override
                 protected Void call() {
                     for (StorageItemLocationViewModel vm : selected) {
-                        itemLocationService.removeItemFromLocation(vm.getItemId(), vm.getLocationId());
+                        // Use hard delete to actually remove from database
+                        itemLocationService.hardRemoveItemFromLocation(vm.getItemId(), vm.getLocationId());
                     }
                     return null;
                 }
@@ -849,7 +850,7 @@ public class StorageController extends BaseModuleController {
 
             deleteTask.setOnSucceeded(e -> {
                 Platform.runLater(() -> {
-                    showSuccess("✓ Removed " + selected.size() + " item(s) from location");
+                    showSuccess("✓ Permanently deleted " + selected.size() + " item(s) from database");
                     refresh();
                 });
             });
@@ -1152,14 +1153,15 @@ public class StorageController extends BaseModuleController {
             Task<Void> deleteTask = new Task<>() {
                 @Override
                 protected Void call() {
-                    locationService.deleteLocation(location.getLocationId());
+                    // Use hard delete to actually remove from database
+                    locationService.hardDeleteLocation(location.getLocationId());
                     return null;
                 }
             };
 
             deleteTask.setOnSucceeded(e -> {
                 Platform.runLater(() -> {
-                    showSuccess("✓ Location deleted");
+                    showSuccess("✓ Location permanently deleted from database");
                     loadCardsData();
                 });
             });
@@ -1294,8 +1296,18 @@ public class StorageController extends BaseModuleController {
         });
 
         dialog.setResultConverter(btn -> {
-            if (btn == saveBtn && !nameField.getText().trim().isEmpty()) {
-                StorageLocation location = existing != null ? existing : new StorageLocation();
+            if (btn.getButtonData() == ButtonBar.ButtonData.OK_DONE && !nameField.getText().trim().isEmpty()) {
+                // Create a new location object to avoid JPA issues with modified detached entities
+                StorageLocation location = new StorageLocation();
+                // Copy ID from existing if editing
+                if (existing != null) {
+                    location.setId(existing.getId());
+                    location.setDateAdded(existing.getDateAdded());
+                    location.setCreatedBy(existing.getCreatedBy());
+                    location.setMapX(existing.getMapX());
+                    location.setMapY(existing.getMapY());
+                    location.setDisplayOrder(existing.getDisplayOrder());
+                }
                 location.setName(nameField.getText().trim());
                 location.setCode(codeField.getText().trim().isEmpty() ? null : codeField.getText().trim());
                 location.setCity(cityField.getText().trim().isEmpty() ? null : cityField.getText().trim());
