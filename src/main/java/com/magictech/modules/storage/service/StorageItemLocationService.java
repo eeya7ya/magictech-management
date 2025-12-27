@@ -104,10 +104,19 @@ public class StorageItemLocationService {
     }
 
     /**
-     * Hard delete item from location
+     * Hard delete item from location by ID
      */
     public void hardRemoveItemFromLocation(Long id) {
         itemLocationRepository.deleteById(id);
+    }
+
+    /**
+     * Hard delete item from location by itemId and locationId
+     * Actually removes the record from the database
+     */
+    public void hardRemoveItemFromLocation(Long itemId, Long locationId) {
+        Optional<StorageItemLocation> existing = itemLocationRepository.findByItemIdAndLocationId(itemId, locationId);
+        existing.ifPresent(sil -> itemLocationRepository.delete(sil));
     }
 
     // ==================== Transfer Operations ====================
