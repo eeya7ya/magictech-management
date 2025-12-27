@@ -39,11 +39,16 @@ public class JordanMapPane extends StackPane {
     private static final double MAP_WIDTH = 600;
     private static final double MAP_HEIGHT = 700;
 
-    // Zoom settings
-    private static final double MIN_ZOOM = 0.5;
-    private static final double MAX_ZOOM = 3.0;
-    private static final double ZOOM_STEP = 0.2;
+    // Zoom settings - enhanced for better control
+    private static final double MIN_ZOOM = 0.4;
+    private static final double MAX_ZOOM = 6.0;
+    private static final double ZOOM_STEP = 0.15;
     private double currentZoom = 1.0;
+
+    // Pin sizing constants for dynamic scaling
+    private static final double BASE_PIN_SCALE = 1.0;
+    private static final double MIN_PIN_SCALE = 0.5;  // Minimum pin size at max zoom out
+    private static final double MAX_PIN_SCALE = 1.2;  // Maximum pin size at max zoom in
 
     // Components
     private Pane mapContainer;
@@ -238,11 +243,10 @@ public class JordanMapPane extends StackPane {
         // Add Dead Sea
         drawDeadSea();
 
-        // Add major geographical labels
+        // Add major geographical labels (Jordan cities only)
         addGeographicalLabels();
 
-        // Add neighboring countries labels
-        addNeighborLabels();
+        // Note: Neighboring country labels removed per user request
 
         // Add compass
         addCompass();
@@ -569,11 +573,33 @@ public class JordanMapPane extends StackPane {
         mapContainer.setPrefSize(newWidth, newHeight);
         mapContainer.setMinSize(newWidth, newHeight);
 
-        // Apply inverse scale to pins so they maintain visual size
-        double inverseScale = 1.0 / currentZoom;
+        // Dynamic pin scaling: pins get smaller when zoomed out, larger when zoomed in
+        // This prevents overlap at low zoom levels and maintains visibility at high zoom
+        double pinScale = calculatePinScale(currentZoom);
         for (LocationPin pin : pins) {
-            pin.setScaleX(inverseScale);
-            pin.setScaleY(inverseScale);
+            pin.applyDynamicScale(pinScale, currentZoom);
+        }
+    }
+
+    /**
+     * Calculate pin scale based on zoom level
+     * At zoom 1.0, pins are normal size
+     * At min zoom, pins are smaller to prevent overlap
+     * At max zoom, pins are slightly larger for better visibility
+     */
+    private double calculatePinScale(double zoom) {
+        if (zoom <= 1.0) {
+            // When zoomed out, scale down pins progressively
+            // At MIN_ZOOM (0.4), pins should be at MIN_PIN_SCALE (0.5)
+            // At zoom 1.0, pins should be at BASE_PIN_SCALE (1.0)
+            double t = (zoom - MIN_ZOOM) / (1.0 - MIN_ZOOM);
+            return MIN_PIN_SCALE + t * (BASE_PIN_SCALE - MIN_PIN_SCALE);
+        } else {
+            // When zoomed in, pins stay relatively same size but can be slightly larger
+            // At zoom 1.0, pins are at BASE_PIN_SCALE
+            // At MAX_ZOOM (6.0), pins are at MAX_PIN_SCALE (1.2)
+            double t = (zoom - 1.0) / (MAX_ZOOM - 1.0);
+            return BASE_PIN_SCALE + t * (MAX_PIN_SCALE - BASE_PIN_SCALE);
         }
     }
 
@@ -693,11 +719,16 @@ public class JordanMapPane extends StackPane {
     }
 
     /**
-     * Location pin component
+     * Location pin component with dynamic scaling support
      */
     private class LocationPin extends VBox {
         private LocationSummary location;
         private Circle pulseRing;
+        private VBox labelBox;
+        private Label nameLabel;
+        private Label countLabel;
+        private double currentPinScale = 1.0;
+        private double currentMapZoom = 1.0;
 
         public LocationPin(LocationSummary location, double x, double y) {
             this.location = location;
@@ -743,10 +774,10 @@ public class JordanMapPane extends StackPane {
             pinStack.getChildren().addAll(pulseRing, pinShape, innerCircle, iconLabel);
 
             // Label below pin
-            VBox labelBox = new VBox(1);
+            labelBox = new VBox(1);
             labelBox.setAlignment(Pos.CENTER);
 
-            Label nameLabel = new Label(location.getLocationName().replace(" Storage", ""));
+            nameLabel = new Label(location.getLocationName().replace(" Storage", ""));
             nameLabel.setStyle(
                 "-fx-text-fill: white;" +
                 "-fx-font-size: 10px;" +
@@ -756,7 +787,7 @@ public class JordanMapPane extends StackPane {
                 "-fx-background-radius: 4;"
             );
 
-            Label countLabel = new Label(location.getItemCount() + " items");
+            countLabel = new Label(location.getItemCount() + " items");
             countLabel.setStyle(
                 "-fx-text-fill: " + location.getColor() + ";" +
                 "-fx-font-size: 9px;" +
@@ -782,18 +813,16 @@ public class JordanMapPane extends StackPane {
             );
             Tooltip.install(this, tooltip);
 
-            // Hover effects - account for inverse zoom scaling
+            // Hover effects - account for dynamic scaling
             setOnMouseEntered(e -> {
-                double inverseScale = 1.0 / currentZoom;
-                setScaleX(inverseScale * 1.2);
-                setScaleY(inverseScale * 1.2);
+                double effectiveScale = (currentPinScale / currentMapZoom) * 1.2;
+                setScaleX(effectiveScale);
+                setScaleY(effectiveScale);
                 toFront();
             });
 
             setOnMouseExited(e -> {
-                double inverseScale = 1.0 / currentZoom;
-                setScaleX(inverseScale);
-                setScaleY(inverseScale);
+                applyDynamicScale(currentPinScale, currentMapZoom);
             });
 
             // Pulse animation for ring
@@ -810,6 +839,36 @@ public class JordanMapPane extends StackPane {
             ringPulse.setCycleCount(Timeline.INDEFINITE);
             ringPulse.play();
             animations.add(ringPulse);
+        }
+
+        /**
+         * Apply dynamic scaling based on zoom level
+         * Pins get smaller when zoomed out, preventing overlap
+         */
+        public void applyDynamicScale(double pinScale, double mapZoom) {
+            this.currentPinScale = pinScale;
+            this.currentMapZoom = mapZoom;
+
+            // Calculate effective scale: counteract map zoom and apply pin scale
+            double effectiveScale = pinScale / mapZoom;
+            setScaleX(effectiveScale);
+            setScaleY(effectiveScale);
+
+            // Adjust label visibility based on zoom
+            // Hide labels when very zoomed out to reduce clutter
+            if (mapZoom < 0.7) {
+                labelBox.setVisible(false);
+            } else if (mapZoom < 1.0) {
+                // Show only count, hide name when moderately zoomed out
+                labelBox.setVisible(true);
+                nameLabel.setVisible(false);
+                countLabel.setVisible(true);
+            } else {
+                // Show full labels when zoomed in
+                labelBox.setVisible(true);
+                nameLabel.setVisible(true);
+                countLabel.setVisible(true);
+            }
         }
     }
 }
