@@ -223,6 +223,11 @@ public class StorageController extends BaseModuleController {
     private LocationCardsPane createCardsView() {
         LocationCardsPane cards = new LocationCardsPane();
 
+        // Check if user can manage locations (MASTER or STORAGE roles)
+        boolean canManage = currentUser != null &&
+            (currentUser.getRole() == UserRole.MASTER || currentUser.getRole() == UserRole.STORAGE);
+        cards.setCanManage(canManage);
+
         cards.setOnLocationClick(location -> {
             currentLocation = location;
             navigateToView(ViewMode.LOCATION_SHEET);
@@ -231,6 +236,11 @@ public class StorageController extends BaseModuleController {
         cards.setOnTotalClick(v -> {
             navigateToView(ViewMode.TOTAL_SHEET);
         });
+
+        // Management callbacks
+        cards.setOnAddLocation(v -> handleAddLocation());
+        cards.setOnEditLocation(this::handleEditLocation);
+        cards.setOnDeleteLocation(this::handleDeleteLocation);
 
         return cards;
     }
@@ -1047,6 +1057,274 @@ public class StorageController extends BaseModuleController {
         });
 
         return dialog;
+    }
+
+    // ==================== LOCATION MANAGEMENT ====================
+
+    private void handleAddLocation() {
+        Dialog<StorageLocation> dialog = createLocationDialog(null);
+        Optional<StorageLocation> result = dialog.showAndWait();
+
+        result.ifPresent(location -> {
+            Task<StorageLocation> saveTask = new Task<>() {
+                @Override
+                protected StorageLocation call() {
+                    location.setCreatedBy(currentUser != null ? currentUser.getUsername() : "system");
+                    return locationService.createLocation(location);
+                }
+            };
+
+            saveTask.setOnSucceeded(e -> {
+                Platform.runLater(() -> {
+                    showSuccess("✓ Location '" + location.getName() + "' created successfully");
+                    loadCardsData();
+                });
+            });
+
+            saveTask.setOnFailed(e -> showError("Failed to create location: " + saveTask.getException().getMessage()));
+            new Thread(saveTask).start();
+        });
+    }
+
+    private void handleEditLocation(LocationSummary locationSummary) {
+        // Load the full location entity
+        Task<Optional<StorageLocation>> loadTask = new Task<>() {
+            @Override
+            protected Optional<StorageLocation> call() {
+                return locationService.findById(locationSummary.getLocationId());
+            }
+        };
+
+        loadTask.setOnSucceeded(e -> {
+            Optional<StorageLocation> locationOpt = loadTask.getValue();
+            if (locationOpt.isPresent()) {
+                Platform.runLater(() -> {
+                    Dialog<StorageLocation> dialog = createLocationDialog(locationOpt.get());
+                    Optional<StorageLocation> result = dialog.showAndWait();
+
+                    result.ifPresent(updated -> {
+                        Task<StorageLocation> saveTask = new Task<>() {
+                            @Override
+                            protected StorageLocation call() {
+                                return locationService.updateLocation(updated.getId(), updated);
+                            }
+                        };
+
+                        saveTask.setOnSucceeded(ev -> {
+                            Platform.runLater(() -> {
+                                showSuccess("✓ Location updated successfully");
+                                loadCardsData();
+                            });
+                        });
+
+                        saveTask.setOnFailed(ev -> showError("Failed to update location: " + saveTask.getException().getMessage()));
+                        new Thread(saveTask).start();
+                    });
+                });
+            } else {
+                showError("Location not found");
+            }
+        });
+
+        loadTask.setOnFailed(e -> showError("Failed to load location: " + loadTask.getException().getMessage()));
+        new Thread(loadTask).start();
+    }
+
+    private void handleDeleteLocation(LocationSummary location) {
+        // Check if location has items
+        if (location.getItemCount() > 0) {
+            Alert warning = new Alert(Alert.AlertType.WARNING);
+            warning.setTitle("Cannot Delete");
+            warning.setHeaderText("Location has items");
+            warning.setContentText("This location has " + location.getItemCount() + " items. " +
+                "Please transfer or remove all items before deleting the location.");
+            warning.showAndWait();
+            return;
+        }
+
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+        confirm.setTitle("Delete Location");
+        confirm.setHeaderText("Delete '" + location.getLocationName() + "'?");
+        confirm.setContentText("This action cannot be undone.");
+
+        Optional<ButtonType> result = confirm.showAndWait();
+        if (result.isPresent() && result.get() == ButtonType.OK) {
+            Task<Void> deleteTask = new Task<>() {
+                @Override
+                protected Void call() {
+                    locationService.deleteLocation(location.getLocationId());
+                    return null;
+                }
+            };
+
+            deleteTask.setOnSucceeded(e -> {
+                Platform.runLater(() -> {
+                    showSuccess("✓ Location deleted");
+                    loadCardsData();
+                });
+            });
+
+            deleteTask.setOnFailed(e -> showError("Failed to delete location: " + deleteTask.getException().getMessage()));
+            new Thread(deleteTask).start();
+        }
+    }
+
+    private Dialog<StorageLocation> createLocationDialog(StorageLocation existing) {
+        Dialog<StorageLocation> dialog = new Dialog<>();
+        dialog.setTitle(existing == null ? "Add New Location" : "Edit Location");
+
+        ButtonType saveBtn = new ButtonType("Save", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(saveBtn, ButtonType.CANCEL);
+
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(12);
+        grid.setPadding(new Insets(20));
+
+        TextField nameField = new TextField(existing != null ? existing.getName() : "");
+        nameField.setPromptText("Location Name (Required)");
+        nameField.setPrefWidth(250);
+
+        TextField codeField = new TextField(existing != null ? existing.getCode() : "");
+        codeField.setPromptText("Code (e.g., AMM-01)");
+
+        TextField cityField = new TextField(existing != null ? existing.getCity() : "");
+        cityField.setPromptText("City");
+
+        TextField addressField = new TextField(existing != null ? existing.getAddress() : "");
+        addressField.setPromptText("Full Address");
+
+        // Color picker as ComboBox
+        ComboBox<String> colorCombo = new ComboBox<>();
+        colorCombo.getItems().addAll(
+            "#3b82f6", // Blue
+            "#22c55e", // Green
+            "#ef4444", // Red
+            "#f59e0b", // Orange
+            "#8b5cf6", // Purple
+            "#06b6d4", // Cyan
+            "#ec4899", // Pink
+            "#6366f1"  // Indigo
+        );
+        colorCombo.setValue(existing != null && existing.getColor() != null ? existing.getColor() : "#3b82f6");
+        colorCombo.setCellFactory(lv -> new ListCell<>() {
+            @Override
+            protected void updateItem(String color, boolean empty) {
+                super.updateItem(color, empty);
+                if (empty || color == null) {
+                    setText(null);
+                    setGraphic(null);
+                } else {
+                    Region colorBox = new Region();
+                    colorBox.setPrefSize(20, 20);
+                    colorBox.setStyle("-fx-background-color: " + color + "; -fx-background-radius: 4;");
+                    setGraphic(colorBox);
+                    setText(getColorName(color));
+                }
+            }
+        });
+        colorCombo.setButtonCell(new ListCell<>() {
+            @Override
+            protected void updateItem(String color, boolean empty) {
+                super.updateItem(color, empty);
+                if (empty || color == null) {
+                    setText(null);
+                    setGraphic(null);
+                } else {
+                    Region colorBox = new Region();
+                    colorBox.setPrefSize(20, 20);
+                    colorBox.setStyle("-fx-background-color: " + color + "; -fx-background-radius: 4;");
+                    setGraphic(colorBox);
+                    setText(getColorName(color));
+                }
+            }
+        });
+
+        // Icon picker
+        ComboBox<String> iconCombo = new ComboBox<>();
+        iconCombo.getItems().addAll("📦", "🏭", "🏢", "🏪", "🚚", "✈️", "🚢", "🏠");
+        iconCombo.setValue(existing != null && existing.getIcon() != null ? existing.getIcon() : "📦");
+        iconCombo.setCellFactory(lv -> new ListCell<>() {
+            @Override
+            protected void updateItem(String icon, boolean empty) {
+                super.updateItem(icon, empty);
+                if (empty || icon == null) {
+                    setText(null);
+                } else {
+                    setText(icon);
+                    setStyle("-fx-font-size: 18px;");
+                }
+            }
+        });
+
+        TextField managerField = new TextField(existing != null ? existing.getManagerName() : "");
+        managerField.setPromptText("Manager Name");
+
+        TextField phoneField = new TextField(existing != null ? existing.getPhone() : "");
+        phoneField.setPromptText("Phone Number");
+
+        TextField emailField = new TextField(existing != null ? existing.getEmail() : "");
+        emailField.setPromptText("Email Address");
+
+        grid.add(new Label("Name:*"), 0, 0);
+        grid.add(nameField, 1, 0);
+        grid.add(new Label("Code:"), 0, 1);
+        grid.add(codeField, 1, 1);
+        grid.add(new Label("City:"), 0, 2);
+        grid.add(cityField, 1, 2);
+        grid.add(new Label("Address:"), 0, 3);
+        grid.add(addressField, 1, 3);
+        grid.add(new Label("Color:"), 0, 4);
+        grid.add(colorCombo, 1, 4);
+        grid.add(new Label("Icon:"), 0, 5);
+        grid.add(iconCombo, 1, 5);
+        grid.add(new Label("Manager:"), 0, 6);
+        grid.add(managerField, 1, 6);
+        grid.add(new Label("Phone:"), 0, 7);
+        grid.add(phoneField, 1, 7);
+        grid.add(new Label("Email:"), 0, 8);
+        grid.add(emailField, 1, 8);
+
+        dialog.getDialogPane().setContent(grid);
+
+        // Disable save button if name is empty
+        dialog.getDialogPane().lookupButton(saveBtn).setDisable(nameField.getText().trim().isEmpty());
+        nameField.textProperty().addListener((obs, old, newVal) -> {
+            dialog.getDialogPane().lookupButton(saveBtn).setDisable(newVal.trim().isEmpty());
+        });
+
+        dialog.setResultConverter(btn -> {
+            if (btn == saveBtn && !nameField.getText().trim().isEmpty()) {
+                StorageLocation location = existing != null ? existing : new StorageLocation();
+                location.setName(nameField.getText().trim());
+                location.setCode(codeField.getText().trim().isEmpty() ? null : codeField.getText().trim());
+                location.setCity(cityField.getText().trim().isEmpty() ? null : cityField.getText().trim());
+                location.setAddress(addressField.getText().trim().isEmpty() ? null : addressField.getText().trim());
+                location.setColor(colorCombo.getValue());
+                location.setIcon(iconCombo.getValue());
+                location.setManagerName(managerField.getText().trim().isEmpty() ? null : managerField.getText().trim());
+                location.setPhone(phoneField.getText().trim().isEmpty() ? null : phoneField.getText().trim());
+                location.setEmail(emailField.getText().trim().isEmpty() ? null : emailField.getText().trim());
+                return location;
+            }
+            return null;
+        });
+
+        return dialog;
+    }
+
+    private String getColorName(String hex) {
+        return switch (hex) {
+            case "#3b82f6" -> "Blue";
+            case "#22c55e" -> "Green";
+            case "#ef4444" -> "Red";
+            case "#f59e0b" -> "Orange";
+            case "#8b5cf6" -> "Purple";
+            case "#06b6d4" -> "Cyan";
+            case "#ec4899" -> "Pink";
+            case "#6366f1" -> "Indigo";
+            default -> "Custom";
+        };
     }
 
     // ==================== HELPERS ====================
