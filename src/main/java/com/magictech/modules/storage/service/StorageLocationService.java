@@ -166,30 +166,57 @@ public class StorageLocationService {
      * Initialize default Jordan storage locations if none exist
      * Most locations are in Amman (industrial areas) with a few in other cities
      * Coordinates are percentage-based (0-100) mapped to Jordan's actual geography
+     *
+     * Map coordinate system (600x700 pixels):
+     * - Amman area: roughly X: 26-42%, Y: 28-44%
+     * - Irbid (north): X: ~27%, Y: ~18%
+     * - Mafraq (northeast): X: ~60%, Y: ~22%
+     * - Aqaba (south): X: ~9%, Y: ~73%
      */
     public void initializeDefaultLocations() {
         if (locationRepository.countByActiveTrue() == 0) {
             System.out.println("Initializing default storage locations...");
 
-            // Map coordinates (0-100 scale) - based on real Jordan map
-            // Amman is located roughly at X: 55-65%, Y: 38-45% on the map
-            // (considering Jordan's shape - Amman is in the northwest quarter)
+            // === AMMAN LOCATIONS (8 locations) - spread across Greater Amman area ===
+            // Coordinates carefully positioned to avoid overlap and match real geography
 
-            // === AMMAN LOCATIONS (8 locations) - clustered in Amman area ===
-            createDefaultLocation("Sahab Industrial", "SAH", "Amman", 58.0, 42.0, "#3b82f6", "🏭", 1);
-            createDefaultLocation("Marka Warehouse", "MRK", "Amman", 55.0, 38.0, "#22c55e", "📦", 2);
-            createDefaultLocation("Airport Free Zone", "AFZ", "Amman", 62.0, 45.0, "#f59e0b", "✈️", 3);
-            createDefaultLocation("Abu Alanda", "ABA", "Amman", 52.0, 40.0, "#8b5cf6", "🏢", 4);
-            createDefaultLocation("Khalda Center", "KHL", "Amman", 50.0, 37.0, "#ec4899", "🏬", 5);
-            createDefaultLocation("Al-Qastal", "QST", "Amman", 60.0, 48.0, "#14b8a6", "🏗️", 6);
-            createDefaultLocation("Tabarbour", "TBR", "Amman", 54.0, 35.0, "#6366f1", "📦", 7);
-            createDefaultLocation("Al-Juwaideh", "JWD", "Amman", 56.0, 44.0, "#84cc16", "🏭", 8);
+            // Sahab Industrial - southeast Amman industrial zone
+            createDefaultLocation("Sahab Industrial", "SAH", "Amman", 36.0, 42.0, "#3b82f6", "🏭", 1);
+
+            // Marka Warehouse - northeast Amman
+            createDefaultLocation("Marka Warehouse", "MRK", "Amman", 33.0, 32.0, "#22c55e", "📦", 2);
+
+            // Airport Free Zone - Queen Alia Airport area (south of Amman)
+            createDefaultLocation("Airport Free Zone", "AFZ", "Amman", 34.0, 48.0, "#f59e0b", "✈️", 3);
+
+            // Abu Alanda - east Amman
+            createDefaultLocation("Abu Alanda", "ABA", "Amman", 38.0, 36.0, "#8b5cf6", "🏢", 4);
+
+            // Khalda Center - west Amman (upscale area)
+            createDefaultLocation("Khalda Center", "KHL", "Amman", 27.0, 30.0, "#ec4899", "🏬", 5);
+
+            // Al-Qastal - south of Amman on Desert Highway
+            createDefaultLocation("Al-Qastal", "QST", "Amman", 32.0, 52.0, "#14b8a6", "🏗️", 6);
+
+            // Tabarbour - north Amman
+            createDefaultLocation("Tabarbour", "TBR", "Amman", 30.0, 28.0, "#6366f1", "📦", 7);
+
+            // Al-Juwaideh - south central Amman
+            createDefaultLocation("Al-Juwaideh", "JWD", "Amman", 31.0, 38.0, "#84cc16", "🏭", 8);
 
             // === OTHER CITIES (4 locations) ===
-            createDefaultLocation("Zarqa Industrial", "ZRQ", "Zarqa", 65.0, 36.0, "#ef4444", "🏭", 9);
-            createDefaultLocation("Irbid Branch", "IRB", "Irbid", 48.0, 18.0, "#06b6d4", "📦", 10);
-            createDefaultLocation("Aqaba Port", "AQB", "Aqaba", 47.0, 93.0, "#0ea5e9", "⚓", 11);
-            createDefaultLocation("Mafraq Depot", "MFQ", "Mafraq", 72.0, 20.0, "#64748b", "🌾", 12);
+
+            // Zarqa Industrial - east of Amman, Jordan's industrial hub
+            createDefaultLocation("Zarqa Industrial", "ZRQ", "Zarqa", 42.0, 34.0, "#ef4444", "🏭", 9);
+
+            // Irbid Branch - northern Jordan, second largest city
+            createDefaultLocation("Irbid Branch", "IRB", "Irbid", 27.0, 18.0, "#06b6d4", "📦", 10);
+
+            // Aqaba Port - southern tip, Red Sea port city
+            createDefaultLocation("Aqaba Port", "AQB", "Aqaba", 9.0, 73.0, "#0ea5e9", "⚓", 11);
+
+            // Mafraq Depot - northeastern Jordan, near Syrian border
+            createDefaultLocation("Mafraq Depot", "MFQ", "Mafraq", 58.0, 22.0, "#64748b", "🌾", 12);
 
             System.out.println("✓ Default storage locations initialized (8 in Amman, 4 in other cities)");
         }
