@@ -337,8 +337,6 @@ public class StorageController extends BaseModuleController {
         refreshButton.setOnAction(e -> refresh());
 
         // Import button - only show for users who can edit
-        boolean canEdit = currentUser != null &&
-            (currentUser.getRole() == UserRole.MASTER || currentUser.getRole() == UserRole.STORAGE);
         if (canEdit) {
             importButton = createStyledButton("📤 Import Excel", "#0ea5e9", "#0284c7");
             importButton.setOnAction(e -> handleExcelImport());
