@@ -13,7 +13,12 @@ import com.magictech.modules.storage.service.StorageLocationService;
 import com.magictech.modules.storage.service.StorageLocationService.LocationSummary;
 import com.magictech.modules.storage.service.StorageItemLocationService;
 import com.magictech.modules.storage.service.ExcelImportService;
+import com.magictech.modules.storage.service.AvailabilityRequestService;
+import com.magictech.modules.storage.entity.AvailabilityRequest;
+import com.magictech.modules.storage.entity.AvailabilityRequest.RequestStatus;
 import com.magictech.modules.storage.ui.LocationCardsPane;
+import com.magictech.core.email.EmailService;
+import com.magictech.core.email.EmailException;
 import javafx.application.Platform;
 import javafx.beans.property.*;
 import javafx.collections.FXCollections;
@@ -62,6 +67,12 @@ public class StorageController extends BaseModuleController {
     @Autowired
     private ExcelImportService excelImportService;
 
+    @Autowired
+    private AvailabilityRequestService availabilityRequestService;
+
+    @Autowired
+    private EmailService emailService;
+
     // View modes
     private enum ViewMode { CARDS, LOCATION_SHEET, TOTAL_SHEET }
     private ViewMode currentViewMode = ViewMode.CARDS;
@@ -97,6 +108,10 @@ public class StorageController extends BaseModuleController {
     // Background
     private com.magictech.core.ui.components.DashboardBackgroundPane backgroundPane;
 
+    // Availability Requests UI
+    private ListView<AvailabilityRequest> requestsListView;
+    private TabPane mainTabPane;
+
     @Override
     protected void setupUI() {
         // Initialize default locations if needed
@@ -111,24 +126,300 @@ public class StorageController extends BaseModuleController {
         VBox header = createHeader();
         contentPane.setTop(header);
 
+        // Create main TabPane for Storage Locations and Availability Requests
+        mainTabPane = new TabPane();
+        mainTabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
+        mainTabPane.setStyle("-fx-background-color: transparent;");
+
+        // Tab 1: Storage Locations (existing functionality)
+        Tab storageTab = new Tab("📦 Storage Locations");
         mainContainer = new StackPane();
         mainContainer.setStyle("-fx-background-color: transparent;");
-
-        // Create all views
         locationCards = createCardsView();
         locationSheetView = createSheetView(false);
         totalSheetView = createSheetView(true);
-
-        // Initially show cards view
         mainContainer.getChildren().add(locationCards);
+        storageTab.setContent(mainContainer);
+        storageTab.setStyle("-fx-font-size: 14px; -fx-font-weight: bold;");
 
-        contentPane.setCenter(mainContainer);
+        // Tab 2: Availability Requests
+        Tab requestsTab = new Tab("📧 Availability Requests");
+        requestsTab.setContent(createAvailabilityRequestsContent());
+        requestsTab.setStyle("-fx-font-size: 14px; -fx-font-weight: bold;");
+
+        mainTabPane.getTabs().addAll(storageTab, requestsTab);
+
+        contentPane.setCenter(mainTabPane);
 
         stackRoot.getChildren().addAll(backgroundPane, contentPane);
 
         BorderPane root = getRootPane();
         root.setCenter(stackRoot);
         root.setStyle("-fx-background-color: transparent;");
+    }
+
+    // ==================== AVAILABILITY REQUESTS ====================
+
+    private VBox createAvailabilityRequestsContent() {
+        VBox content = new VBox(20);
+        content.setPadding(new Insets(30));
+        content.setStyle("-fx-background-color: transparent;");
+
+        // Header
+        VBox headerSection = new VBox(8);
+        Label titleLabel = new Label("📧 Availability Requests");
+        titleLabel.setStyle("-fx-font-size: 28px; -fx-font-weight: bold; -fx-text-fill: white;");
+
+        Label subtitleLabel = new Label("Review and respond to availability requests from Sales and Presales teams");
+        subtitleLabel.setStyle("-fx-font-size: 14px; -fx-text-fill: rgba(255, 255, 255, 0.7);");
+
+        headerSection.getChildren().addAll(titleLabel, subtitleLabel);
+
+        // Requests list container
+        VBox listSection = new VBox(15);
+        listSection.setStyle(
+                "-fx-background-color: rgba(30, 41, 59, 0.6);" +
+                "-fx-background-radius: 16;" +
+                "-fx-border-color: rgba(239, 68, 68, 0.3);" +
+                "-fx-border-radius: 16;" +
+                "-fx-border-width: 1;" +
+                "-fx-padding: 20;"
+        );
+        VBox.setVgrow(listSection, Priority.ALWAYS);
+
+        HBox listHeader = new HBox(15);
+        listHeader.setAlignment(Pos.CENTER_LEFT);
+
+        Label listTitle = new Label("📋 Pending Requests");
+        listTitle.setStyle("-fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: white;");
+        HBox.setHgrow(listTitle, Priority.ALWAYS);
+
+        Button refreshBtn = createStyledButton("🔄 Refresh", "#ef4444", "#dc2626");
+        refreshBtn.setOnAction(e -> loadAvailabilityRequests());
+
+        listHeader.getChildren().addAll(listTitle, refreshBtn);
+
+        requestsListView = new ListView<>();
+        requestsListView.setCellFactory(lv -> new AvailabilityRequestCell());
+        requestsListView.setStyle(
+                "-fx-background-color: transparent;" +
+                "-fx-control-inner-background: rgba(15, 23, 42, 0.6);"
+        );
+        VBox.setVgrow(requestsListView, Priority.ALWAYS);
+
+        listSection.getChildren().addAll(listHeader, requestsListView);
+        content.getChildren().addAll(headerSection, listSection);
+
+        // Load requests on creation
+        Platform.runLater(this::loadAvailabilityRequests);
+
+        return content;
+    }
+
+    private void loadAvailabilityRequests() {
+        System.out.println("📥 Loading availability requests...");
+
+        try {
+            List<AvailabilityRequest> requests = availabilityRequestService.getPendingRequests();
+            System.out.println("   Found " + requests.size() + " pending request(s)");
+
+            Platform.runLater(() -> {
+                requestsListView.getItems().clear();
+                requestsListView.getItems().addAll(requests);
+
+                if (requests.isEmpty()) {
+                    System.out.println("   No pending requests");
+                }
+            });
+        } catch (Exception ex) {
+            System.err.println("ERROR loading availability requests: " + ex.getMessage());
+            showError("Failed to load requests: " + ex.getMessage());
+        }
+    }
+
+    private void handleRespondToRequest(AvailabilityRequest request) {
+        // Create response dialog
+        Dialog<ResponseData> dialog = new Dialog<>();
+        dialog.setTitle("Respond to Availability Request");
+        dialog.setHeaderText("Respond to request from " + request.getRequesterUsername());
+
+        ButtonType sendButton = new ButtonType("📧 Send Response", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(sendButton, ButtonType.CANCEL);
+
+        GridPane grid = new GridPane();
+        grid.setHgap(15);
+        grid.setVgap(15);
+        grid.setPadding(new Insets(20));
+
+        // Item info
+        Label itemLabel = new Label("Item: " + request.getItemName());
+        itemLabel.setStyle("-fx-font-weight: bold;");
+
+        Label requestedLabel = new Label("Requested Quantity: " + request.getQuantityRequested());
+
+        // Response fields
+        ComboBox<RequestStatus> statusCombo = new ComboBox<>();
+        statusCombo.getItems().addAll(RequestStatus.AVAILABLE, RequestStatus.PARTIAL, RequestStatus.UNAVAILABLE);
+        statusCombo.setValue(RequestStatus.AVAILABLE);
+        statusCombo.setPromptText("Select status");
+
+        Spinner<Integer> availableSpinner = new Spinner<>(0, 99999, request.getQuantityRequested());
+        availableSpinner.setEditable(true);
+        availableSpinner.setPrefWidth(120);
+
+        TextArea messageArea = new TextArea();
+        messageArea.setPromptText("Response message to requester...");
+        messageArea.setPrefRowCount(3);
+        messageArea.setPrefWidth(350);
+
+        grid.add(itemLabel, 0, 0, 2, 1);
+        grid.add(requestedLabel, 0, 1, 2, 1);
+        grid.add(new Label("Status:"), 0, 2);
+        grid.add(statusCombo, 1, 2);
+        grid.add(new Label("Available Qty:"), 0, 3);
+        grid.add(availableSpinner, 1, 3);
+        grid.add(new Label("Message:"), 0, 4);
+        grid.add(messageArea, 0, 5, 2, 1);
+
+        dialog.getDialogPane().setContent(grid);
+
+        dialog.setResultConverter(btn -> {
+            if (btn == sendButton) {
+                return new ResponseData(
+                        statusCombo.getValue(),
+                        availableSpinner.getValue(),
+                        messageArea.getText()
+                );
+            }
+            return null;
+        });
+
+        Optional<ResponseData> result = dialog.showAndWait();
+        result.ifPresent(data -> {
+            try {
+                availabilityRequestService.respondAndNotify(
+                        request.getId(),
+                        data.status,
+                        data.availableQty,
+                        data.message,
+                        currentUser
+                );
+                showSuccess("✓ Response sent successfully!\nEmail notification sent to " + request.getRequesterEmail());
+                loadAvailabilityRequests();
+            } catch (EmailException ex) {
+                // Response saved but email failed
+                showWarning("Response saved, but email failed: " + ex.getMessage());
+                loadAvailabilityRequests();
+            } catch (Exception ex) {
+                showError("Failed to send response: " + ex.getMessage());
+            }
+        });
+    }
+
+    private static class ResponseData {
+        RequestStatus status;
+        int availableQty;
+        String message;
+
+        ResponseData(RequestStatus status, int availableQty, String message) {
+            this.status = status;
+            this.availableQty = availableQty;
+            this.message = message;
+        }
+    }
+
+    private class AvailabilityRequestCell extends ListCell<AvailabilityRequest> {
+        @Override
+        protected void updateItem(AvailabilityRequest request, boolean empty) {
+            super.updateItem(request, empty);
+
+            if (empty || request == null) {
+                setGraphic(null);
+            } else {
+                HBox cell = new HBox(15);
+                cell.setAlignment(Pos.CENTER_LEFT);
+                cell.setPadding(new Insets(15));
+                cell.setStyle(
+                        "-fx-background-color: rgba(30, 41, 59, 0.8);" +
+                        "-fx-background-radius: 10;" +
+                        "-fx-border-color: rgba(239, 68, 68, 0.3);" +
+                        "-fx-border-radius: 10;" +
+                        "-fx-border-width: 1;"
+                );
+
+                // Request info
+                VBox info = new VBox(5);
+
+                Label itemLabel = new Label("📦 " + request.getItemName());
+                itemLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 15px; -fx-text-fill: white;");
+
+                Label detailsLabel = new Label(
+                        "Manufacturer: " + (request.getItemManufacture() != null ? request.getItemManufacture() : "-") +
+                        " | Code: " + (request.getItemCode() != null ? request.getItemCode() : "-"));
+                detailsLabel.setStyle("-fx-text-fill: rgba(255, 255, 255, 0.7); -fx-font-size: 12px;");
+
+                Label qtyLabel = new Label("📊 Quantity Requested: " + request.getQuantityRequested());
+                qtyLabel.setStyle("-fx-text-fill: #f59e0b; -fx-font-size: 13px; -fx-font-weight: bold;");
+
+                Label requesterLabel = new Label(
+                        "👤 From: " + request.getRequesterUsername() +
+                        " (" + request.getRequesterModule() + ")");
+                requesterLabel.setStyle("-fx-text-fill: rgba(255, 255, 255, 0.6); -fx-font-size: 12px;");
+
+                String projectInfo = "";
+                if (request.getProjectName() != null) {
+                    projectInfo = " | 📋 " + request.getProjectName();
+                }
+                Label dateLabel = new Label(
+                        "🕐 " + (request.getCreatedAt() != null ?
+                                request.getCreatedAt().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")) : "N/A") +
+                        projectInfo);
+                dateLabel.setStyle("-fx-text-fill: rgba(255, 255, 255, 0.5); -fx-font-size: 11px;");
+
+                if (request.getRequestReason() != null && !request.getRequestReason().isEmpty()) {
+                    Label reasonLabel = new Label("💬 " + request.getRequestReason());
+                    reasonLabel.setStyle("-fx-text-fill: rgba(255, 255, 255, 0.6); -fx-font-size: 11px; -fx-font-style: italic;");
+                    info.getChildren().addAll(itemLabel, detailsLabel, qtyLabel, requesterLabel, dateLabel, reasonLabel);
+                } else {
+                    info.getChildren().addAll(itemLabel, detailsLabel, qtyLabel, requesterLabel, dateLabel);
+                }
+                HBox.setHgrow(info, Priority.ALWAYS);
+
+                // Action buttons
+                VBox buttonsBox = new VBox(8);
+                buttonsBox.setAlignment(Pos.CENTER);
+
+                Button respondBtn = new Button("📧 Respond");
+                respondBtn.setStyle(
+                        "-fx-background-color: #22c55e;" +
+                        "-fx-text-fill: white;" +
+                        "-fx-padding: 10 20;" +
+                        "-fx-background-radius: 8;" +
+                        "-fx-font-size: 13px;" +
+                        "-fx-font-weight: bold;"
+                );
+                respondBtn.setOnAction(e -> handleRespondToRequest(request));
+
+                Button closeBtn = new Button("✕ Close");
+                closeBtn.setStyle(
+                        "-fx-background-color: #6b7280;" +
+                        "-fx-text-fill: white;" +
+                        "-fx-padding: 6 15;" +
+                        "-fx-background-radius: 6;" +
+                        "-fx-font-size: 11px;"
+                );
+                closeBtn.setOnAction(e -> {
+                    availabilityRequestService.closeRequest(request.getId(), currentUser.getUsername());
+                    loadAvailabilityRequests();
+                });
+
+                buttonsBox.getChildren().addAll(respondBtn, closeBtn);
+
+                cell.getChildren().addAll(info, buttonsBox);
+                setGraphic(cell);
+                setStyle("-fx-background-color: transparent;");
+            }
+        }
     }
 
     @Override

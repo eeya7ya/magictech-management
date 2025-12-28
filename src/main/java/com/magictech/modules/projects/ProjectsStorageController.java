@@ -132,7 +132,6 @@ public class ProjectsStorageController extends BaseModuleController {
         if (selectedProject != null) {
             loadScheduleData();
             loadTasksData();
-            loadElementsData();
             loadSiteSurveyData();
         }
     }
@@ -408,16 +407,7 @@ public class ProjectsStorageController extends BaseModuleController {
         tasksTabContent = createTasksTab();
         tasksTab.setContent(tasksTabContent);
 
-        Tab elementsTab = new Tab("📦 Elements");
-        elementsTab.setStyle(
-                "-fx-background-color: rgba(251, 146, 60, 0.9);" +
-                        "-fx-text-fill: white;" +
-                        "-fx-font-size: 16px;" +
-                        "-fx-font-weight: bold;" +
-                        "-fx-padding: 10 20;"
-        );
-        elementsTabContent = createElementsTab();
-        elementsTab.setContent(elementsTabContent);
+        // Note: Elements tab removed - item availability is now managed through Fast Selection in Sales/Presales
 
         Tab siteSurveyTab = new Tab("📋 Site Survey");
         siteSurveyTab.setStyle(
@@ -441,7 +431,7 @@ public class ProjectsStorageController extends BaseModuleController {
         );
         executionWizardTab.setContent(createExecutionWizardTab());
 
-        tabs.getTabs().addAll(scheduleTab, tasksTab, elementsTab, siteSurveyTab, executionWizardTab);
+        tabs.getTabs().addAll(scheduleTab, tasksTab, siteSurveyTab, executionWizardTab);
 
         tabs.setStyle(
                 "-fx-background-color: transparent;" +
