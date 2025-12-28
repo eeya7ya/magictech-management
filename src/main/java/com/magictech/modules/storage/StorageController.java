@@ -12,6 +12,7 @@ import com.magictech.modules.storage.service.StorageService;
 import com.magictech.modules.storage.service.StorageLocationService;
 import com.magictech.modules.storage.service.StorageLocationService.LocationSummary;
 import com.magictech.modules.storage.service.StorageItemLocationService;
+import com.magictech.modules.storage.service.ExcelImportService;
 import com.magictech.modules.storage.ui.LocationCardsPane;
 import javafx.application.Platform;
 import javafx.beans.property.*;
@@ -57,6 +58,9 @@ public class StorageController extends BaseModuleController {
 
     @Autowired
     private StorageItemLocationService itemLocationService;
+
+    @Autowired
+    private ExcelImportService excelImportService;
 
     // View modes
     private enum ViewMode { CARDS, LOCATION_SHEET, TOTAL_SHEET }
@@ -331,6 +335,15 @@ public class StorageController extends BaseModuleController {
 
         refreshButton = createStyledButton("↻ Refresh", "#10b981", "#059669");
         refreshButton.setOnAction(e -> refresh());
+
+        // Import button - only show for users who can edit
+        boolean canEdit = currentUser != null &&
+            (currentUser.getRole() == UserRole.MASTER || currentUser.getRole() == UserRole.STORAGE);
+        if (canEdit) {
+            importButton = createStyledButton("📤 Import Excel", "#0ea5e9", "#0284c7");
+            importButton.setOnAction(e -> handleExcelImport());
+            toolbar.getChildren().add(importButton);
+        }
 
         exportButton = createStyledButton("📥 Export", "#8b5cf6", "#7c3aed");
         exportButton.setOnAction(e -> handleExcelExport());
@@ -942,6 +955,144 @@ public class StorageController extends BaseModuleController {
         }
     }
 
+    /**
+     * Handle Excel import - reads items from Excel file and adds them to the current location
+     * Expected columns: Manufacture | Product Name | Code | Serial Number | Quantity | Price
+     */
+    private void handleExcelImport() {
+        if (currentViewMode != ViewMode.LOCATION_SHEET || currentLocation == null) {
+            showWarning("Please select a storage location first to import items into");
+            return;
+        }
+
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Import Items from Excel");
+        fileChooser.getExtensionFilters().addAll(
+            new FileChooser.ExtensionFilter("Excel Files", "*.xlsx", "*.xls"),
+            new FileChooser.ExtensionFilter("All Files", "*.*")
+        );
+
+        File file = fileChooser.showOpenDialog(rootPane.getScene().getWindow());
+        if (file == null) {
+            return; // User cancelled
+        }
+
+        // Show confirmation dialog with expected format
+        Alert confirmDialog = new Alert(Alert.AlertType.CONFIRMATION);
+        confirmDialog.setTitle("Import Excel File");
+        confirmDialog.setHeaderText("Import items from: " + file.getName());
+        confirmDialog.setContentText(
+            "Expected Excel format (first row is header):\n\n" +
+            "Column A: Manufacture\n" +
+            "Column B: Product Name (Required)\n" +
+            "Column C: Code\n" +
+            "Column D: Serial Number\n" +
+            "Column E: Quantity\n" +
+            "Column F: Price\n\n" +
+            "Items will be added to: " + currentLocation.getLocationName() + "\n\n" +
+            "Continue with import?"
+        );
+
+        Optional<ButtonType> result = confirmDialog.showAndWait();
+        if (result.isEmpty() || result.get() != ButtonType.OK) {
+            return;
+        }
+
+        // Show loading indicator
+        showLoading(true);
+
+        Task<List<StorageItem>> importTask = new Task<>() {
+            @Override
+            protected List<StorageItem> call() throws Exception {
+                return excelImportService.importFromExcel(file);
+            }
+        };
+
+        importTask.setOnSucceeded(e -> {
+            List<StorageItem> importedItems = importTask.getValue();
+
+            if (importedItems.isEmpty()) {
+                Platform.runLater(() -> {
+                    showLoading(false);
+                    showWarning("No valid items found in the Excel file.\n" +
+                        "Please ensure the file has the correct format and Product Name column is not empty.");
+                });
+                return;
+            }
+
+            // Save imported items to database and add to current location
+            Task<Integer> saveTask = new Task<>() {
+                @Override
+                protected Integer call() {
+                    int savedCount = 0;
+                    String username = currentUser != null ? currentUser.getUsername() : "system";
+
+                    for (StorageItem item : importedItems) {
+                        try {
+                            // Set creator
+                            item.setCreatedBy(username);
+
+                            // Save the storage item first
+                            StorageItem savedItem = storageService.createItem(item);
+
+                            // Add to current location with the quantity from Excel
+                            int quantity = item.getQuantity() != null ? item.getQuantity() : 0;
+                            itemLocationService.addItemToLocation(
+                                savedItem.getId(),
+                                currentLocation.getLocationId(),
+                                quantity,
+                                username
+                            );
+
+                            savedCount++;
+                        } catch (Exception ex) {
+                            System.err.println("Failed to save item: " + item.getProductName() + " - " + ex.getMessage());
+                        }
+                    }
+                    return savedCount;
+                }
+            };
+
+            saveTask.setOnSucceeded(ev -> {
+                int savedCount = saveTask.getValue();
+                Platform.runLater(() -> {
+                    showLoading(false);
+                    if (savedCount > 0) {
+                        showSuccess("✓ Successfully imported " + savedCount + " item(s) to " +
+                            currentLocation.getLocationName());
+                        refresh(); // Reload the table to show new items
+                    } else {
+                        showError("Failed to import items. Please check the Excel format and try again.");
+                    }
+                });
+            });
+
+            saveTask.setOnFailed(ev -> {
+                Platform.runLater(() -> {
+                    showLoading(false);
+                    showError("Import failed: " + saveTask.getException().getMessage());
+                });
+            });
+
+            new Thread(saveTask).start();
+        });
+
+        importTask.setOnFailed(e -> {
+            Platform.runLater(() -> {
+                showLoading(false);
+                Throwable ex = importTask.getException();
+                String message = ex.getMessage();
+                if (message == null || message.isEmpty()) {
+                    message = ex.getClass().getSimpleName();
+                }
+                showError("Failed to read Excel file: " + message +
+                    "\n\nPlease ensure the file is a valid Excel file (.xlsx or .xls)");
+            });
+        });
+
+        new Thread(importTask).start();
+    }
+
     // ==================== DIALOGS ====================
 
     private Dialog<StorageItemLocationViewModel> createItemDialog(StorageItemLocationViewModel existing) {
@@ -1296,7 +1447,7 @@ public class StorageController extends BaseModuleController {
         });
 
         dialog.setResultConverter(btn -> {
-            if (btn.getButtonData() == ButtonBar.ButtonData.OK_DONE && !nameField.getText().trim().isEmpty()) {
+            if (btn != null && btn.getButtonData() == ButtonBar.ButtonData.OK_DONE && !nameField.getText().trim().isEmpty()) {
                 // Create a new location object to avoid JPA issues with modified detached entities
                 StorageLocation location = new StorageLocation();
                 // Copy ID from existing if editing
@@ -1317,6 +1468,8 @@ public class StorageController extends BaseModuleController {
                 location.setManagerName(managerField.getText().trim().isEmpty() ? null : managerField.getText().trim());
                 location.setPhone(phoneField.getText().trim().isEmpty() ? null : phoneField.getText().trim());
                 location.setEmail(emailField.getText().trim().isEmpty() ? null : emailField.getText().trim());
+                // Explicitly set active to true to ensure visibility
+                location.setActive(true);
                 return location;
             }
             return null;
