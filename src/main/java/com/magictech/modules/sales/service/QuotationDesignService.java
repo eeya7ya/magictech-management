@@ -321,6 +321,11 @@ public class QuotationDesignService {
         return generatePdfWithAnnotations(quotation.getPdfData(), quotation.getPdfAnnotations());
     }
 
+    // DPI used for rendering PDF preview (must match QuotationDesignEditorPanel.RENDER_DPI)
+    private static final float RENDER_DPI = 150f;
+    // PDF standard is 72 points per inch
+    private static final float PDF_DPI = 72f;
+
     /**
      * Generate PDF with annotations burned in (from raw data)
      */
@@ -335,6 +340,10 @@ public class QuotationDesignService {
         } catch (JsonProcessingException e) {
             return pdfData; // Invalid JSON, return original
         }
+
+        // Scale factor to convert from rendered image pixels to PDF points
+        // Image is rendered at RENDER_DPI, PDF uses 72 points per inch
+        float scaleFactor = PDF_DPI / RENDER_DPI;
 
         try (PDDocument document = PDDocument.load(new ByteArrayInputStream(pdfData))) {
             for (Map<String, Object> annotation : annotations) {
@@ -352,14 +361,15 @@ public class QuotationDesignService {
                     PDPage page = document.getPage(pageNum);
                     PDRectangle mediaBox = page.getMediaBox();
 
-                    // Convert from image coordinates to PDF coordinates
-                    // PDF origin is bottom-left, image origin is top-left
-                    float pdfY = mediaBox.getHeight() - y;
+                    // Convert from image coordinates (pixels at RENDER_DPI) to PDF coordinates (points at 72 DPI)
+                    // Also convert Y-axis: image origin is top-left, PDF origin is bottom-left
+                    float pdfX = x * scaleFactor;
+                    float pdfY = mediaBox.getHeight() - (y * scaleFactor);
 
                     try (PDPageContentStream contentStream = new PDPageContentStream(
                             document, page, PDPageContentStream.AppendMode.APPEND, true, true)) {
 
-                        // Set font
+                        // Set font (fontSize is in points, no scaling needed)
                         PDFont font = getFont(fontFamily, bold, italic);
                         contentStream.setFont(font, fontSize);
 
@@ -367,9 +377,9 @@ public class QuotationDesignService {
                         Color textColor = Color.decode(color);
                         contentStream.setNonStrokingColor(textColor);
 
-                        // Draw text
+                        // Draw text at scaled position
                         contentStream.beginText();
-                        contentStream.newLineAtOffset(x, pdfY);
+                        contentStream.newLineAtOffset(pdfX, pdfY);
 
                         // Handle multi-line text
                         String[] lines = text.split("\n");
