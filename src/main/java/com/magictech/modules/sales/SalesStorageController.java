@@ -32,6 +32,8 @@ import javafx.scene.control.DialogPane;
 import javafx.scene.layout.FlowPane;
 import com.magictech.modules.sales.ui.WorkflowDialog;
 import com.magictech.modules.sales.ui.WorkflowStatusCard;
+import com.magictech.modules.storage.ui.FastSelectionPanel;
+import com.magictech.modules.storage.service.AvailabilityRequestService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -60,6 +62,7 @@ public class SalesStorageController extends BaseModuleController
     @Autowired private com.magictech.core.messaging.service.NotificationListenerService notificationListenerService;
     @Autowired private com.magictech.core.auth.UserRepository userRepository;
     @Autowired private com.magictech.modules.sales.service.WorkflowEmailService workflowEmailService;
+    @Autowired private AvailabilityRequestService availabilityRequestService;
 
     private com.magictech.core.ui.components.DashboardBackgroundPane backgroundPane;
     private StackPane mainContainer;
@@ -387,17 +390,17 @@ public class SalesStorageController extends BaseModuleController
         workflowTab.setContent(createWorkflowWizardTab(project));
         styleTab(workflowTab, "#8b5cf6"); // Purple theme
 
-        // ✅ Project Elements Tab (synchronized with Projects module) + Cost Breakdown
-        Tab elementsTab = new Tab("📦 Project Elements");
-        elementsTab.setContent(createProjectElementsTab(project));
-        styleTab(elementsTab, "#a78bfa"); // Light purple theme
+        // ✅ Fast Selection Tab (replaces Project Elements)
+        Tab fastSelectionTab = new Tab("🎯 Fast Selection");
+        fastSelectionTab.setContent(createFastSelectionTab(project));
+        styleTab(fastSelectionTab, "#a78bfa"); // Light purple theme
 
         // Contract PDF Tab (moved to last, optional)
         Tab contractsTab = new Tab("📄 Contract PDF");
         contractsTab.setContent(createSimplePDFTab(project));
         styleTab(contractsTab, "#7c3aed"); // Purple theme
 
-        tabPane.getTabs().addAll(workflowTab, elementsTab, contractsTab);
+        tabPane.getTabs().addAll(workflowTab, fastSelectionTab, contractsTab);
 
         mainLayout.getChildren().addAll(headerBox, tabPane);
 
@@ -408,112 +411,29 @@ public class SalesStorageController extends BaseModuleController
         });
     }
 
-    private VBox createProjectElementsTab(Project project) {
+    private VBox createFastSelectionTab(Project project) {
         VBox content = new VBox(15);
         content.setPadding(new Insets(20));
         content.setStyle("-fx-background-color: rgba(15, 23, 42, 0.6);");
         VBox.setVgrow(content, Priority.ALWAYS);
 
-        // Create TabPane for Cost Breakdown and Elements
-        TabPane subTabPane = new TabPane();
-        subTabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
-        VBox.setVgrow(subTabPane, Priority.ALWAYS);
-
-        // ============ TAB 1: Cost Breakdown ============
-        Tab costTab = new Tab("💰 Cost Breakdown");
-        VBox costContent = new VBox(20);
-        costContent.setPadding(new Insets(30));
-        costContent.setStyle("-fx-background-color: rgba(15, 23, 42, 0.6);");
-
-        com.magictech.modules.sales.ui.CostBreakdownPanel breakdownPanel =
-            new com.magictech.modules.sales.ui.CostBreakdownPanel();
-        breakdownPanel.setId("costBreakdownPanel");
-
-        // Load existing breakdown
-        try {
-            java.util.Optional<com.magictech.modules.sales.entity.ProjectCostBreakdown> existing =
-                costBreakdownService.getBreakdownByProject(project.getId());
-            if (existing.isPresent()) {
-                breakdownPanel.loadBreakdown(existing.get());
-            }
-        } catch (Exception ex) {
-            System.err.println("Error loading cost breakdown: " + ex.getMessage());
-        }
-
-        // Set save callback
-        breakdownPanel.setOnSave(breakdown -> {
-            try {
-                breakdown.setProjectId(project.getId());
-                String username = (currentUser != null) ? currentUser.getUsername() : "unknown";
-                costBreakdownService.saveBreakdown(breakdown, username);
-                showSuccess("Cost breakdown saved successfully!");
-            } catch (Exception ex) {
-                showError("Failed to save breakdown: " + ex.getMessage());
-            }
-        });
-
-        costContent.getChildren().add(breakdownPanel);
-        costTab.setContent(costContent);
-        styleTab(costTab, "#eab308"); // Gold theme
-
-        // ============ TAB 2: Project Elements ============
-        Tab elementsTab = new Tab("📦 Project Elements");
-        VBox elementsContent = new VBox(20);
-        elementsContent.setPadding(new Insets(30));
-        elementsContent.setStyle("-fx-background-color: rgba(15, 23, 42, 0.6);");
-        VBox.setVgrow(elementsContent, Priority.ALWAYS);
-
-        HBox header = new HBox(15);
-        header.setAlignment(Pos.CENTER_LEFT);
-
-        Label title = new Label("📦 Project Elements");
-        title.setStyle("-fx-text-fill: white; -fx-font-size: 24px; -fx-font-weight: bold;");
-        HBox.setHgrow(title, Priority.ALWAYS);
-
-        Button addButton = createStyledButton("+ Add Element", "#7c3aed", "#6b21a8");
-        addButton.setOnAction(e -> handleAddElementToProject(project, elementsContent));
-
-        Button refreshButton = createStyledButton("🔄 Refresh", "#a78bfa", "#7c3aed");
-        refreshButton.setOnAction(e -> {
-            loadProjectElements(project, elementsContent);
-            refreshCostBreakdown(project, costContent);
-        });
-
-        header.getChildren().addAll(title, addButton, refreshButton);
-
-        // ScrollPane with Grid of Element Cards
-        ScrollPane scrollPane = new ScrollPane();
-        scrollPane.setFitToWidth(true);
-        scrollPane.setStyle(
-                "-fx-background: transparent;" +
-                        "-fx-background-color: transparent;" +
-                        "-fx-border-color: transparent;"
+        // Create Fast Selection Panel
+        FastSelectionPanel fastSelectionPanel = new FastSelectionPanel(
+            storageService,
+            availabilityRequestService,
+            currentUser,
+            "SALES"
         );
-        VBox.setVgrow(scrollPane, Priority.ALWAYS);
 
-        FlowPane elementsGrid = new FlowPane();
-        elementsGrid.setId("elementsGrid");
-        elementsGrid.setHgap(20);
-        elementsGrid.setVgap(20);
-        elementsGrid.setPadding(new Insets(10));
-        elementsGrid.setStyle("-fx-background-color: transparent;");
+        // Set callback for when availability request is created
+        fastSelectionPanel.setOnRequestCreated(request -> {
+            showSuccess("✅ Availability request sent to Storage team!\n" +
+                "Item: " + request.getItemName() + "\n" +
+                "Quantity: " + request.getQuantityRequested());
+        });
 
-        scrollPane.setContent(elementsGrid);
-
-        elementsContent.getChildren().addAll(header, scrollPane);
-        elementsTab.setContent(elementsContent);
-        styleTab(elementsTab, "#a78bfa"); // Light purple theme
-
-        // Add tabs to TabPane
-        subTabPane.getTabs().addAll(costTab, elementsTab);
-
-        content.getChildren().add(subTabPane);
-
-        // Load existing elements
-        loadProjectElements(project, elementsContent);
-
-        // Calculate and set initial subtotal
-        refreshCostBreakdown(project, costContent);
+        VBox.setVgrow(fastSelectionPanel, Priority.ALWAYS);
+        content.getChildren().add(fastSelectionPanel);
 
         return content;
     }
@@ -2533,12 +2453,12 @@ public class SalesStorageController extends BaseModuleController
     // ==================== WorkflowDialogCallback Implementation ====================
 
     /**
-     * Called when user clicks "Yes - Add Elements" in Step 4
-     * Navigates to the project elements tab for the specified project
+     * Called when user clicks "Yes - Check Items" in Step 4
+     * Navigates to the fast selection tab for the specified project
      */
     @Override
     public void onNavigateToProjectElements(Project project, Long workflowId) {
-        System.out.println("📦 Callback: Navigate to Project Elements for " + project.getProjectName());
+        System.out.println("🎯 Callback: Navigate to Fast Selection for " + project.getProjectName());
         System.out.println("   Workflow ID: " + workflowId);
 
         // Store the workflow ID for Step 4 completion
@@ -2552,7 +2472,7 @@ public class SalesStorageController extends BaseModuleController
     }
 
     /**
-     * Open project details view with Project Elements tab selected for Step 4
+     * Open project details view with Fast Selection tab selected for Step 4
      */
     private void openProjectDetailsForStep4(Project project) {
         currentlyDisplayedProject = project;
@@ -2569,12 +2489,12 @@ public class SalesStorageController extends BaseModuleController
         backBtn.setOnAction(e -> {
             // Clear Step 4 context when going back
             if (activeStep4WorkflowId != null) {
-                showWarning("Step 4 is still in progress. Complete adding elements or restore the workflow dialog.");
+                showWarning("Step 4 is still in progress. Complete checking items or restore the workflow dialog.");
             }
             mainContainer.getChildren().setAll(dashboardScreen);
         });
 
-        Label titleLabel = new Label("📋 " + project.getProjectName() + " (Step 4: Adding Elements)");
+        Label titleLabel = new Label("📋 " + project.getProjectName() + " (Step 4: Check Available Items)");
         titleLabel.setStyle("-fx-text-fill: white; -fx-font-size: 28px; -fx-font-weight: bold;");
 
         header.getChildren().addAll(backBtn, titleLabel);
@@ -2593,20 +2513,20 @@ public class SalesStorageController extends BaseModuleController
         workflowTab.setContent(createWorkflowWizardTab(project));
         styleTab(workflowTab, "#8b5cf6");
 
-        // Project Elements Tab (with Step 4 context)
-        Tab elementsTab = new Tab("📦 Project Elements (Step 4)");
-        elementsTab.setContent(createProjectElementsTabWithStep4(project));
-        styleTab(elementsTab, "#10b981"); // Green theme to highlight
+        // Fast Selection Tab (with Step 4 context)
+        Tab fastSelectionTab = new Tab("🎯 Fast Selection (Step 4)");
+        fastSelectionTab.setContent(createFastSelectionTabWithStep4(project));
+        styleTab(fastSelectionTab, "#10b981"); // Green theme to highlight
 
         // Contract PDF Tab
         Tab contractsTab = new Tab("📄 Contract PDF");
         contractsTab.setContent(createSimplePDFTab(project));
         styleTab(contractsTab, "#7c3aed");
 
-        tabPane.getTabs().addAll(workflowTab, elementsTab, contractsTab);
+        tabPane.getTabs().addAll(workflowTab, fastSelectionTab, contractsTab);
 
-        // Select the Elements tab by default for Step 4
-        tabPane.getSelectionModel().select(elementsTab);
+        // Select the Fast Selection tab by default for Step 4
+        tabPane.getSelectionModel().select(fastSelectionTab);
 
         projectDetailScreen.getChildren().addAll(header, tabPane);
 
@@ -2614,9 +2534,9 @@ public class SalesStorageController extends BaseModuleController
     }
 
     /**
-     * Create Project Elements tab with Step 4 completion button
+     * Create Fast Selection tab with Step 4 completion button
      */
-    private VBox createProjectElementsTabWithStep4(Project project) {
+    private VBox createFastSelectionTabWithStep4(Project project) {
         VBox content = new VBox(15);
         content.setPadding(new Insets(20));
         content.setStyle("-fx-background-color: rgba(15, 23, 42, 0.6);");
@@ -2631,7 +2551,7 @@ public class SalesStorageController extends BaseModuleController
             "-fx-background-radius: 8;"
         );
 
-        Label step4Label = new Label("📋 Step 4: Add missing elements from storage, then click 'Complete Step 4' when done");
+        Label step4Label = new Label("📋 Step 4: Check item availability and request missing items, then click 'Complete Step 4' when done");
         step4Label.setStyle("-fx-text-fill: white; -fx-font-size: 14px; -fx-font-weight: bold;");
 
         Button completeStep4Button = new Button("✓ Complete Step 4");
@@ -2650,107 +2570,29 @@ public class SalesStorageController extends BaseModuleController
 
         step4Banner.getChildren().addAll(step4Label, spacer, completeStep4Button);
 
-        // Create TabPane for Cost Breakdown and Elements
-        TabPane subTabPane = new TabPane();
-        subTabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
-        VBox.setVgrow(subTabPane, Priority.ALWAYS);
-
-        // TAB 1: Cost Breakdown
-        Tab costTab = new Tab("💰 Cost Breakdown");
-        VBox costContent = new VBox(20);
-        costContent.setPadding(new Insets(30));
-        costContent.setStyle("-fx-background-color: rgba(15, 23, 42, 0.6);");
-
-        com.magictech.modules.sales.ui.CostBreakdownPanel breakdownPanel =
-            new com.magictech.modules.sales.ui.CostBreakdownPanel();
-        breakdownPanel.setId("costBreakdownPanel");
-
-        try {
-            java.util.Optional<com.magictech.modules.sales.entity.ProjectCostBreakdown> existing =
-                costBreakdownService.getBreakdownByProject(project.getId());
-            if (existing.isPresent()) {
-                breakdownPanel.loadBreakdown(existing.get());
-            }
-        } catch (Exception ex) {
-            System.err.println("Error loading cost breakdown: " + ex.getMessage());
-        }
-
-        breakdownPanel.setOnSave(breakdown -> {
-            try {
-                breakdown.setProjectId(project.getId());
-                String username = (currentUser != null) ? currentUser.getUsername() : "unknown";
-                costBreakdownService.saveBreakdown(breakdown, username);
-                showSuccess("Cost breakdown saved successfully!");
-            } catch (Exception ex) {
-                showError("Failed to save breakdown: " + ex.getMessage());
-            }
-        });
-
-        costContent.getChildren().add(breakdownPanel);
-        costTab.setContent(costContent);
-        styleTab(costTab, "#eab308");
-
-        // TAB 2: Project Elements
-        Tab elementsTab = new Tab("📦 Project Elements");
-        VBox elementsContent = new VBox(20);
-        elementsContent.setPadding(new Insets(30));
-        elementsContent.setStyle("-fx-background-color: rgba(15, 23, 42, 0.6);");
-        VBox.setVgrow(elementsContent, Priority.ALWAYS);
-
-        HBox header = new HBox(15);
-        header.setAlignment(Pos.CENTER_LEFT);
-
-        Label title = new Label("📦 Add Elements from Storage");
-        title.setStyle("-fx-text-fill: white; -fx-font-size: 24px; -fx-font-weight: bold;");
-        HBox.setHgrow(title, Priority.ALWAYS);
-
-        Button addButton = createStyledButton("+ Add Element", "#10b981", "#059669");
-        addButton.setOnAction(e -> handleAddElementToProject(project, elementsContent));
-
-        Button refreshButton = createStyledButton("🔄 Refresh", "#a78bfa", "#7c3aed");
-        refreshButton.setOnAction(e -> {
-            loadProjectElements(project, elementsContent);
-            refreshCostBreakdown(project, costContent);
-        });
-
-        header.getChildren().addAll(title, addButton, refreshButton);
-
-        ScrollPane scrollPane = new ScrollPane();
-        scrollPane.setFitToWidth(true);
-        scrollPane.setStyle(
-            "-fx-background: transparent;" +
-            "-fx-background-color: transparent;" +
-            "-fx-border-color: transparent;"
+        // Create Fast Selection Panel
+        FastSelectionPanel fastSelectionPanel = new FastSelectionPanel(
+            storageService,
+            availabilityRequestService,
+            currentUser,
+            "SALES"
         );
-        VBox.setVgrow(scrollPane, Priority.ALWAYS);
 
-        FlowPane elementsGrid = new FlowPane();
-        elementsGrid.setId("elementsGrid");
-        elementsGrid.setHgap(20);
-        elementsGrid.setVgap(20);
-        elementsGrid.setPadding(new Insets(10));
-        elementsGrid.setStyle("-fx-background-color: transparent;");
+        // Set callback for when availability request is created
+        fastSelectionPanel.setOnRequestCreated(request -> {
+            showSuccess("✅ Availability request sent to Storage team!\n" +
+                "Item: " + request.getItemName() + "\n" +
+                "Quantity: " + request.getQuantityRequested());
+        });
 
-        scrollPane.setContent(elementsGrid);
-
-        elementsContent.getChildren().addAll(header, scrollPane);
-        elementsTab.setContent(elementsContent);
-        styleTab(elementsTab, "#10b981");
-
-        subTabPane.getTabs().addAll(costTab, elementsTab);
-        subTabPane.getSelectionModel().select(elementsTab); // Select elements tab
-
-        content.getChildren().addAll(step4Banner, subTabPane);
-
-        // Load existing elements
-        loadProjectElements(project, elementsContent);
-        refreshCostBreakdown(project, costContent);
+        VBox.setVgrow(fastSelectionPanel, Priority.ALWAYS);
+        content.getChildren().addAll(step4Banner, fastSelectionPanel);
 
         return content;
     }
 
     /**
-     * Handle completion of Step 4 after elements have been added
+     * Handle completion of Step 4 after item availability has been checked
      */
     private void handleCompleteStep4() {
         System.out.println("✅ handleCompleteStep4 called");
@@ -2769,7 +2611,7 @@ public class SalesStorageController extends BaseModuleController
             "Are you sure you want to complete Step 4?\n\n" +
             "This will:\n" +
             "• Mark Step 4 as completed\n" +
-            "• Notify Presales team about the element changes\n" +
+            "• Notify relevant teams about item availability requests\n" +
             "• Advance workflow to Step 5"
         );
 
@@ -2785,7 +2627,7 @@ public class SalesStorageController extends BaseModuleController
                 mainContainer.getChildren().setAll(dashboardScreen);
                 loadProjects(projectsListView);
 
-                showSuccess("Step 4 completed! Presales team has been notified.");
+                showSuccess("Step 4 completed! Availability requests have been sent to Storage.");
             }
         });
     }

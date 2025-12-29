@@ -16,6 +16,9 @@ public class StorageItem {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "system_type", length = 100)
+    private String systemType;
+
     @Column(name = "manufacture", length = 200)
     private String manufacture;
 
@@ -112,6 +115,14 @@ public class StorageItem {
 
     public void setId(Long id) {
         this.id = id;
+    }
+
+    public String getSystemType() {
+        return systemType;
+    }
+
+    public void setSystemType(String systemType) {
+        this.systemType = systemType;
     }
 
     public String getManufacture() {
@@ -231,6 +242,7 @@ public class StorageItem {
     public String toString() {
         return "StorageItem{" +
                 "id=" + id +
+                ", systemType='" + systemType + '\'' +
                 ", manufacture='" + manufacture + '\'' +
                 ", productName='" + productName + '\'' +
                 ", code='" + code + '\'' +
