@@ -418,12 +418,8 @@ public class SalesStorageController extends BaseModuleController
         VBox.setVgrow(content, Priority.ALWAYS);
 
         // Create Fast Selection Panel
-        FastSelectionPanel fastSelectionPanel = new FastSelectionPanel(
-            storageService,
-            availabilityRequestService,
-            currentUser,
-            "SALES"
-        );
+        FastSelectionPanel fastSelectionPanel = new FastSelectionPanel();
+        fastSelectionPanel.initialize(storageService, availabilityRequestService, currentUser, "SALES");
 
         // Set callback for when availability request is created
         fastSelectionPanel.setOnRequestCreated(request -> {
@@ -2571,12 +2567,8 @@ public class SalesStorageController extends BaseModuleController
         step4Banner.getChildren().addAll(step4Label, spacer, completeStep4Button);
 
         // Create Fast Selection Panel
-        FastSelectionPanel fastSelectionPanel = new FastSelectionPanel(
-            storageService,
-            availabilityRequestService,
-            currentUser,
-            "SALES"
-        );
+        FastSelectionPanel fastSelectionPanel = new FastSelectionPanel();
+        fastSelectionPanel.initialize(storageService, availabilityRequestService, currentUser, "SALES");
 
         // Set callback for when availability request is created
         fastSelectionPanel.setOnRequestCreated(request -> {

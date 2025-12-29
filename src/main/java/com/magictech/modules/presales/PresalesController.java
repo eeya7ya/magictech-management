@@ -320,9 +320,6 @@ public class PresalesController extends BaseModuleController {
         }
     }
 
-    private void showToastInfo(String message) {
-        System.out.println("INFO: " + message);
-    }
 
     // Inner classes
     private static class WorkflowRequest {
