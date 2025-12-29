@@ -6,7 +6,7 @@ import com.magictech.core.messaging.ui.NotificationManager;
 import com.magictech.core.module.ModuleConfig;
 import com.magictech.core.ui.controllers.MainDashboardController;
 import com.magictech.modules.storage.StorageController;
-import com.magictech.modules.maintenance.MaintenanceStorageController;
+import com.magictech.modules.maintenance.MaintenanceController;
 import com.magictech.modules.projects.ProjectsStorageController;
 import com.magictech.modules.presales.PresalesController;
 import com.magictech.modules.qualityassurance.QualityAssuranceController;
@@ -225,8 +225,8 @@ public class SceneManager {
                     ((StorageController) activeModuleController).immediateCleanup();
                 } else if (activeModuleController instanceof SalesStorageController) {
                     ((SalesStorageController) activeModuleController).immediateCleanup();
-                } else if (activeModuleController instanceof MaintenanceStorageController) {
-                    ((MaintenanceStorageController) activeModuleController).immediateCleanup();
+                } else if (activeModuleController instanceof MaintenanceController) {
+                    ((MaintenanceController) activeModuleController).immediateCleanup();
                 } else if (activeModuleController instanceof ProjectsStorageController) {
                     ((ProjectsStorageController) activeModuleController).immediateCleanup();
                 } else if (activeModuleController instanceof QualityAssuranceController) {
@@ -471,7 +471,7 @@ public class SceneManager {
                         return;
                     }
 
-                    MaintenanceStorageController maintenanceController = new MaintenanceStorageController();
+                    MaintenanceController maintenanceController = new MaintenanceController();
                     context.getAutowireCapableBeanFactory().autowireBean(maintenanceController);
 
                     ModuleConfig config = ModuleConfig.createMaintenanceConfig();
