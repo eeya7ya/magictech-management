@@ -11,7 +11,6 @@ import org.apache.pdfbox.pdmodel.PDPageContentStream;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDFont;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
-import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.apache.pdfbox.rendering.PDFRenderer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -380,43 +379,44 @@ public class QuotationDesignService {
 
     /**
      * Get appropriate font based on family, bold, italic
+     * Uses PDFBox 2.x static font constants
      */
     private PDFont getFont(String fontFamily, boolean bold, boolean italic) {
-        // Map font family to PDFBox Standard14Fonts
+        // Map font family to PDFBox 2.x static font constants
         if (fontFamily == null || fontFamily.equalsIgnoreCase("Helvetica") || fontFamily.equalsIgnoreCase("Arial")) {
             if (bold && italic) {
-                return new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD_OBLIQUE);
+                return PDType1Font.HELVETICA_BOLD_OBLIQUE;
             } else if (bold) {
-                return new PDType1Font(Standard14Fonts.FontName.HELVETICA_BOLD);
+                return PDType1Font.HELVETICA_BOLD;
             } else if (italic) {
-                return new PDType1Font(Standard14Fonts.FontName.HELVETICA_OBLIQUE);
+                return PDType1Font.HELVETICA_OBLIQUE;
             } else {
-                return new PDType1Font(Standard14Fonts.FontName.HELVETICA);
+                return PDType1Font.HELVETICA;
             }
         } else if (fontFamily.equalsIgnoreCase("Times") || fontFamily.equalsIgnoreCase("Times New Roman")) {
             if (bold && italic) {
-                return new PDType1Font(Standard14Fonts.FontName.TIMES_BOLD_ITALIC);
+                return PDType1Font.TIMES_BOLD_ITALIC;
             } else if (bold) {
-                return new PDType1Font(Standard14Fonts.FontName.TIMES_BOLD);
+                return PDType1Font.TIMES_BOLD;
             } else if (italic) {
-                return new PDType1Font(Standard14Fonts.FontName.TIMES_ITALIC);
+                return PDType1Font.TIMES_ITALIC;
             } else {
-                return new PDType1Font(Standard14Fonts.FontName.TIMES_ROMAN);
+                return PDType1Font.TIMES_ROMAN;
             }
         } else if (fontFamily.equalsIgnoreCase("Courier") || fontFamily.equalsIgnoreCase("Courier New")) {
             if (bold && italic) {
-                return new PDType1Font(Standard14Fonts.FontName.COURIER_BOLD_OBLIQUE);
+                return PDType1Font.COURIER_BOLD_OBLIQUE;
             } else if (bold) {
-                return new PDType1Font(Standard14Fonts.FontName.COURIER_BOLD);
+                return PDType1Font.COURIER_BOLD;
             } else if (italic) {
-                return new PDType1Font(Standard14Fonts.FontName.COURIER_OBLIQUE);
+                return PDType1Font.COURIER_OBLIQUE;
             } else {
-                return new PDType1Font(Standard14Fonts.FontName.COURIER);
+                return PDType1Font.COURIER;
             }
         }
 
         // Default to Helvetica
-        return new PDType1Font(Standard14Fonts.FontName.HELVETICA);
+        return PDType1Font.HELVETICA;
     }
 
     // ==================== Annotation Helpers ====================
