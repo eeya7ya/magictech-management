@@ -32,6 +32,7 @@ import javafx.scene.control.DialogPane;
 import javafx.scene.layout.FlowPane;
 import com.magictech.modules.sales.ui.WorkflowDialog;
 import com.magictech.modules.sales.ui.WorkflowStatusCard;
+import com.magictech.modules.sales.ui.QuotationDesignEditorPanel;
 import com.magictech.modules.storage.ui.FastSelectionPanel;
 import com.magictech.modules.storage.service.AvailabilityRequestService;
 import java.math.BigDecimal;
@@ -63,6 +64,7 @@ public class SalesStorageController extends BaseModuleController
     @Autowired private com.magictech.core.auth.UserRepository userRepository;
     @Autowired private com.magictech.modules.sales.service.WorkflowEmailService workflowEmailService;
     @Autowired private AvailabilityRequestService availabilityRequestService;
+    @Autowired private QuotationDesignService quotationDesignService;
 
     private com.magictech.core.ui.components.DashboardBackgroundPane backgroundPane;
     private StackPane mainContainer;
@@ -546,12 +548,12 @@ public class SalesStorageController extends BaseModuleController
         fastSelectionTab.setContent(createFastSelectionTab(project));
         styleTab(fastSelectionTab, "#a78bfa"); // Light purple theme
 
-        // Contract PDF Tab (moved to last, optional)
-        Tab contractsTab = new Tab("📄 Contract PDF");
-        contractsTab.setContent(createSimplePDFTab(project));
-        styleTab(contractsTab, "#7c3aed"); // Purple theme
+        // Quotation Design Tab (PDF editor with annotations)
+        Tab quotationDesignTab = new Tab("📄 Quotation Design");
+        quotationDesignTab.setContent(createQuotationDesignTab(project));
+        styleTab(quotationDesignTab, "#7c3aed"); // Purple theme
 
-        tabPane.getTabs().addAll(workflowTab, fastSelectionTab, contractsTab);
+        tabPane.getTabs().addAll(workflowTab, fastSelectionTab, quotationDesignTab);
 
         mainLayout.getChildren().addAll(headerBox, tabPane);
 
@@ -1327,7 +1329,38 @@ public class SalesStorageController extends BaseModuleController
         }
     }
 
-    // ==================== SIMPLIFIED PDF TAB ====================
+    // ==================== QUOTATION DESIGN TAB (NEW PDF EDITOR) ====================
+    private VBox createQuotationDesignTab(Project project) {
+        VBox content = new VBox(0);
+        content.setStyle("-fx-background-color: transparent;");
+        VBox.setVgrow(content, Priority.ALWAYS);
+
+        // Create the QuotationDesignEditorPanel
+        QuotationDesignEditorPanel editorPanel = new QuotationDesignEditorPanel();
+        editorPanel.initialize(
+                quotationDesignService,
+                currentUser,
+                "SALES",
+                "PROJECT",
+                project.getId()
+        );
+
+        // Set callbacks
+        editorPanel.setOnSaveCallback(quotation -> {
+            showSuccess("✓ Quotation Design saved - Version " + quotation.getVersion());
+        });
+
+        editorPanel.setOnStatusCallback(status -> {
+            System.out.println("Quotation Design: " + status);
+        });
+
+        VBox.setVgrow(editorPanel, Priority.ALWAYS);
+        content.getChildren().add(editorPanel);
+
+        return content;
+    }
+
+    // ==================== SIMPLIFIED PDF TAB (LEGACY) ====================
     private VBox createSimplePDFTab(Project project) {
         VBox content = new VBox(20);
         content.setPadding(new Insets(30));
@@ -1647,17 +1680,17 @@ public class SalesStorageController extends BaseModuleController
         tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
         VBox.setVgrow(tabPane, Priority.ALWAYS);
 
-        // Contract PDF Tab
-        Tab contractsTab = new Tab("📄 Contract PDF");
-        contractsTab.setContent(createSimplePDFTabForCustomer(customer));
-        styleTab(contractsTab, "#f59e0b");
+        // Quotation Design Tab (PDF editor with annotations)
+        Tab quotationDesignTab = new Tab("📄 Quotation Design");
+        quotationDesignTab.setContent(createQuotationDesignTabForCustomer(customer));
+        styleTab(quotationDesignTab, "#f59e0b");
 
         // Cost Breakdown & Order Items Tab (replacing Fast Selling)
         Tab costBreakdownTab = new Tab("💰 Cost Breakdown");
         costBreakdownTab.setContent(createCustomerCostBreakdownTab(customer));
         styleTab(costBreakdownTab, "#7c3aed");
 
-        tabPane.getTabs().addAll(contractsTab, costBreakdownTab);
+        tabPane.getTabs().addAll(quotationDesignTab, costBreakdownTab);
 
         mainLayout.getChildren().addAll(headerBox, tabPane);
 
@@ -1674,8 +1707,39 @@ public class SalesStorageController extends BaseModuleController
     }
 
 
+    private VBox createQuotationDesignTabForCustomer(Customer customer) {
+        VBox content = new VBox(0);
+        content.setStyle("-fx-background-color: transparent;");
+        VBox.setVgrow(content, Priority.ALWAYS);
+
+        // Create the QuotationDesignEditorPanel for Customer
+        QuotationDesignEditorPanel editorPanel = new QuotationDesignEditorPanel();
+        editorPanel.initialize(
+                quotationDesignService,
+                currentUser,
+                "SALES",
+                "CUSTOMER",
+                customer.getId()
+        );
+
+        // Set callbacks
+        editorPanel.setOnSaveCallback(quotation -> {
+            showSuccess("✓ Customer Quotation Design saved - Version " + quotation.getVersion());
+        });
+
+        editorPanel.setOnStatusCallback(status -> {
+            System.out.println("Customer Quotation Design: " + status);
+        });
+
+        VBox.setVgrow(editorPanel, Priority.ALWAYS);
+        content.getChildren().add(editorPanel);
+
+        return content;
+    }
+
+    // ==================== LEGACY CUSTOMER PDF TAB ====================
     private VBox createSimplePDFTabForCustomer(Customer customer) {
-        // Similar to project PDF tab but for customer
+        // Similar to project PDF tab but for customer (LEGACY)
         VBox content = new VBox(20);
         content.setPadding(new Insets(30));
         content.setStyle("-fx-background-color: rgba(15, 23, 42, 0.6);");
@@ -2665,12 +2729,12 @@ public class SalesStorageController extends BaseModuleController
         fastSelectionTab.setContent(createFastSelectionTabWithStep4(project));
         styleTab(fastSelectionTab, "#10b981"); // Green theme to highlight
 
-        // Contract PDF Tab
-        Tab contractsTab = new Tab("📄 Contract PDF");
-        contractsTab.setContent(createSimplePDFTab(project));
-        styleTab(contractsTab, "#7c3aed");
+        // Quotation Design Tab (PDF editor with annotations)
+        Tab quotationDesignTab = new Tab("📄 Quotation Design");
+        quotationDesignTab.setContent(createQuotationDesignTab(project));
+        styleTab(quotationDesignTab, "#7c3aed");
 
-        tabPane.getTabs().addAll(workflowTab, fastSelectionTab, contractsTab);
+        tabPane.getTabs().addAll(workflowTab, fastSelectionTab, quotationDesignTab);
 
         // Select the Fast Selection tab by default for Step 4
         tabPane.getSelectionModel().select(fastSelectionTab);
