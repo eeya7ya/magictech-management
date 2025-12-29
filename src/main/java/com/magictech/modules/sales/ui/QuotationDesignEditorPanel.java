@@ -71,12 +71,22 @@ public class QuotationDesignEditorPanel extends VBox {
     private int selectedAnnotationIndex = -1;
     private List<StackPane> annotationNodes = new ArrayList<>();
 
+    // Drag state
+    private double dragStartX, dragStartY;
+    private double nodeStartX, nodeStartY;
+    private boolean isDragging = false;
+
     // Text editing tools
     private ComboBox<String> fontFamilyCombo;
     private ComboBox<Integer> fontSizeCombo;
+    private ComboBox<String> colorCombo;
     private ColorPicker colorPicker;
     private ToggleButton boldToggle;
     private ToggleButton italicToggle;
+    private ToggleButton underlineToggle;
+    private ColorPicker bgColorPicker;
+    private CheckBox bgEnabledCheckbox;
+    private Slider opacitySlider;
 
     // Callbacks
     private Consumer<QuotationDesign> onSaveCallback;
@@ -321,8 +331,8 @@ public class QuotationDesignEditorPanel extends VBox {
     }
 
     private VBox createToolsPanel() {
-        VBox panel = new VBox(15);
-        panel.setPrefWidth(280);
+        VBox panel = new VBox(12);
+        panel.setPrefWidth(300);
         panel.setPadding(new Insets(15));
         panel.setStyle(
                 "-fx-background-color: rgba(30, 41, 59, 0.95);" +
@@ -330,18 +340,28 @@ public class QuotationDesignEditorPanel extends VBox {
                 "-fx-border-width: 0 0 0 2;"
         );
 
+        // Wrap in ScrollPane for smaller screens
+        ScrollPane scrollPane = new ScrollPane();
+        scrollPane.setFitToWidth(true);
+        scrollPane.setStyle("-fx-background-color: transparent; -fx-background: transparent;");
+        VBox.setVgrow(scrollPane, Priority.ALWAYS);
+
+        VBox content = new VBox(12);
+        content.setStyle("-fx-background-color: transparent;");
+
         Label titleLabel = new Label("✏️ Text Tools");
         titleLabel.setStyle("-fx-text-fill: white; -fx-font-size: 16px; -fx-font-weight: bold;");
 
-        // Font family
+        // Font family - expanded with more options
         Label fontLabel = new Label("Font Family:");
         fontLabel.setStyle("-fx-text-fill: rgba(255, 255, 255, 0.8); -fx-font-size: 12px;");
 
         fontFamilyCombo = new ComboBox<>(FXCollections.observableArrayList(
-                "Helvetica", "Times New Roman", "Courier"
+                "Helvetica", "Arial", "Times New Roman", "Georgia", "Courier", "Courier New",
+                "Verdana", "Tahoma", "Trebuchet MS", "Impact", "Comic Sans MS"
         ));
-        fontFamilyCombo.setValue("Helvetica");
-        fontFamilyCombo.setPrefWidth(250);
+        fontFamilyCombo.setValue("Times New Roman");
+        fontFamilyCombo.setPrefWidth(260);
         styleComboBox(fontFamilyCombo);
 
         // Font size
@@ -349,96 +369,147 @@ public class QuotationDesignEditorPanel extends VBox {
         sizeLabel.setStyle("-fx-text-fill: rgba(255, 255, 255, 0.8); -fx-font-size: 12px;");
 
         fontSizeCombo = new ComboBox<>(FXCollections.observableArrayList(
-                8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 48, 72
+                6, 8, 9, 10, 11, 12, 14, 16, 18, 20, 22, 24, 28, 32, 36, 42, 48, 56, 64, 72, 96
         ));
-        fontSizeCombo.setValue(12);
-        fontSizeCombo.setPrefWidth(250);
+        fontSizeCombo.setValue(20);
+        fontSizeCombo.setPrefWidth(260);
+        fontSizeCombo.setEditable(true);
         styleComboBox(fontSizeCombo);
 
-        // Color picker
+        // Color section with presets
         Label colorLabel = new Label("Text Color:");
         colorLabel.setStyle("-fx-text-fill: rgba(255, 255, 255, 0.8); -fx-font-size: 12px;");
 
-        colorPicker = new ColorPicker(Color.BLACK);
-        colorPicker.setPrefWidth(250);
+        // Color presets row
+        HBox colorPresets = new HBox(5);
+        colorPresets.setAlignment(Pos.CENTER_LEFT);
+        String[] presetColors = {"#000000", "#FF0000", "#00AA00", "#0000FF", "#FF6600", "#8B5CF6", "#EC4899", "#06B6D4"};
+        String[] presetNames = {"Black", "Red", "Green", "Blue", "Orange", "Purple", "Pink", "Cyan"};
+        for (int i = 0; i < presetColors.length; i++) {
+            Button colorBtn = new Button();
+            String presetColor = presetColors[i];
+            colorBtn.setStyle(
+                    "-fx-background-color: " + presetColor + ";" +
+                    "-fx-min-width: 28; -fx-min-height: 28;" +
+                    "-fx-max-width: 28; -fx-max-height: 28;" +
+                    "-fx-background-radius: 4;" +
+                    "-fx-border-color: rgba(255,255,255,0.3); -fx-border-radius: 4;" +
+                    "-fx-cursor: hand;"
+            );
+            colorBtn.setTooltip(new Tooltip(presetNames[i]));
+            colorBtn.setOnAction(e -> colorPicker.setValue(Color.web(presetColor)));
+            colorPresets.getChildren().add(colorBtn);
+        }
+
+        // Color combo for named colors
+        colorCombo = new ComboBox<>(FXCollections.observableArrayList(
+                "Black", "Red", "Dark Red", "Green", "Dark Green", "Blue", "Dark Blue",
+                "Orange", "Purple", "Pink", "Cyan", "Brown", "Gray", "White"
+        ));
+        colorCombo.setValue("Red");
+        colorCombo.setPrefWidth(140);
+        styleComboBox(colorCombo);
+        colorCombo.setOnAction(e -> {
+            String selected = colorCombo.getValue();
+            if (selected != null) {
+                Color color = getNamedColor(selected);
+                colorPicker.setValue(color);
+            }
+        });
+
+        colorPicker = new ColorPicker(Color.RED);
+        colorPicker.setPrefWidth(110);
         colorPicker.setStyle("-fx-background-color: #374151;");
 
-        // Bold/Italic toggles
-        HBox styleBox = new HBox(10);
+        HBox colorRow = new HBox(10);
+        colorRow.setAlignment(Pos.CENTER_LEFT);
+        colorRow.getChildren().addAll(colorCombo, colorPicker);
+
+        // Style toggles (Bold, Italic, Underline)
+        Label styleLabel = new Label("Style:");
+        styleLabel.setStyle("-fx-text-fill: rgba(255, 255, 255, 0.8); -fx-font-size: 12px;");
+
+        HBox styleBox = new HBox(8);
         styleBox.setAlignment(Pos.CENTER_LEFT);
 
-        boldToggle = new ToggleButton("B");
-        boldToggle.setStyle(
-                "-fx-background-color: #4b5563;" +
-                "-fx-text-fill: white;" +
-                "-fx-font-size: 14px;" +
-                "-fx-font-weight: bold;" +
-                "-fx-min-width: 40;" +
-                "-fx-min-height: 40;" +
-                "-fx-background-radius: 6;"
-        );
-        boldToggle.selectedProperty().addListener((obs, oldVal, newVal) -> {
-            boldToggle.setStyle(
-                    "-fx-background-color: " + (newVal ? "#8b5cf6" : "#4b5563") + ";" +
-                    "-fx-text-fill: white;" +
-                    "-fx-font-size: 14px;" +
-                    "-fx-font-weight: bold;" +
-                    "-fx-min-width: 40;" +
-                    "-fx-min-height: 40;" +
-                    "-fx-background-radius: 6;"
-            );
+        boldToggle = createStyleToggle("B", "-fx-font-weight: bold;");
+        italicToggle = createStyleToggle("I", "-fx-font-style: italic;");
+        underlineToggle = createStyleToggle("U", "-fx-underline: true;");
+
+        styleBox.getChildren().addAll(boldToggle, italicToggle, underlineToggle);
+
+        // Background color section
+        Label bgLabel = new Label("Background:");
+        bgLabel.setStyle("-fx-text-fill: rgba(255, 255, 255, 0.8); -fx-font-size: 12px;");
+
+        HBox bgBox = new HBox(10);
+        bgBox.setAlignment(Pos.CENTER_LEFT);
+
+        bgEnabledCheckbox = new CheckBox("Enable");
+        bgEnabledCheckbox.setStyle("-fx-text-fill: white;");
+        bgEnabledCheckbox.setSelected(true);
+
+        bgColorPicker = new ColorPicker(Color.WHITE);
+        bgColorPicker.setPrefWidth(100);
+        bgColorPicker.setStyle("-fx-background-color: #374151;");
+
+        bgBox.getChildren().addAll(bgEnabledCheckbox, bgColorPicker);
+
+        // Opacity slider
+        Label opacityLabel = new Label("Background Opacity:");
+        opacityLabel.setStyle("-fx-text-fill: rgba(255, 255, 255, 0.8); -fx-font-size: 12px;");
+
+        HBox opacityBox = new HBox(10);
+        opacityBox.setAlignment(Pos.CENTER_LEFT);
+
+        opacitySlider = new Slider(0, 100, 80);
+        opacitySlider.setPrefWidth(180);
+        opacitySlider.setShowTickLabels(false);
+        opacitySlider.setStyle("-fx-control-inner-background: #374151;");
+
+        Label opacityValueLabel = new Label("80%");
+        opacityValueLabel.setStyle("-fx-text-fill: white; -fx-font-size: 12px; -fx-min-width: 40;");
+        opacitySlider.valueProperty().addListener((obs, oldVal, newVal) -> {
+            opacityValueLabel.setText(newVal.intValue() + "%");
         });
 
-        italicToggle = new ToggleButton("I");
-        italicToggle.setStyle(
-                "-fx-background-color: #4b5563;" +
-                "-fx-text-fill: white;" +
-                "-fx-font-size: 14px;" +
-                "-fx-font-style: italic;" +
-                "-fx-min-width: 40;" +
-                "-fx-min-height: 40;" +
-                "-fx-background-radius: 6;"
-        );
-        italicToggle.selectedProperty().addListener((obs, oldVal, newVal) -> {
-            italicToggle.setStyle(
-                    "-fx-background-color: " + (newVal ? "#8b5cf6" : "#4b5563") + ";" +
-                    "-fx-text-fill: white;" +
-                    "-fx-font-size: 14px;" +
-                    "-fx-font-style: italic;" +
-                    "-fx-min-width: 40;" +
-                    "-fx-min-height: 40;" +
-                    "-fx-background-radius: 6;"
-            );
-        });
+        opacityBox.getChildren().addAll(opacitySlider, opacityValueLabel);
 
-        styleBox.getChildren().addAll(new Label("Style:"), boldToggle, italicToggle);
-        ((Label) styleBox.getChildren().get(0)).setStyle("-fx-text-fill: rgba(255, 255, 255, 0.8); -fx-font-size: 12px;");
-
-        // Instructions
-        Label instructionLabel = new Label("💡 Click on the PDF to add text");
-        instructionLabel.setStyle("-fx-text-fill: #a78bfa; -fx-font-size: 12px; -fx-wrap-text: true;");
+        // Instructions with drag hint
+        Label instructionLabel = new Label("💡 Click on PDF to add text\n🖱️ Drag annotations to move them");
+        instructionLabel.setStyle("-fx-text-fill: #a78bfa; -fx-font-size: 11px; -fx-wrap-text: true;");
         instructionLabel.setWrapText(true);
 
         // Separator
         Separator sep = new Separator();
         sep.setStyle("-fx-background-color: rgba(139, 92, 246, 0.3);");
 
-        // Annotations list
+        // Annotations list section
         Label annotationsLabel = new Label("📝 Annotations (" + annotations.size() + ")");
         annotationsLabel.setStyle("-fx-text-fill: white; -fx-font-size: 14px; -fx-font-weight: bold;");
         annotationsLabel.setId("annotationsLabel");
 
         ListView<String> annotationsList = new ListView<>();
         annotationsList.setId("annotationsList");
-        annotationsList.setPrefHeight(200);
+        annotationsList.setPrefHeight(180);
         annotationsList.setStyle(
                 "-fx-background-color: #1e293b;" +
                 "-fx-control-inner-background: #1e293b;"
         );
         VBox.setVgrow(annotationsList, Priority.ALWAYS);
 
+        // Sync list selection with annotation selection
+        annotationsList.getSelectionModel().selectedIndexProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal != null && newVal.intValue() >= 0) {
+                selectedAnnotationIndex = newVal.intValue();
+                updateAnnotationOverlay();
+                loadAnnotationPropertiesToTools(newVal.intValue());
+            }
+        });
+
         // Delete selected annotation button
         Button deleteAnnotationBtn = new Button("🗑️ Delete Selected");
+        deleteAnnotationBtn.setPrefWidth(260);
         deleteAnnotationBtn.setStyle(
                 "-fx-background-color: #ef4444;" +
                 "-fx-text-fill: white;" +
@@ -455,12 +526,14 @@ public class QuotationDesignEditorPanel extends VBox {
             }
         });
 
-        panel.getChildren().addAll(
+        content.getChildren().addAll(
                 titleLabel,
                 fontLabel, fontFamilyCombo,
                 sizeLabel, fontSizeCombo,
-                colorLabel, colorPicker,
-                styleBox,
+                colorLabel, colorPresets, colorRow,
+                styleLabel, styleBox,
+                bgLabel, bgBox,
+                opacityLabel, opacityBox,
                 instructionLabel,
                 sep,
                 annotationsLabel,
@@ -468,7 +541,83 @@ public class QuotationDesignEditorPanel extends VBox {
                 deleteAnnotationBtn
         );
 
+        scrollPane.setContent(content);
+        panel.getChildren().add(scrollPane);
+
         return panel;
+    }
+
+    private ToggleButton createStyleToggle(String text, String additionalStyle) {
+        ToggleButton toggle = new ToggleButton(text);
+        toggle.setStyle(
+                "-fx-background-color: #4b5563;" +
+                "-fx-text-fill: white;" +
+                "-fx-font-size: 14px;" +
+                additionalStyle +
+                "-fx-min-width: 40;" +
+                "-fx-min-height: 40;" +
+                "-fx-background-radius: 6;" +
+                "-fx-cursor: hand;"
+        );
+        toggle.selectedProperty().addListener((obs, oldVal, newVal) -> {
+            toggle.setStyle(
+                    "-fx-background-color: " + (newVal ? "#8b5cf6" : "#4b5563") + ";" +
+                    "-fx-text-fill: white;" +
+                    "-fx-font-size: 14px;" +
+                    additionalStyle +
+                    "-fx-min-width: 40;" +
+                    "-fx-min-height: 40;" +
+                    "-fx-background-radius: 6;" +
+                    "-fx-cursor: hand;"
+            );
+        });
+        return toggle;
+    }
+
+    private Color getNamedColor(String name) {
+        return switch (name.toLowerCase()) {
+            case "black" -> Color.BLACK;
+            case "red" -> Color.RED;
+            case "dark red" -> Color.DARKRED;
+            case "green" -> Color.GREEN;
+            case "dark green" -> Color.DARKGREEN;
+            case "blue" -> Color.BLUE;
+            case "dark blue" -> Color.DARKBLUE;
+            case "orange" -> Color.ORANGE;
+            case "purple" -> Color.PURPLE;
+            case "pink" -> Color.HOTPINK;
+            case "cyan" -> Color.CYAN;
+            case "brown" -> Color.BROWN;
+            case "gray" -> Color.GRAY;
+            case "white" -> Color.WHITE;
+            default -> Color.BLACK;
+        };
+    }
+
+    private void loadAnnotationPropertiesToTools(int index) {
+        if (index < 0 || index >= annotations.size()) return;
+
+        Map<String, Object> annotation = annotations.get(index);
+
+        // Load annotation properties into tool controls
+        fontFamilyCombo.setValue((String) annotation.getOrDefault("fontFamily", "Helvetica"));
+        fontSizeCombo.setValue(((Number) annotation.getOrDefault("fontSize", 12)).intValue());
+        colorPicker.setValue(Color.web((String) annotation.getOrDefault("color", "#000000")));
+        boldToggle.setSelected((Boolean) annotation.getOrDefault("bold", false));
+        italicToggle.setSelected((Boolean) annotation.getOrDefault("italic", false));
+        underlineToggle.setSelected((Boolean) annotation.getOrDefault("underline", false));
+
+        // Background properties
+        Boolean bgEnabled = (Boolean) annotation.getOrDefault("bgEnabled", true);
+        bgEnabledCheckbox.setSelected(bgEnabled != null && bgEnabled);
+
+        String bgColor = (String) annotation.getOrDefault("bgColor", "#FFFFFF");
+        if (bgColor != null) {
+            bgColorPicker.setValue(Color.web(bgColor));
+        }
+
+        Number opacity = (Number) annotation.getOrDefault("bgOpacity", 80);
+        opacitySlider.setValue(opacity.doubleValue());
     }
 
     private HBox createStatusBar() {
@@ -778,11 +927,30 @@ public class QuotationDesignEditorPanel extends VBox {
                 annotation.put("x", x);
                 annotation.put("y", y);
                 annotation.put("text", textArea.getText());
-                annotation.put("fontSize", fontSizeCombo.getValue());
+
+                // Get font size from combo, handling editable combo
+                int fontSize = 12;
+                try {
+                    Object value = fontSizeCombo.getValue();
+                    if (value instanceof Integer) {
+                        fontSize = (Integer) value;
+                    } else if (value instanceof String) {
+                        fontSize = Integer.parseInt((String) value);
+                    }
+                } catch (Exception ignored) {}
+                annotation.put("fontSize", fontSize);
+
                 annotation.put("fontFamily", fontFamilyCombo.getValue());
                 annotation.put("color", toHexString(colorPicker.getValue()));
                 annotation.put("bold", boldToggle.isSelected());
                 annotation.put("italic", italicToggle.isSelected());
+                annotation.put("underline", underlineToggle.isSelected());
+
+                // Background properties
+                annotation.put("bgEnabled", bgEnabledCheckbox.isSelected());
+                annotation.put("bgColor", toHexString(bgColorPicker.getValue()));
+                annotation.put("bgOpacity", (int) opacitySlider.getValue());
+
                 return annotation;
             }
             return null;
@@ -957,49 +1125,193 @@ public class QuotationDesignEditorPanel extends VBox {
         String color = (String) annotation.getOrDefault("color", "#000000");
         boolean bold = (Boolean) annotation.getOrDefault("bold", false);
         boolean italic = (Boolean) annotation.getOrDefault("italic", false);
+        boolean underline = (Boolean) annotation.getOrDefault("underline", false);
+
+        // Background properties
+        Boolean bgEnabled = (Boolean) annotation.getOrDefault("bgEnabled", true);
+        String bgColor = (String) annotation.getOrDefault("bgColor", "#FFFFFF");
+        Number bgOpacity = (Number) annotation.getOrDefault("bgOpacity", 80);
 
         Label label = new Label(text);
         label.setStyle(
                 "-fx-text-fill: " + color + ";" +
                 "-fx-font-size: " + fontSize + "px;" +
                 (bold ? "-fx-font-weight: bold;" : "") +
-                (italic ? "-fx-font-style: italic;" : "")
+                (italic ? "-fx-font-style: italic;" : "") +
+                (underline ? "-fx-underline: true;" : "")
         );
         label.setWrapText(true);
         label.setMaxWidth(400);
+
+        // Calculate background color with opacity
+        String bgStyle;
+        if (bgEnabled != null && bgEnabled && bgColor != null) {
+            double opacity = bgOpacity != null ? bgOpacity.doubleValue() / 100.0 : 0.8;
+            Color bg = Color.web(bgColor);
+            bgStyle = String.format("rgba(%d, %d, %d, %.2f)",
+                    (int)(bg.getRed() * 255),
+                    (int)(bg.getGreen() * 255),
+                    (int)(bg.getBlue() * 255),
+                    opacity);
+        } else {
+            bgStyle = "transparent";
+        }
 
         StackPane container = new StackPane(label);
         container.setLayoutX(x);
         container.setLayoutY(y);
         container.setStyle(
-                "-fx-background-color: rgba(255, 255, 255, 0.8);" +
+                "-fx-background-color: " + bgStyle + ";" +
                 "-fx-padding: 2 5;" +
                 "-fx-border-color: " + (index == selectedAnnotationIndex ? "#8b5cf6" : "rgba(139, 92, 246, 0.3)") + ";" +
-                "-fx-border-width: 1;" +
-                "-fx-cursor: hand;"
+                "-fx-border-width: " + (index == selectedAnnotationIndex ? "2" : "1") + ";" +
+                "-fx-cursor: move;"
         );
 
-        // Click to select
-        container.setOnMouseClicked(e -> {
+        // Store index for reference during drag
+        final int annotationIndex = index;
+
+        // Mouse press - start drag
+        container.setOnMousePressed(e -> {
+            if (!editMode) return;
             e.consume();
-            selectedAnnotationIndex = index;
+
+            // Select this annotation
+            selectedAnnotationIndex = annotationIndex;
+
+            // Record starting positions
+            dragStartX = e.getSceneX();
+            dragStartY = e.getSceneY();
+            nodeStartX = container.getLayoutX();
+            nodeStartY = container.getLayoutY();
+            isDragging = false;
+
+            // Update visual selection
             updateAnnotationOverlay();
 
-            // Update tools panel with annotation properties
-            fontFamilyCombo.setValue((String) annotation.getOrDefault("fontFamily", "Helvetica"));
-            fontSizeCombo.setValue(fontSize);
-            colorPicker.setValue(Color.web(color));
-            boldToggle.setSelected(bold);
-            italicToggle.setSelected(italic);
+            // Load properties into tools
+            loadAnnotationPropertiesToTools(annotationIndex);
 
             // Select in list
             ListView<String> list = (ListView<String>) toolsPanel.lookup("#annotationsList");
             if (list != null) {
-                list.getSelectionModel().select(index);
+                list.getSelectionModel().select(annotationIndex);
+            }
+        });
+
+        // Mouse drag - move the annotation
+        container.setOnMouseDragged(e -> {
+            if (!editMode) return;
+            e.consume();
+
+            isDragging = true;
+
+            // Calculate new position
+            double deltaX = e.getSceneX() - dragStartX;
+            double deltaY = e.getSceneY() - dragStartY;
+
+            double newX = nodeStartX + deltaX;
+            double newY = nodeStartY + deltaY;
+
+            // Constrain to bounds
+            double maxX = annotationOverlay.getWidth() - container.getWidth();
+            double maxY = annotationOverlay.getHeight() - container.getHeight();
+
+            newX = Math.max(0, Math.min(newX, maxX > 0 ? maxX : Double.MAX_VALUE));
+            newY = Math.max(0, Math.min(newY, maxY > 0 ? maxY : Double.MAX_VALUE));
+
+            // Update visual position immediately
+            container.setLayoutX(newX);
+            container.setLayoutY(newY);
+
+            // Show drag feedback
+            container.setStyle(
+                    "-fx-background-color: " + bgStyle + ";" +
+                    "-fx-padding: 2 5;" +
+                    "-fx-border-color: #22c55e;" +
+                    "-fx-border-width: 2;" +
+                    "-fx-cursor: move;" +
+                    "-fx-opacity: 0.9;"
+            );
+
+            setStatus("Moving annotation... (" + (int)newX + ", " + (int)newY + ")");
+        });
+
+        // Mouse release - finalize position
+        container.setOnMouseReleased(e -> {
+            if (!editMode) return;
+            e.consume();
+
+            if (isDragging) {
+                // Update annotation data with new position
+                double finalX = container.getLayoutX();
+                double finalY = container.getLayoutY();
+
+                annotation.put("x", finalX);
+                annotation.put("y", finalY);
+
+                setStatus("Annotation moved to (" + (int)finalX + ", " + (int)finalY + ")");
+
+                // Reset dragging state
+                isDragging = false;
+
+                // Refresh overlay to reset styles
+                updateAnnotationOverlay();
+            }
+        });
+
+        // Double-click to edit text
+        container.setOnMouseClicked(e -> {
+            if (!editMode) return;
+            if (e.getClickCount() == 2) {
+                e.consume();
+                showEditAnnotationDialog(annotationIndex);
             }
         });
 
         return container;
+    }
+
+    private void showEditAnnotationDialog(int index) {
+        if (index < 0 || index >= annotations.size()) return;
+
+        Map<String, Object> annotation = annotations.get(index);
+        String currentText = (String) annotation.getOrDefault("text", "");
+
+        Dialog<String> dialog = new Dialog<>();
+        dialog.setTitle("Edit Annotation");
+        dialog.setHeaderText("Edit text annotation");
+
+        ButtonType saveButtonType = new ButtonType("Save", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(saveButtonType, ButtonType.CANCEL);
+
+        VBox content = new VBox(10);
+        content.setPadding(new Insets(20));
+
+        TextArea textArea = new TextArea(currentText);
+        textArea.setPrefRowCount(3);
+        textArea.setWrapText(true);
+
+        content.getChildren().addAll(new Label("Text:"), textArea);
+        dialog.getDialogPane().setContent(content);
+
+        Platform.runLater(textArea::requestFocus);
+
+        dialog.setResultConverter(dialogButton -> {
+            if (dialogButton == saveButtonType) {
+                return textArea.getText();
+            }
+            return null;
+        });
+
+        dialog.showAndWait().ifPresent(newText -> {
+            if (!newText.isEmpty()) {
+                annotation.put("text", newText);
+                updateAnnotationOverlay();
+                updateAnnotationsList();
+                setStatus("Annotation text updated");
+            }
+        });
     }
 
     private void updateAnnotationsList() {
