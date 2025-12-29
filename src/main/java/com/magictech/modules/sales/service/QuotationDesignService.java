@@ -356,6 +356,12 @@ public class QuotationDesignService {
                 String color = (String) annotation.getOrDefault("color", "#000000");
                 boolean bold = (Boolean) annotation.getOrDefault("bold", false);
                 boolean italic = (Boolean) annotation.getOrDefault("italic", false);
+                boolean underline = (Boolean) annotation.getOrDefault("underline", false);
+
+                // Background properties
+                Boolean bgEnabled = (Boolean) annotation.getOrDefault("bgEnabled", false);
+                String bgColor = (String) annotation.getOrDefault("bgColor", "#FFFFFF");
+                Number bgOpacity = (Number) annotation.getOrDefault("bgOpacity", 80);
 
                 if (pageNum >= 0 && pageNum < document.getNumberOfPages()) {
                     PDPage page = document.getPage(pageNum);
@@ -366,14 +372,59 @@ public class QuotationDesignService {
                     float pdfX = x * scaleFactor;
                     float pdfY = mediaBox.getHeight() - (y * scaleFactor);
 
+                    PDFont font = getFont(fontFamily, bold, italic);
+
+                    // Handle multi-line text - calculate total height and max width for background
+                    String[] lines = text.split("\n");
+                    float lineHeight = fontSize * 1.2f;
+                    float totalHeight = lines.length * lineHeight;
+                    float maxWidth = 0;
+
+                    // Calculate max width for background
+                    for (String line : lines) {
+                        try {
+                            float lineWidth = font.getStringWidth(line) / 1000 * fontSize;
+                            maxWidth = Math.max(maxWidth, lineWidth);
+                        } catch (Exception ignored) {
+                            maxWidth = Math.max(maxWidth, line.length() * fontSize * 0.6f);
+                        }
+                    }
+
                     try (PDPageContentStream contentStream = new PDPageContentStream(
                             document, page, PDPageContentStream.AppendMode.APPEND, true, true)) {
 
+                        // Draw background rectangle if enabled
+                        if (bgEnabled != null && bgEnabled && bgColor != null) {
+                            float opacity = bgOpacity != null ? bgOpacity.floatValue() / 100f : 0.8f;
+                            Color bg = Color.decode(bgColor);
+
+                            // Save graphics state for transparency
+                            contentStream.saveGraphicsState();
+
+                            // Set background color with opacity approximation
+                            // Note: Full transparency support requires ExtGState which is more complex
+                            int r = (int) (bg.getRed() + (255 - bg.getRed()) * (1 - opacity));
+                            int g = (int) (bg.getGreen() + (255 - bg.getGreen()) * (1 - opacity));
+                            int b = (int) (bg.getBlue() + (255 - bg.getBlue()) * (1 - opacity));
+                            contentStream.setNonStrokingColor(new Color(r, g, b));
+
+                            // Draw background rectangle
+                            float padding = 3;
+                            contentStream.addRect(
+                                    pdfX - padding,
+                                    pdfY - totalHeight - padding + fontSize,
+                                    maxWidth + (padding * 2),
+                                    totalHeight + (padding * 2)
+                            );
+                            contentStream.fill();
+
+                            contentStream.restoreGraphicsState();
+                        }
+
                         // Set font (fontSize is in points, no scaling needed)
-                        PDFont font = getFont(fontFamily, bold, italic);
                         contentStream.setFont(font, fontSize);
 
-                        // Set color
+                        // Set text color
                         Color textColor = Color.decode(color);
                         contentStream.setNonStrokingColor(textColor);
 
@@ -381,13 +432,39 @@ public class QuotationDesignService {
                         contentStream.beginText();
                         contentStream.newLineAtOffset(pdfX, pdfY);
 
-                        // Handle multi-line text
-                        String[] lines = text.split("\n");
+                        float currentY = pdfY;
                         for (int i = 0; i < lines.length; i++) {
                             if (i > 0) {
-                                contentStream.newLineAtOffset(0, -fontSize * 1.2f);
+                                contentStream.newLineAtOffset(0, -lineHeight);
+                                currentY -= lineHeight;
                             }
                             contentStream.showText(lines[i]);
+
+                            // Draw underline for this line
+                            if (underline && !lines[i].isEmpty()) {
+                                float lineWidth;
+                                try {
+                                    lineWidth = font.getStringWidth(lines[i]) / 1000 * fontSize;
+                                } catch (Exception ignored) {
+                                    lineWidth = lines[i].length() * fontSize * 0.6f;
+                                }
+
+                                // We need to end text to draw the line, then resume
+                                contentStream.endText();
+
+                                // Draw underline
+                                contentStream.setStrokingColor(textColor);
+                                contentStream.setLineWidth(fontSize * 0.05f);
+                                float underlineY = currentY - fontSize * 0.15f;
+                                contentStream.moveTo(pdfX, underlineY);
+                                contentStream.lineTo(pdfX + lineWidth, underlineY);
+                                contentStream.stroke();
+
+                                // Resume text mode for next line
+                                contentStream.beginText();
+                                contentStream.setFont(font, fontSize);
+                                contentStream.newLineAtOffset(pdfX, currentY);
+                            }
                         }
 
                         contentStream.endText();
@@ -404,10 +481,25 @@ public class QuotationDesignService {
     /**
      * Get appropriate font based on family, bold, italic
      * Uses PDFBox 2.x static font constants
+     *
+     * Maps various font names to the 14 standard PDF fonts:
+     * - Helvetica family (includes Arial, Verdana, Tahoma, Trebuchet MS)
+     * - Times family (includes Times New Roman, Georgia)
+     * - Courier family (includes Courier New)
+     * - Symbol and ZapfDingbats for special characters
      */
     private PDFont getFont(String fontFamily, boolean bold, boolean italic) {
-        // Map font family to PDFBox 2.x static font constants
-        if (fontFamily == null || fontFamily.equalsIgnoreCase("Helvetica") || fontFamily.equalsIgnoreCase("Arial")) {
+        if (fontFamily == null) {
+            fontFamily = "Helvetica";
+        }
+
+        String family = fontFamily.toLowerCase().trim();
+
+        // Sans-serif fonts -> Helvetica
+        if (family.contains("helvetica") || family.contains("arial") ||
+            family.contains("verdana") || family.contains("tahoma") ||
+            family.contains("trebuchet") || family.contains("impact") ||
+            family.contains("comic sans")) {
             if (bold && italic) {
                 return PDType1Font.HELVETICA_BOLD_OBLIQUE;
             } else if (bold) {
@@ -417,7 +509,12 @@ public class QuotationDesignService {
             } else {
                 return PDType1Font.HELVETICA;
             }
-        } else if (fontFamily.equalsIgnoreCase("Times") || fontFamily.equalsIgnoreCase("Times New Roman")) {
+        }
+
+        // Serif fonts -> Times
+        if (family.contains("times") || family.contains("georgia") ||
+            family.contains("palatino") || family.contains("garamond") ||
+            family.contains("book antiqua") || family.contains("century")) {
             if (bold && italic) {
                 return PDType1Font.TIMES_BOLD_ITALIC;
             } else if (bold) {
@@ -427,7 +524,12 @@ public class QuotationDesignService {
             } else {
                 return PDType1Font.TIMES_ROMAN;
             }
-        } else if (fontFamily.equalsIgnoreCase("Courier") || fontFamily.equalsIgnoreCase("Courier New")) {
+        }
+
+        // Monospace fonts -> Courier
+        if (family.contains("courier") || family.contains("consolas") ||
+            family.contains("monaco") || family.contains("lucida console") ||
+            family.contains("monospace") || family.contains("andale mono")) {
             if (bold && italic) {
                 return PDType1Font.COURIER_BOLD_OBLIQUE;
             } else if (bold) {
@@ -439,8 +541,25 @@ public class QuotationDesignService {
             }
         }
 
-        // Default to Helvetica
-        return PDType1Font.HELVETICA;
+        // Symbol fonts
+        if (family.contains("symbol")) {
+            return PDType1Font.SYMBOL;
+        }
+
+        if (family.contains("zapf") || family.contains("dingbat") || family.contains("wingding")) {
+            return PDType1Font.ZAPF_DINGBATS;
+        }
+
+        // Default to Helvetica for unknown fonts
+        if (bold && italic) {
+            return PDType1Font.HELVETICA_BOLD_OBLIQUE;
+        } else if (bold) {
+            return PDType1Font.HELVETICA_BOLD;
+        } else if (italic) {
+            return PDType1Font.HELVETICA_OBLIQUE;
+        } else {
+            return PDType1Font.HELVETICA;
+        }
     }
 
     // ==================== Annotation Helpers ====================
