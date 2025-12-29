@@ -113,23 +113,17 @@ public class SalesStorageController extends BaseModuleController
     // ==================== MAIN DASHBOARD ====================
     private VBox createDashboardScreen() {
         VBox screen = new VBox(30);
-        screen.setPadding(new Insets(40));
+        screen.setPadding(new Insets(40, 60, 40, 60));
         screen.setStyle("-fx-background-color: transparent;");
+        screen.setAlignment(Pos.TOP_CENTER);
 
         HBox header = createHeader();
 
-        HBox submodulesContainer = new HBox(30);
-        submodulesContainer.setAlignment(Pos.TOP_CENTER);
-        HBox.setHgrow(submodulesContainer, Priority.ALWAYS);
-
+        // Projects submodule takes full width
         VBox projectsSubmodule = createProjectsSubmodule();
-        HBox.setHgrow(projectsSubmodule, Priority.ALWAYS);
+        VBox.setVgrow(projectsSubmodule, Priority.ALWAYS);
 
-        VBox customersSubmodule = createCustomersSubmodule();
-        HBox.setHgrow(customersSubmodule, Priority.ALWAYS);
-
-        submodulesContainer.getChildren().addAll(projectsSubmodule, customersSubmodule);
-        screen.getChildren().addAll(header, submodulesContainer);
+        screen.getChildren().addAll(header, projectsSubmodule);
         return screen;
     }
 
@@ -151,26 +145,43 @@ public class SalesStorageController extends BaseModuleController
 
     // ==================== PROJECTS SUBMODULE ====================
     private VBox createProjectsSubmodule() {
-        VBox submodule = new VBox(20);
-        submodule.setMaxWidth(700);
+        VBox submodule = new VBox(25);
         submodule.setStyle(
-                "-fx-background-color: rgba(30, 41, 59, 0.6);" +
-                        "-fx-background-radius: 16;" +
-                        "-fx-border-color: rgba(59, 130, 246, 0.4);" +
+                "-fx-background-color: rgba(15, 23, 42, 0.85);" +
+                        "-fx-background-radius: 20;" +
+                        "-fx-border-color: linear-gradient(to right, rgba(59, 130, 246, 0.5), rgba(139, 92, 246, 0.5));" +
                         "-fx-border-width: 2;" +
-                        "-fx-border-radius: 16;" +
-                        "-fx-padding: 25;" +
-                        "-fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.3), 20, 0, 0, 8);"
+                        "-fx-border-radius: 20;" +
+                        "-fx-padding: 30;"
         );
 
-        HBox header = new HBox(15);
+        // Header with title and actions
+        HBox header = new HBox(20);
         header.setAlignment(Pos.CENTER_LEFT);
+        header.setPadding(new Insets(0, 0, 10, 0));
 
-        Label titleLabel = new Label("🏗️ Projects");
-        titleLabel.setStyle("-fx-text-fill: white; -fx-font-size: 22px; -fx-font-weight: bold;");
-        HBox.setHgrow(titleLabel, Priority.ALWAYS);
+        // Title section with icon
+        HBox titleSection = new HBox(12);
+        titleSection.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(titleSection, Priority.ALWAYS);
 
-        Button editProjectBtn = createStyledButton("✏️ Edit", "#f59e0b", "#d97706");
+        Label iconLabel = new Label("🏗️");
+        iconLabel.setStyle("-fx-font-size: 28px;");
+
+        VBox titleBox = new VBox(2);
+        Label titleLabel = new Label("Projects");
+        titleLabel.setStyle("-fx-text-fill: white; -fx-font-size: 26px; -fx-font-weight: bold;");
+        Label subtitleLabel = new Label("Manage your sales projects");
+        subtitleLabel.setStyle("-fx-text-fill: rgba(255, 255, 255, 0.6); -fx-font-size: 13px;");
+        titleBox.getChildren().addAll(titleLabel, subtitleLabel);
+
+        titleSection.getChildren().addAll(iconLabel, titleBox);
+
+        // Action buttons with improved styling
+        HBox actionButtons = new HBox(12);
+        actionButtons.setAlignment(Pos.CENTER_RIGHT);
+
+        Button editProjectBtn = createEnhancedButton("Edit", "#f59e0b", "#d97706", "fas-edit");
         editProjectBtn.setOnAction(e -> {
             Project selected = projectsListView.getSelectionModel().getSelectedItem();
             if (selected != null) {
@@ -180,7 +191,7 @@ public class SalesStorageController extends BaseModuleController
             }
         });
 
-        Button deleteProjectBtn = createStyledButton("🗑️ Delete", "#ef4444", "#dc2626");
+        Button deleteProjectBtn = createEnhancedButton("Delete", "#ef4444", "#dc2626", "fas-trash");
         deleteProjectBtn.setOnAction(e -> {
             Project selected = projectsListView.getSelectionModel().getSelectedItem();
             if (selected != null) {
@@ -190,20 +201,49 @@ public class SalesStorageController extends BaseModuleController
             }
         });
 
-        Button exportProjectsBtn = createStyledButton("📥 Export", "#8b5cf6", "#7c3aed");
+        Button exportProjectsBtn = createEnhancedButton("Export", "#8b5cf6", "#7c3aed", "fas-download");
         exportProjectsBtn.setOnAction(e -> handleExportProjects());
 
-        Button addProjectBtn = createStyledButton("+ New Project", "#3b82f6", "#2563eb");
+        Button addProjectBtn = createEnhancedButton("New Project", "#3b82f6", "#2563eb", "fas-plus");
+        addProjectBtn.setStyle(addProjectBtn.getStyle() + "-fx-font-weight: bold;");
         addProjectBtn.setOnAction(e -> handleAddProject());
 
-        header.getChildren().addAll(titleLabel, editProjectBtn, deleteProjectBtn, exportProjectsBtn, addProjectBtn);
+        actionButtons.getChildren().addAll(editProjectBtn, deleteProjectBtn, exportProjectsBtn, addProjectBtn);
 
+        header.getChildren().addAll(titleSection, actionButtons);
+
+        // Search bar
+        HBox searchBox = new HBox(10);
+        searchBox.setAlignment(Pos.CENTER_LEFT);
+        searchBox.setPadding(new Insets(5, 0, 15, 0));
+
+        TextField searchField = new TextField();
+        searchField.setPromptText("Search projects...");
+        searchField.setPrefWidth(400);
+        searchField.setStyle(
+                "-fx-background-color: rgba(30, 41, 59, 0.8);" +
+                        "-fx-text-fill: white;" +
+                        "-fx-prompt-text-fill: rgba(255, 255, 255, 0.5);" +
+                        "-fx-background-radius: 10;" +
+                        "-fx-border-color: rgba(59, 130, 246, 0.3);" +
+                        "-fx-border-radius: 10;" +
+                        "-fx-padding: 12 16;" +
+                        "-fx-font-size: 14px;"
+        );
+        searchField.textProperty().addListener((obs, oldVal, newVal) -> filterProjects(newVal));
+        HBox.setHgrow(searchField, Priority.ALWAYS);
+
+        searchBox.getChildren().add(searchField);
+
+        // Projects list with enhanced styling
         projectsListView = new ListView<>();
-        projectsListView.setPrefHeight(500);
         projectsListView.setStyle(
                 "-fx-background-color: transparent;" +
-                        "-fx-control-inner-background: rgba(15, 23, 42, 0.8);"
+                        "-fx-control-inner-background: transparent;" +
+                        "-fx-background-insets: 0;" +
+                        "-fx-padding: 0;"
         );
+        VBox.setVgrow(projectsListView, Priority.ALWAYS);
 
         projectsListView.setCellFactory(lv -> new ListCell<Project>() {
             @Override
@@ -214,37 +254,148 @@ public class SalesStorageController extends BaseModuleController
                     setGraphic(null);
                     setStyle("-fx-background-color: transparent;");
                 } else {
-                    VBox cellBox = new VBox(8);
-                    cellBox.setPadding(new Insets(12));
+                    HBox cellBox = new HBox(20);
+                    cellBox.setAlignment(Pos.CENTER_LEFT);
+                    cellBox.setPadding(new Insets(16, 20, 16, 20));
                     cellBox.setStyle(
-                            "-fx-background-color: rgba(30, 41, 59, 0.7);" +
-                                    "-fx-background-radius: 8;" +
-                                    "-fx-border-color: rgba(59, 130, 246, 0.3);" +
+                            "-fx-background-color: rgba(30, 41, 59, 0.6);" +
+                                    "-fx-background-radius: 12;" +
+                                    "-fx-border-color: rgba(59, 130, 246, 0.2);" +
                                     "-fx-border-width: 1;" +
-                                    "-fx-border-radius: 8;" +
+                                    "-fx-border-radius: 12;" +
                                     "-fx-cursor: hand;"
                     );
 
-                    Label nameLabel = new Label("📋 " + project.getProjectName());
-                    nameLabel.setStyle("-fx-text-fill: white; -fx-font-size: 14px; -fx-font-weight: bold;");
+                    // Hover effect
+                    cellBox.setOnMouseEntered(e -> cellBox.setStyle(
+                            "-fx-background-color: rgba(59, 130, 246, 0.15);" +
+                                    "-fx-background-radius: 12;" +
+                                    "-fx-border-color: rgba(59, 130, 246, 0.5);" +
+                                    "-fx-border-width: 1;" +
+                                    "-fx-border-radius: 12;" +
+                                    "-fx-cursor: hand;"
+                    ));
+                    cellBox.setOnMouseExited(e -> cellBox.setStyle(
+                            "-fx-background-color: rgba(30, 41, 59, 0.6);" +
+                                    "-fx-background-radius: 12;" +
+                                    "-fx-border-color: rgba(59, 130, 246, 0.2);" +
+                                    "-fx-border-width: 1;" +
+                                    "-fx-border-radius: 12;" +
+                                    "-fx-cursor: hand;"
+                    ));
 
-                    Label locationLabel = new Label("📍 " + project.getProjectLocation());
-                    locationLabel.setStyle("-fx-text-fill: rgba(255, 255, 255, 0.8); -fx-font-size: 12px;");
+                    // Project icon
+                    Label projectIcon = new Label("📁");
+                    projectIcon.setStyle("-fx-font-size: 28px;");
 
-                    cellBox.getChildren().addAll(nameLabel, locationLabel);
+                    // Project info
+                    VBox infoBox = new VBox(4);
+                    HBox.setHgrow(infoBox, Priority.ALWAYS);
+
+                    Label nameLabel = new Label(project.getProjectName());
+                    nameLabel.setStyle("-fx-text-fill: white; -fx-font-size: 16px; -fx-font-weight: bold;");
+
+                    HBox detailsRow = new HBox(16);
+                    detailsRow.setAlignment(Pos.CENTER_LEFT);
+
+                    Label locationLabel = new Label("📍 " + (project.getProjectLocation() != null ? project.getProjectLocation() : "No location"));
+                    locationLabel.setStyle("-fx-text-fill: rgba(255, 255, 255, 0.7); -fx-font-size: 13px;");
+
+                    String status = project.getStatus() != null ? project.getStatus() : "Active";
+                    Label statusLabel = new Label(getStatusIcon(status) + " " + status);
+                    statusLabel.setStyle("-fx-text-fill: " + getStatusColor(status) + "; -fx-font-size: 12px; -fx-font-weight: bold;");
+
+                    detailsRow.getChildren().addAll(locationLabel, statusLabel);
+                    infoBox.getChildren().addAll(nameLabel, detailsRow);
+
+                    // Arrow indicator
+                    Label arrowLabel = new Label("→");
+                    arrowLabel.setStyle("-fx-text-fill: rgba(255, 255, 255, 0.4); -fx-font-size: 20px;");
+
+                    cellBox.getChildren().addAll(projectIcon, infoBox, arrowLabel);
                     cellBox.setOnMouseClicked(e -> openProjectDetails(project));
 
                     setGraphic(cellBox);
                     setText(null);
-                    setStyle("-fx-background-color: transparent;");
+                    setStyle("-fx-background-color: transparent; -fx-padding: 4 0;");
                 }
             }
         });
 
         loadProjects(projectsListView);
 
-        submodule.getChildren().addAll(header, projectsListView);
+        submodule.getChildren().addAll(header, searchBox, projectsListView);
         return submodule;
+    }
+
+    // Helper method for enhanced buttons
+    private Button createEnhancedButton(String text, String bgColor, String hoverColor, String iconName) {
+        Button button = new Button(text);
+        button.setStyle(
+                "-fx-background-color: " + bgColor + ";" +
+                        "-fx-text-fill: white;" +
+                        "-fx-font-size: 13px;" +
+                        "-fx-padding: 10 18;" +
+                        "-fx-background-radius: 10;" +
+                        "-fx-cursor: hand;"
+        );
+        button.setOnMouseEntered(e -> button.setStyle(
+                "-fx-background-color: " + hoverColor + ";" +
+                        "-fx-text-fill: white;" +
+                        "-fx-font-size: 13px;" +
+                        "-fx-padding: 10 18;" +
+                        "-fx-background-radius: 10;" +
+                        "-fx-cursor: hand;" +
+                        "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 8, 0, 0, 2);"
+        ));
+        button.setOnMouseExited(e -> button.setStyle(
+                "-fx-background-color: " + bgColor + ";" +
+                        "-fx-text-fill: white;" +
+                        "-fx-font-size: 13px;" +
+                        "-fx-padding: 10 18;" +
+                        "-fx-background-radius: 10;" +
+                        "-fx-cursor: hand;"
+        ));
+        return button;
+    }
+
+    // Helper method to filter projects by search text
+    private void filterProjects(String searchText) {
+        if (searchText == null || searchText.trim().isEmpty()) {
+            loadProjects(projectsListView);
+            return;
+        }
+        String lowerSearch = searchText.toLowerCase().trim();
+        List<Project> allProjects = projectService.getAllProjects();
+        List<Project> filtered = allProjects.stream()
+                .filter(p -> (p.getProjectName() != null && p.getProjectName().toLowerCase().contains(lowerSearch)) ||
+                        (p.getProjectLocation() != null && p.getProjectLocation().toLowerCase().contains(lowerSearch)))
+                .collect(java.util.stream.Collectors.toList());
+        projectsListView.setItems(FXCollections.observableArrayList(filtered));
+    }
+
+    // Helper method to get status icon
+    private String getStatusIcon(String status) {
+        if (status == null) return "●";
+        return switch (status.toUpperCase()) {
+            case "ACTIVE", "IN_PROGRESS" -> "🟢";
+            case "COMPLETED", "DONE" -> "✅";
+            case "PENDING", "ON_HOLD" -> "🟡";
+            case "CANCELLED", "REJECTED" -> "🔴";
+            default -> "●";
+        };
+    }
+
+    // Helper method to get status color
+    private String getStatusColor(String status) {
+        if (status == null) return "rgba(255, 255, 255, 0.7)";
+        return switch (status.toUpperCase()) {
+            case "ACTIVE", "IN_PROGRESS" -> "#22c55e";
+            case "COMPLETED", "DONE" -> "#3b82f6";
+            case "PENDING", "ON_HOLD" -> "#f59e0b";
+            case "CANCELLED", "REJECTED" -> "#ef4444";
+            default -> "rgba(255, 255, 255, 0.7)";
+        };
     }
 
     // ==================== CUSTOMERS SUBMODULE ====================
