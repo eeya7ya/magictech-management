@@ -125,6 +125,7 @@ public class QuotationDesignService {
 
     /**
      * Create new version with updated annotations (preserves history)
+     * Annotations are burned into the PDF data for persistence.
      */
     public QuotationDesign createVersionWithAnnotations(String entityType, Long entityId,
                                                          String annotationsJson, String versionNote,
@@ -142,13 +143,26 @@ public class QuotationDesignService {
         current.setUpdatedBy(username);
         repository.save(current);
 
+        // Burn annotations into PDF data so they are permanently stored
+        byte[] pdfDataWithAnnotations;
+        try {
+            // Always use the original PDF as base and burn all annotations into it
+            byte[] basePdf = current.getOriginalPdfData() != null
+                    ? current.getOriginalPdfData()
+                    : current.getPdfData();
+            pdfDataWithAnnotations = generatePdfWithAnnotations(basePdf, annotationsJson);
+        } catch (IOException e) {
+            // If burning fails, fall back to original PDF data
+            pdfDataWithAnnotations = current.getPdfData();
+        }
+
         // Create new version
         QuotationDesign newVersion = new QuotationDesign(entityType, entityId);
-        newVersion.setPdfData(current.getPdfData());
-        newVersion.setOriginalPdfData(current.getOriginalPdfData());
-        newVersion.setPdfAnnotations(annotationsJson);
+        newVersion.setPdfData(pdfDataWithAnnotations);  // PDF with annotations burned in
+        newVersion.setOriginalPdfData(current.getOriginalPdfData());  // Keep original for reset
+        newVersion.setPdfAnnotations(annotationsJson);  // Also keep JSON for editing
         newVersion.setFilename(current.getFilename());
-        newVersion.setFileSize(current.getFileSize());
+        newVersion.setFileSize((long) pdfDataWithAnnotations.length);
         newVersion.setMimeType(current.getMimeType());
         newVersion.setPageCount(current.getPageCount());
         newVersion.setVersion(current.getVersion() + 1);
