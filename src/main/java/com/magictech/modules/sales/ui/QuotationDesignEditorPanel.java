@@ -95,6 +95,9 @@ public class QuotationDesignEditorPanel extends VBox {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private static final float RENDER_DPI = 150f;
+    private static final float PDF_DPI = 72f;
+    // Scale factor to convert PDF points to preview pixels
+    private static final float FONT_SCALE_FACTOR = RENDER_DPI / PDF_DPI;
 
     public QuotationDesignEditorPanel() {
         setSpacing(0);
@@ -1132,16 +1135,20 @@ public class QuotationDesignEditorPanel extends VBox {
         String bgColor = (String) annotation.getOrDefault("bgColor", "#FFFFFF");
         Number bgOpacity = (Number) annotation.getOrDefault("bgOpacity", 80);
 
+        // Scale font size for preview: PDF uses 72 DPI (points), preview image is at RENDER_DPI
+        // So preview font should be scaled to match what the PDF will look like
+        int previewFontSize = Math.round(fontSize * FONT_SCALE_FACTOR);
+
         Label label = new Label(text);
         label.setStyle(
                 "-fx-text-fill: " + color + ";" +
-                "-fx-font-size: " + fontSize + "px;" +
+                "-fx-font-size: " + previewFontSize + "px;" +
                 (bold ? "-fx-font-weight: bold;" : "") +
                 (italic ? "-fx-font-style: italic;" : "") +
                 (underline ? "-fx-underline: true;" : "")
         );
         label.setWrapText(true);
-        label.setMaxWidth(400);
+        label.setMaxWidth(400 * FONT_SCALE_FACTOR);
 
         // Calculate background color with opacity
         String bgStyle;
