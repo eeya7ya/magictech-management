@@ -325,9 +325,24 @@ public class QuotationDesignService {
     private static final float RENDER_DPI = 150f;
     // PDF standard is 72 points per inch
     private static final float PDF_DPI = 72f;
+    // Padding values used in preview container (must match QuotationDesignEditorPanel)
+    private static final float PREVIEW_PADDING_LEFT = 5f;   // -fx-padding: 2 5; (left/right = 5)
+    private static final float PREVIEW_PADDING_TOP = 2f;    // -fx-padding: 2 5; (top/bottom = 2)
 
     /**
      * Generate PDF with annotations burned in (from raw data)
+     *
+     * COORDINATE MAPPING:
+     * - Preview shows PDF at RENDER_DPI (150 DPI)
+     * - Annotation container positioned at (x, y) in image pixel coordinates
+     * - Container has padding (2 5), so text inside starts at (x+5, y+2) in image pixels
+     * - PDF uses 72 points per inch
+     * - Text in PDF is positioned at baseline, not top
+     *
+     * CONVERSION FORMULA:
+     * - pdfX = (x + PREVIEW_PADDING_LEFT) * (72/150)
+     * - pdfY = pageHeight - ((y + PREVIEW_PADDING_TOP + fontAscent) * (72/150))
+     * - scaledFontSize = fontSize * (150/72) to match visual size
      */
     public byte[] generatePdfWithAnnotations(byte[] pdfData, String annotationsJson) throws IOException {
         if (annotationsJson == null || annotationsJson.isEmpty() || annotationsJson.equals("[]")) {
@@ -367,17 +382,29 @@ public class QuotationDesignService {
                     PDPage page = document.getPage(pageNum);
                     PDRectangle mediaBox = page.getMediaBox();
 
-                    // Convert from image coordinates (pixels at RENDER_DPI) to PDF coordinates (points at 72 DPI)
-                    // Also convert Y-axis: image origin is top-left, PDF origin is bottom-left
-                    float pdfX = x * scaleFactor;
-                    float pdfY = mediaBox.getHeight() - (y * scaleFactor);
-
                     PDFont font = getFont(fontFamily, bold, italic);
 
                     // Scale font size to match preview display
-                    // Preview renders at RENDER_DPI with scaled font, PDF should match visually
-                    // This ensures WYSIWYG - what user sees in preview matches downloaded PDF
+                    // Preview shows fontSize * (RENDER_DPI / PDF_DPI), PDF should use same scaled size
                     float scaledFontSize = fontSize * (RENDER_DPI / PDF_DPI);
+
+                    // Calculate font metrics for baseline adjustment
+                    // Font ascent is approximately 80% of font size for most fonts
+                    float fontAscent = scaledFontSize * 0.8f;
+
+                    // Convert from image coordinates (pixels at RENDER_DPI) to PDF coordinates (points at 72 DPI)
+                    // Account for:
+                    // 1. Container padding in preview (text starts at x+5, y+2 in image pixels)
+                    // 2. Y-axis flip: image origin is top-left, PDF origin is bottom-left
+                    // 3. Baseline adjustment: PDF positions text at baseline, not top
+                    float pdfX = (x + PREVIEW_PADDING_LEFT) * scaleFactor;
+
+                    // For Y: convert to PDF coordinates with baseline adjustment
+                    // In preview: y is top of container, text top is at y + PREVIEW_PADDING_TOP
+                    // In PDF: we need baseline position, which is y + padding + ascent from top of text
+                    float textTopInImagePixels = y + PREVIEW_PADDING_TOP;
+                    float baselineInImagePixels = textTopInImagePixels + (scaledFontSize * 0.75f); // ~75% from top to baseline
+                    float pdfY = mediaBox.getHeight() - (baselineInImagePixels * scaleFactor);
 
                     // Handle multi-line text - calculate total height and max width for background
                     String[] lines = text.split("\n");

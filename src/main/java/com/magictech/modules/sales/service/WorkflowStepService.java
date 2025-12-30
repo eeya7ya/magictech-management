@@ -103,6 +103,13 @@ public class WorkflowStepService {
     }
 
     /**
+     * Save step changes
+     */
+    public WorkflowStepCompletion save(WorkflowStepCompletion step) {
+        return stepRepository.save(step);
+    }
+
+    /**
      * Mark step as requiring external action
      */
     public void markNeedsExternalAction(WorkflowStepCompletion step, String externalModule) {

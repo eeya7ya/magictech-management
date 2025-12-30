@@ -3429,35 +3429,59 @@ public class ProjectsStorageController extends BaseModuleController {
      */
     private boolean isTenderAccepted() {
         if (selectedProject == null) {
+            System.out.println("🔍 isTenderAccepted: No project selected");
             return false;
         }
 
         try {
+            System.out.println("🔍 Checking tender acceptance for project: " + selectedProject.getProjectName() + " (ID: " + selectedProject.getId() + ")");
+
             var workflowOpt = projectWorkflowService.getWorkflowByProjectId(selectedProject.getId());
-            if (workflowOpt.isPresent()) {
-                var workflow = workflowOpt.get();
-                // Check if Step 5 is completed
-                if (workflow.isStepCompleted(5)) {
+            if (workflowOpt.isEmpty()) {
+                System.out.println("❌ No workflow found for project " + selectedProject.getId());
+                return false;
+            }
+
+            var workflow = workflowOpt.get();
+            System.out.println("📋 Workflow found: ID=" + workflow.getId() + ", CurrentStep=" + workflow.getCurrentStep());
+
+            // Check if Step 5 is completed
+            if (workflow.isStepCompleted(5)) {
+                System.out.println("✅ Step 5 is completed - tender accepted");
+                return true;
+            }
+
+            // Also check if Step 5 is in progress with external action assigned to PROJECT team
+            // This means Sales clicked "Yes - Tender Accepted" and now waiting for PROJECT to execute
+            var step5Opt = workflowStepService.getStep(workflow.getId(), 5);
+            if (step5Opt.isPresent()) {
+                var step5 = step5Opt.get();
+                System.out.println("📊 Step 5 status: needsExternalAction=" + step5.getNeedsExternalAction() +
+                                   ", externalModule=" + step5.getExternalModule() +
+                                   ", isOnHold=" + step5.getIsOnHold() +
+                                   ", completed=" + step5.getCompleted());
+
+                // Check if on hold - don't allow execution while on hold
+                if (Boolean.TRUE.equals(step5.getIsOnHold())) {
+                    System.out.println("⏸️ Project is on hold - wizard not available");
+                    return false;
+                }
+
+                // If Step 5 needs external action from PROJECT team, tender was accepted!
+                if (Boolean.TRUE.equals(step5.getNeedsExternalAction()) &&
+                    "PROJECT".equals(step5.getExternalModule())) {
+                    System.out.println("✅ Tender accepted - PROJECT team can now start execution");
                     return true;
                 }
-
-                // Also check if Step 5 is in progress with external action assigned to PROJECT team
-                // This means Sales clicked "Yes - Tender Accepted" and now waiting for PROJECT to execute
-                var step5Opt = workflowStepService.getStep(workflow.getId(), 5);
-                if (step5Opt.isPresent()) {
-                    var step5 = step5Opt.get();
-                    // If Step 5 needs external action from PROJECT team, tender was accepted!
-                    if (Boolean.TRUE.equals(step5.getNeedsExternalAction()) &&
-                        "PROJECT".equals(step5.getExternalModule())) {
-                        System.out.println("✅ Tender accepted - PROJECT team can now start execution");
-                        return true;
-                    }
-                }
+            } else {
+                System.out.println("❌ Step 5 not found for workflow " + workflow.getId());
             }
         } catch (Exception e) {
-            System.out.println("Error checking tender acceptance: " + e.getMessage());
+            System.out.println("❌ Error checking tender acceptance: " + e.getMessage());
+            e.printStackTrace();
         }
 
+        System.out.println("❌ Tender not accepted yet");
         return false;
     }
 
@@ -3532,20 +3556,54 @@ public class ProjectsStorageController extends BaseModuleController {
             // Tender is accepted when Step 5 has needsExternalAction=true and externalModule="PROJECT"
             // This happens BEFORE the step is completed (step completes when PROJECT team finishes)
             boolean tenderAccepted = workflow.isStepCompleted(5);
+            boolean isOnHold = false;
 
             // Also check if Step 5 is in progress with external action assigned to PROJECT team
             // This means Sales clicked "Yes - Tender Accepted" and now waiting for PROJECT to execute
-            if (!tenderAccepted) {
-                var step5Opt = workflowStepService.getStep(workflow.getId(), 5);
-                if (step5Opt.isPresent()) {
-                    var step5 = step5Opt.get();
-                    // If Step 5 needs external action from PROJECT team, tender was accepted!
-                    if (Boolean.TRUE.equals(step5.getNeedsExternalAction()) &&
-                        "PROJECT".equals(step5.getExternalModule())) {
-                        tenderAccepted = true;
-                        System.out.println("✅ Tender accepted - PROJECT team can now start execution");
-                    }
+            var step5Opt = workflowStepService.getStep(workflow.getId(), 5);
+            if (step5Opt.isPresent()) {
+                var step5 = step5Opt.get();
+
+                // Check if project is on hold
+                if (Boolean.TRUE.equals(step5.getIsOnHold())) {
+                    isOnHold = true;
+                    System.out.println("⏸️ Project is on hold - waiting for customer");
                 }
+
+                // If Step 5 needs external action from PROJECT team, tender was accepted!
+                if (!tenderAccepted && !isOnHold &&
+                    Boolean.TRUE.equals(step5.getNeedsExternalAction()) &&
+                    "PROJECT".equals(step5.getExternalModule())) {
+                    tenderAccepted = true;
+                    System.out.println("✅ Tender accepted - PROJECT team can now start execution");
+                }
+            }
+
+            // Handle on-hold state
+            if (isOnHold) {
+                openExecutionWizardBtn.setDisable(true);
+                openExecutionWizardBtn.setStyle(
+                    "-fx-background-color: linear-gradient(to right, #f59e0b, #d97706);" +
+                    "-fx-text-fill: white;" +
+                    "-fx-font-size: 18px;" +
+                    "-fx-font-weight: bold;" +
+                    "-fx-padding: 15 40;" +
+                    "-fx-background-radius: 10;" +
+                    "-fx-cursor: default;"
+                );
+                executionWizardStatusTitle.setText("⏸️ Project On Hold");
+                executionWizardStatusTitle.setStyle("-fx-text-fill: #f59e0b; -fx-font-size: 16px; -fx-font-weight: bold;");
+                executionWizardStatusLabel.setText("Tender has been accepted but the project is on hold (waiting for customer).\nSales team will release the project when the customer is ready.");
+                executionWizardStatusLabel.setStyle("-fx-text-fill: rgba(255, 255, 255, 0.7); -fx-font-size: 13px;");
+                executionWizardStatusBox.setStyle(
+                    "-fx-background-color: rgba(30, 41, 59, 0.8);" +
+                    "-fx-border-color: rgba(245, 158, 11, 0.5);" +
+                    "-fx-border-width: 2;" +
+                    "-fx-border-radius: 10;" +
+                    "-fx-background-radius: 10;" +
+                    "-fx-padding: 20;"
+                );
+                return;
             }
 
             if (tenderAccepted) {

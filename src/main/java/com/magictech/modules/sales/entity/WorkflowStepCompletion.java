@@ -122,6 +122,28 @@ public class WorkflowStepCompletion {
     @Column(name = "target_role", length = 50)
     private String targetRole;
 
+    // ============================================================
+    // HOLD FIELDS - For holding project execution after tender acceptance
+    // ============================================================
+
+    @Column(name = "is_on_hold")
+    private Boolean isOnHold = false;
+
+    @Column(name = "hold_reason", columnDefinition = "TEXT")
+    private String holdReason;
+
+    @Column(name = "held_at")
+    private LocalDateTime heldAt;
+
+    @Column(name = "held_by_username", length = 100)
+    private String heldByUsername;
+
+    @Column(name = "unhold_at")
+    private LocalDateTime unholdAt;
+
+    @Column(name = "unhold_by_username", length = 100)
+    private String unholdByUsername;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -454,6 +476,79 @@ public class WorkflowStepCompletion {
 
     public void setTargetRole(String targetRole) {
         this.targetRole = targetRole;
+    }
+
+    // ============================================================
+    // HOLD GETTERS AND SETTERS
+    // ============================================================
+
+    public Boolean getIsOnHold() {
+        return isOnHold;
+    }
+
+    public void setIsOnHold(Boolean isOnHold) {
+        this.isOnHold = isOnHold;
+    }
+
+    public String getHoldReason() {
+        return holdReason;
+    }
+
+    public void setHoldReason(String holdReason) {
+        this.holdReason = holdReason;
+    }
+
+    public LocalDateTime getHeldAt() {
+        return heldAt;
+    }
+
+    public void setHeldAt(LocalDateTime heldAt) {
+        this.heldAt = heldAt;
+    }
+
+    public String getHeldByUsername() {
+        return heldByUsername;
+    }
+
+    public void setHeldByUsername(String heldByUsername) {
+        this.heldByUsername = heldByUsername;
+    }
+
+    public LocalDateTime getUnholdAt() {
+        return unholdAt;
+    }
+
+    public void setUnholdAt(LocalDateTime unholdAt) {
+        this.unholdAt = unholdAt;
+    }
+
+    public String getUnholdByUsername() {
+        return unholdByUsername;
+    }
+
+    public void setUnholdByUsername(String unholdByUsername) {
+        this.unholdByUsername = unholdByUsername;
+    }
+
+    /**
+     * Helper method to put this step on hold
+     */
+    public void holdProject(String reason, String username) {
+        this.isOnHold = true;
+        this.holdReason = reason;
+        this.heldAt = LocalDateTime.now();
+        this.heldByUsername = username;
+        this.unholdAt = null;
+        this.unholdByUsername = null;
+    }
+
+    /**
+     * Helper method to release this step from hold
+     */
+    public void unholdProject(String username) {
+        this.isOnHold = false;
+        this.unholdAt = LocalDateTime.now();
+        this.unholdByUsername = username;
     }
 
     /**
