@@ -374,19 +374,24 @@ public class QuotationDesignService {
 
                     PDFont font = getFont(fontFamily, bold, italic);
 
+                    // Scale font size to match preview display
+                    // Preview renders at RENDER_DPI with scaled font, PDF should match visually
+                    // This ensures WYSIWYG - what user sees in preview matches downloaded PDF
+                    float scaledFontSize = fontSize * (RENDER_DPI / PDF_DPI);
+
                     // Handle multi-line text - calculate total height and max width for background
                     String[] lines = text.split("\n");
-                    float lineHeight = fontSize * 1.2f;
+                    float lineHeight = scaledFontSize * 1.2f;
                     float totalHeight = lines.length * lineHeight;
                     float maxWidth = 0;
 
                     // Calculate max width for background
                     for (String line : lines) {
                         try {
-                            float lineWidth = font.getStringWidth(line) / 1000 * fontSize;
+                            float lineWidth = font.getStringWidth(line) / 1000 * scaledFontSize;
                             maxWidth = Math.max(maxWidth, lineWidth);
                         } catch (Exception ignored) {
-                            maxWidth = Math.max(maxWidth, line.length() * fontSize * 0.6f);
+                            maxWidth = Math.max(maxWidth, line.length() * scaledFontSize * 0.6f);
                         }
                     }
 
@@ -412,7 +417,7 @@ public class QuotationDesignService {
                             float padding = 3;
                             contentStream.addRect(
                                     pdfX - padding,
-                                    pdfY - totalHeight - padding + fontSize,
+                                    pdfY - totalHeight - padding + scaledFontSize,
                                     maxWidth + (padding * 2),
                                     totalHeight + (padding * 2)
                             );
@@ -421,8 +426,8 @@ public class QuotationDesignService {
                             contentStream.restoreGraphicsState();
                         }
 
-                        // Set font (fontSize is in points, no scaling needed)
-                        contentStream.setFont(font, fontSize);
+                        // Set font with scaled size to match preview display
+                        contentStream.setFont(font, scaledFontSize);
 
                         // Set text color
                         Color textColor = Color.decode(color);
@@ -444,9 +449,9 @@ public class QuotationDesignService {
                             if (underline && !lines[i].isEmpty()) {
                                 float lineWidth;
                                 try {
-                                    lineWidth = font.getStringWidth(lines[i]) / 1000 * fontSize;
+                                    lineWidth = font.getStringWidth(lines[i]) / 1000 * scaledFontSize;
                                 } catch (Exception ignored) {
-                                    lineWidth = lines[i].length() * fontSize * 0.6f;
+                                    lineWidth = lines[i].length() * scaledFontSize * 0.6f;
                                 }
 
                                 // We need to end text to draw the line, then resume
@@ -454,15 +459,15 @@ public class QuotationDesignService {
 
                                 // Draw underline
                                 contentStream.setStrokingColor(textColor);
-                                contentStream.setLineWidth(fontSize * 0.05f);
-                                float underlineY = currentY - fontSize * 0.15f;
+                                contentStream.setLineWidth(scaledFontSize * 0.05f);
+                                float underlineY = currentY - scaledFontSize * 0.15f;
                                 contentStream.moveTo(pdfX, underlineY);
                                 contentStream.lineTo(pdfX + lineWidth, underlineY);
                                 contentStream.stroke();
 
                                 // Resume text mode for next line
                                 contentStream.beginText();
-                                contentStream.setFont(font, fontSize);
+                                contentStream.setFont(font, scaledFontSize);
                                 contentStream.newLineAtOffset(pdfX, currentY);
                             }
                         }
