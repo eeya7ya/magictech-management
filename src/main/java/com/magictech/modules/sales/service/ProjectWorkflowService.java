@@ -1314,6 +1314,20 @@ public class ProjectWorkflowService {
             );
 
             System.out.println("📨 Notification sent to Sales: " + title);
+
+            // Send email notification to sales user
+            if (project != null) {
+                try {
+                    User salesUser = getUserById(workflow.getCreatedById());
+                    workflowEmailService.sendProjectExecutionCompletedEmail(
+                        salesUser, projectUser, project, success, explanation
+                    );
+                    System.out.println("📧 Email sent to Sales user: " + salesUser.getEmail());
+                } catch (Exception emailEx) {
+                    System.err.println("⚠️ Failed to send project execution email: " + emailEx.getMessage());
+                    // Don't fail the workflow if email fails
+                }
+            }
         } catch (Exception ex) {
             System.err.println("Failed to send notification: " + ex.getMessage());
         }

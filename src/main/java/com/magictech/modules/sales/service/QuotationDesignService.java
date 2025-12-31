@@ -341,8 +341,11 @@ public class QuotationDesignService {
      *
      * CONVERSION FORMULA:
      * - pdfX = (x + PREVIEW_PADDING_LEFT) * (72/150)
-     * - pdfY = pageHeight - ((y + PREVIEW_PADDING_TOP + fontAscent) * (72/150))
-     * - scaledFontSize = fontSize * (150/72) to match visual size
+     * - pdfY = pageHeight - ((y + PREVIEW_PADDING_TOP) * (72/150) + fontAscent)
+     * - fontSize is used directly (in PDF points) - NOT scaled
+     *
+     * The preview displays fontSize * (150/72) pixels to match the scaled PDF image,
+     * but the PDF itself uses the original fontSize in points.
      */
     public byte[] generatePdfWithAnnotations(byte[] pdfData, String annotationsJson) throws IOException {
         if (annotationsJson == null || annotationsJson.isEmpty() || annotationsJson.equals("[]")) {
@@ -384,13 +387,9 @@ public class QuotationDesignService {
 
                     PDFont font = getFont(fontFamily, bold, italic);
 
-                    // Scale font size to match preview display
-                    // Preview shows fontSize * (RENDER_DPI / PDF_DPI), PDF should use same scaled size
-                    float scaledFontSize = fontSize * (RENDER_DPI / PDF_DPI);
-
-                    // Calculate font metrics for baseline adjustment
-                    // Font ascent is approximately 80% of font size for most fonts
-                    float fontAscent = scaledFontSize * 0.8f;
+                    // Use fontSize directly in PDF points - DO NOT scale
+                    // The preview scales for display, but the PDF uses original point size
+                    float pdfFontSize = fontSize;
 
                     // Convert from image coordinates (pixels at RENDER_DPI) to PDF coordinates (points at 72 DPI)
                     // Account for:
@@ -399,26 +398,28 @@ public class QuotationDesignService {
                     // 3. Baseline adjustment: PDF positions text at baseline, not top
                     float pdfX = (x + PREVIEW_PADDING_LEFT) * scaleFactor;
 
-                    // For Y: convert to PDF coordinates with baseline adjustment
-                    // In preview: y is top of container, text top is at y + PREVIEW_PADDING_TOP
-                    // In PDF: we need baseline position, which is y + padding + ascent from top of text
+                    // For Y: convert position to PDF coordinates, then add baseline offset
+                    // In preview: y is top of container, text top is at y + PREVIEW_PADDING_TOP (in image pixels)
+                    // Convert to PDF points first, then add baseline offset for actual font size
                     float textTopInImagePixels = y + PREVIEW_PADDING_TOP;
-                    float baselineInImagePixels = textTopInImagePixels + (scaledFontSize * 0.75f); // ~75% from top to baseline
-                    float pdfY = mediaBox.getHeight() - (baselineInImagePixels * scaleFactor);
+                    float textTopInPdfPoints = textTopInImagePixels * scaleFactor;
+                    // Baseline is approximately 75% down from the top of the text for most fonts
+                    float baselineOffsetInPdfPoints = pdfFontSize * 0.75f;
+                    float pdfY = mediaBox.getHeight() - (textTopInPdfPoints + baselineOffsetInPdfPoints);
 
                     // Handle multi-line text - calculate total height and max width for background
                     String[] lines = text.split("\n");
-                    float lineHeight = scaledFontSize * 1.2f;
+                    float lineHeight = pdfFontSize * 1.2f;
                     float totalHeight = lines.length * lineHeight;
                     float maxWidth = 0;
 
                     // Calculate max width for background
                     for (String line : lines) {
                         try {
-                            float lineWidth = font.getStringWidth(line) / 1000 * scaledFontSize;
+                            float lineWidth = font.getStringWidth(line) / 1000 * pdfFontSize;
                             maxWidth = Math.max(maxWidth, lineWidth);
                         } catch (Exception ignored) {
-                            maxWidth = Math.max(maxWidth, line.length() * scaledFontSize * 0.6f);
+                            maxWidth = Math.max(maxWidth, line.length() * pdfFontSize * 0.6f);
                         }
                     }
 
@@ -444,7 +445,7 @@ public class QuotationDesignService {
                             float padding = 3;
                             contentStream.addRect(
                                     pdfX - padding,
-                                    pdfY - totalHeight - padding + scaledFontSize,
+                                    pdfY - totalHeight - padding + pdfFontSize,
                                     maxWidth + (padding * 2),
                                     totalHeight + (padding * 2)
                             );
@@ -453,14 +454,14 @@ public class QuotationDesignService {
                             contentStream.restoreGraphicsState();
                         }
 
-                        // Set font with scaled size to match preview display
-                        contentStream.setFont(font, scaledFontSize);
+                        // Set font with the original font size (in PDF points)
+                        contentStream.setFont(font, pdfFontSize);
 
                         // Set text color
                         Color textColor = Color.decode(color);
                         contentStream.setNonStrokingColor(textColor);
 
-                        // Draw text at scaled position
+                        // Draw text at calculated position
                         contentStream.beginText();
                         contentStream.newLineAtOffset(pdfX, pdfY);
 
@@ -476,9 +477,9 @@ public class QuotationDesignService {
                             if (underline && !lines[i].isEmpty()) {
                                 float lineWidth;
                                 try {
-                                    lineWidth = font.getStringWidth(lines[i]) / 1000 * scaledFontSize;
+                                    lineWidth = font.getStringWidth(lines[i]) / 1000 * pdfFontSize;
                                 } catch (Exception ignored) {
-                                    lineWidth = lines[i].length() * scaledFontSize * 0.6f;
+                                    lineWidth = lines[i].length() * pdfFontSize * 0.6f;
                                 }
 
                                 // We need to end text to draw the line, then resume
@@ -486,15 +487,15 @@ public class QuotationDesignService {
 
                                 // Draw underline
                                 contentStream.setStrokingColor(textColor);
-                                contentStream.setLineWidth(scaledFontSize * 0.05f);
-                                float underlineY = currentY - scaledFontSize * 0.15f;
+                                contentStream.setLineWidth(pdfFontSize * 0.05f);
+                                float underlineY = currentY - pdfFontSize * 0.15f;
                                 contentStream.moveTo(pdfX, underlineY);
                                 contentStream.lineTo(pdfX + lineWidth, underlineY);
                                 contentStream.stroke();
 
                                 // Resume text mode for next line
                                 contentStream.beginText();
-                                contentStream.setFont(font, scaledFontSize);
+                                contentStream.setFont(font, pdfFontSize);
                                 contentStream.newLineAtOffset(pdfX, currentY);
                             }
                         }

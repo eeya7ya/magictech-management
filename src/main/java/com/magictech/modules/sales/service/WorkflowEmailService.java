@@ -459,6 +459,57 @@ public class WorkflowEmailService {
     }
 
     /**
+     * Send email notification when project execution is completed by Projects team.
+     * Notifies the Sales user (workflow creator) that the project has been finished.
+     *
+     * @param salesUser The sales user to notify (workflow creator)
+     * @param projectUser The project user who completed the execution
+     * @param project The project
+     * @param success Whether the execution completed successfully or with issues
+     * @param explanation Optional explanation if there were issues (null for success)
+     * @return true if email was sent successfully
+     */
+    public boolean sendProjectExecutionCompletedEmail(User salesUser, User projectUser, Project project,
+                                                       boolean success, String explanation) {
+        if (!emailService.isUserEmailConfigured(salesUser)) {
+            System.out.println("Cannot send project execution email - recipient " +
+                             salesUser.getUsername() + " has no email configured");
+            return false;
+        }
+
+        String subject = success
+            ? "✅ Project Execution Completed - " + project.getProjectName()
+            : "⚠️ Project Execution Completed with Issues - " + project.getProjectName();
+
+        String actionMessage = success
+            ? "The project execution has been successfully completed by the Projects team. " +
+              "You can now proceed with the After-Sales check in the workflow."
+            : "The project execution has been completed by the Projects team, but with some issues: " +
+              explanation + ". Please review and proceed with the After-Sales check.";
+
+        String gradientStart = success ? "#22c55e" : "#f59e0b";  // Green for success, Orange for issues
+        String gradientEnd = success ? "#16a34a" : "#d97706";
+
+        String htmlContent = buildDocumentUploadEmailHtml(
+            salesUser.getUsername(),
+            success ? "Project Execution Complete" : "Project Execution Complete (with Issues)",
+            project,
+            projectUser.getUsername(),
+            actionMessage,
+            gradientStart, gradientEnd
+        );
+
+        try {
+            emailService.sendEmailFromUser(salesUser, salesUser.getEmail(), subject, htmlContent);
+            System.out.println("✅ Project execution completion email sent to " + salesUser.getEmail());
+            return true;
+        } catch (EmailException e) {
+            System.err.println("Failed to send project execution completion email: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
      * Build HTML email content for document upload notifications
      */
     private String buildDocumentUploadEmailHtml(String recipientName, String documentType,
