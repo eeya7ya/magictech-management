@@ -1711,6 +1711,13 @@ public class WorkflowDialog extends Stage {
                 return;
             }
 
+            // Check if project is on hold (tender accepted but waiting for customer)
+            if (Boolean.TRUE.equals(step5.getIsOnHold())) {
+                System.out.println("⏸️ DEBUG: Step 5 - Project is on hold");
+                showProjectOnHoldUI(step5);
+                return;
+            }
+
             // Check if tender was accepted and waiting for PROJECT team
             if (Boolean.TRUE.equals(step5.getNeedsExternalAction()) &&
                 "PROJECT".equals(step5.getExternalModule()) &&
@@ -1731,85 +1738,320 @@ public class WorkflowDialog extends Stage {
         question.setTextFill(Color.WHITE);
 
         Label infoLabel = new Label(
-            "If the tender is accepted, select a Project team member to execute the project.\n" +
+            "If the tender is accepted, you can either:\n" +
+            "• Start Execution immediately - assign to Project Manager\n" +
+            "• Hold Project - wait for customer to call before starting\n" +
             "If rejected, please provide a reason."
         );
         infoLabel.setFont(Font.font("System", FontWeight.NORMAL, 14));
         infoLabel.setWrapText(true);
         infoLabel.setTextFill(Color.web("#94a3b8"));
 
-        // ========== PROJECT USER SELECTION ==========
-        VBox selectionBox = new VBox(10);
-        selectionBox.setStyle("-fx-background-color: rgba(39, 174, 96, 0.1); -fx-border-color: #27ae60; -fx-border-width: 1; -fx-border-radius: 6; -fx-background-radius: 6; -fx-padding: 15;");
+        // Yes/No decision buttons
+        Button yesButton = new Button("✓ Yes - Tender Accepted");
+        yesButton.setStyle("-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 25; -fx-font-weight: bold;");
+        yesButton.setOnAction(e -> showTenderAcceptedOptions());
 
-        Label selectLabel = new Label("📋 Select Project Team Member to Execute:");
-        selectLabel.setFont(Font.font("System", FontWeight.BOLD, 14));
-        selectLabel.setTextFill(Color.web("#27ae60"));
+        Button noButton = new Button("✗ No - Tender Rejected");
+        noButton.setStyle("-fx-background-color: #e74c3c; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 25; -fx-font-weight: bold;");
+        noButton.setOnAction(e -> showRejectionDialog());
+
+        HBox decisionButtons = new HBox(20, yesButton, noButton);
+        decisionButtons.setAlignment(Pos.CENTER);
+        decisionButtons.setPadding(new Insets(20, 0, 0, 0));
+
+        stepContainer.getChildren().addAll(question, infoLabel, decisionButtons);
+    }
+
+    /**
+     * Show options after tender is accepted: Start Execution or Hold Project
+     */
+    private void showTenderAcceptedOptions() {
+        stepContainer.getChildren().clear();
+
+        Label titleLabel = new Label("✓ Tender Accepted!");
+        titleLabel.setFont(Font.font("System", FontWeight.BOLD, 20));
+        titleLabel.setTextFill(Color.web("#27ae60"));
+
+        Label infoLabel = new Label(
+            "Choose how to proceed with project execution:"
+        );
+        infoLabel.setFont(Font.font("System", FontWeight.NORMAL, 14));
+        infoLabel.setTextFill(Color.web("#94a3b8"));
+
+        // ========== OPTION 1: Start Execution Immediately ==========
+        VBox startExecutionBox = new VBox(10);
+        startExecutionBox.setStyle("-fx-background-color: rgba(39, 174, 96, 0.1); -fx-border-color: #27ae60; -fx-border-width: 2; -fx-border-radius: 8; -fx-background-radius: 8; -fx-padding: 15;");
+
+        Label startLabel = new Label("🚀 Start Execution Now");
+        startLabel.setFont(Font.font("System", FontWeight.BOLD, 16));
+        startLabel.setTextFill(Color.web("#27ae60"));
+
+        Label startDesc = new Label("Assign to a Project Manager and start execution immediately.\nAn email notification will be sent to the assigned person.");
+        startDesc.setFont(Font.font("System", FontWeight.NORMAL, 12));
+        startDesc.setTextFill(Color.web("#6b7280"));
+        startDesc.setWrapText(true);
+
+        // Project Manager selection
+        HBox pmSelectionBox = new HBox(10);
+        pmSelectionBox.setAlignment(Pos.CENTER_LEFT);
+
+        Label pmLabel = new Label("Project Manager:");
+        pmLabel.setFont(Font.font("System", FontWeight.NORMAL, 13));
+        pmLabel.setTextFill(Color.WHITE);
 
         ComboBox<User> projectUserCombo = new ComboBox<>();
-        projectUserCombo.setPromptText("Select a Project Manager...");
-        projectUserCombo.setPrefWidth(350);
-        projectUserCombo.setStyle("-fx-background-color: white; -fx-font-size: 14px;");
+        projectUserCombo.setPromptText("Select Project Manager...");
+        projectUserCombo.setPrefWidth(250);
+        projectUserCombo.setStyle("-fx-background-color: white; -fx-font-size: 13px;");
 
         // Load PROJECT users
         List<User> projectUsers = userRepository.findByRoleAndActiveTrue(UserRole.PROJECTS);
         projectUserCombo.getItems().addAll(projectUsers);
 
-        // Custom cell factory to display user info
+        // Custom cell factory
         projectUserCombo.setCellFactory(lv -> new ListCell<User>() {
             @Override
             protected void updateItem(User user, boolean empty) {
                 super.updateItem(user, empty);
-                if (empty || user == null) {
-                    setText(null);
-                } else {
-                    setText(user.getUsername() + (user.getEmail() != null ? " (" + user.getEmail() + ")" : ""));
-                }
+                setText(empty || user == null ? null :
+                    user.getUsername() + (user.getEmail() != null ? " (" + user.getEmail() + ")" : ""));
             }
         });
         projectUserCombo.setButtonCell(new ListCell<User>() {
             @Override
             protected void updateItem(User user, boolean empty) {
                 super.updateItem(user, empty);
-                if (empty || user == null) {
-                    setText("Select a Project Manager...");
-                } else {
-                    setText(user.getUsername() + (user.getEmail() != null ? " (" + user.getEmail() + ")" : ""));
-                }
+                setText(empty || user == null ? "Select Project Manager..." :
+                    user.getUsername() + (user.getEmail() != null ? " (" + user.getEmail() + ")" : ""));
             }
         });
 
-        Label userCountLabel = new Label("👥 Available project managers: " + projectUsers.size());
-        userCountLabel.setFont(Font.font("System", FontWeight.NORMAL, 12));
-        userCountLabel.setTextFill(Color.web("#6b7280"));
+        pmSelectionBox.getChildren().addAll(pmLabel, projectUserCombo);
 
-        selectionBox.getChildren().addAll(selectLabel, projectUserCombo, userCountLabel);
+        Button startExecutionBtn = new Button("▶ Start Execution");
+        startExecutionBtn.setStyle("-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 25; -fx-font-weight: bold;");
+        startExecutionBtn.setDisable(true);
 
-        Button yesButton = new Button("Yes - Assign to Project Manager");
-        yesButton.setStyle("-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20; -fx-font-weight: bold;");
-        yesButton.setDisable(true); // Disabled until user is selected
-
-        // Enable button only when user is selected
         projectUserCombo.valueProperty().addListener((obs, oldVal, newVal) -> {
-            yesButton.setDisable(newVal == null);
+            startExecutionBtn.setDisable(newVal == null);
         });
 
-        yesButton.setOnAction(e -> {
+        startExecutionBtn.setOnAction(e -> {
             User selectedUser = projectUserCombo.getValue();
             if (selectedUser != null) {
                 handleTenderAcceptedWithUser(selectedUser);
             }
         });
 
-        Button noButton = new Button("No - Tender Rejected");
-        noButton.setStyle("-fx-background-color: #e74c3c; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20; -fx-font-weight: bold;");
-        noButton.setOnAction(e -> showRejectionDialog());
+        startExecutionBox.getChildren().addAll(startLabel, startDesc, pmSelectionBox, startExecutionBtn);
 
-        HBox buttons = new HBox(15, yesButton, noButton);
-        buttons.setAlignment(Pos.CENTER);
-        buttons.setPadding(new Insets(20, 0, 0, 0));
+        // ========== OPTION 2: Hold Project ==========
+        VBox holdBox = new VBox(10);
+        holdBox.setStyle("-fx-background-color: rgba(245, 158, 11, 0.1); -fx-border-color: #f59e0b; -fx-border-width: 2; -fx-border-radius: 8; -fx-background-radius: 8; -fx-padding: 15;");
 
-        stepContainer.getChildren().addAll(question, infoLabel, selectionBox, buttons);
+        Label holdLabel = new Label("⏸️ Hold Project");
+        holdLabel.setFont(Font.font("System", FontWeight.BOLD, 16));
+        holdLabel.setTextFill(Color.web("#f59e0b"));
+
+        Label holdDesc = new Label("Put the project on hold until the customer contacts you.\nYou can start execution later when ready.");
+        holdDesc.setFont(Font.font("System", FontWeight.NORMAL, 12));
+        holdDesc.setTextFill(Color.web("#6b7280"));
+        holdDesc.setWrapText(true);
+
+        // Optional hold reason
+        HBox reasonBox = new HBox(10);
+        reasonBox.setAlignment(Pos.CENTER_LEFT);
+
+        Label reasonLabel = new Label("Reason (optional):");
+        reasonLabel.setFont(Font.font("System", FontWeight.NORMAL, 13));
+        reasonLabel.setTextFill(Color.WHITE);
+
+        TextField holdReasonField = new TextField();
+        holdReasonField.setPromptText("e.g., Waiting for customer confirmation");
+        holdReasonField.setPrefWidth(250);
+        holdReasonField.setStyle("-fx-font-size: 13px;");
+
+        reasonBox.getChildren().addAll(reasonLabel, holdReasonField);
+
+        Button holdBtn = new Button("⏸ Hold Project");
+        holdBtn.setStyle("-fx-background-color: #f59e0b; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 25; -fx-font-weight: bold;");
+        holdBtn.setOnAction(e -> handleHoldProject(holdReasonField.getText()));
+
+        holdBox.getChildren().addAll(holdLabel, holdDesc, reasonBox, holdBtn);
+
+        // Back button
+        Button backBtn = new Button("← Back");
+        backBtn.setStyle("-fx-background-color: #6b7280; -fx-text-fill: white; -fx-font-size: 13px; -fx-padding: 8 20;");
+        backBtn.setOnAction(e -> {
+            stepContainer.getChildren().clear();
+            showTenderAcceptanceOptions();
+        });
+
+        VBox optionsContainer = new VBox(20, startExecutionBox, holdBox, backBtn);
+        optionsContainer.setPadding(new Insets(10, 0, 0, 0));
+
+        stepContainer.getChildren().addAll(titleLabel, infoLabel, optionsContainer);
+    }
+
+    /**
+     * Handle putting project on hold
+     */
+    private void handleHoldProject(String reason) {
+        try {
+            String holdReason = (reason == null || reason.trim().isEmpty())
+                ? "Waiting for customer call"
+                : reason.trim();
+
+            workflowService.holdProjectAfterTenderAcceptance(workflow.getId(), holdReason, currentUser);
+            showSuccess("Project has been put on hold.\nYou can start execution when the customer contacts you.");
+
+            // Refresh and reload to show hold state
+            refreshWorkflow();
+            loadCurrentStep();
+        } catch (Exception ex) {
+            showError("Failed to hold project: " + ex.getMessage());
+            ex.printStackTrace();
+        }
+    }
+
+    /**
+     * Show UI when project is on hold (waiting for customer)
+     */
+    private void showProjectOnHoldUI(WorkflowStepCompletion step) {
+        VBox holdBox = new VBox(15);
+        holdBox.setAlignment(Pos.CENTER_LEFT);
+        holdBox.setPadding(new Insets(20));
+        holdBox.setStyle("-fx-background-color: #fef3c7; -fx-border-color: #f59e0b; -fx-border-width: 2; -fx-border-radius: 8; -fx-background-radius: 8;");
+
+        Label statusLabel = new Label("⏸️ Project On Hold");
+        statusLabel.setFont(Font.font("System", FontWeight.BOLD, 20));
+        statusLabel.setTextFill(Color.web("#92400e"));
+
+        Label messageLabel = new Label("Tender has been accepted! Project is on hold waiting for customer.");
+        messageLabel.setFont(Font.font("System", FontWeight.NORMAL, 14));
+        messageLabel.setWrapText(true);
+
+        // Show hold details
+        String holdReason = step.getHoldReason() != null ? step.getHoldReason() : "Waiting for customer call";
+        Label reasonLabel = new Label("📝 Reason: " + holdReason);
+        reasonLabel.setFont(Font.font("System", FontWeight.NORMAL, 13));
+        reasonLabel.setTextFill(Color.web("#78350f"));
+
+        if (step.getHeldAt() != null) {
+            Label heldAtLabel = new Label("📅 On hold since: " + formatDateTime(step.getHeldAt()));
+            heldAtLabel.setFont(Font.font("System", FontWeight.NORMAL, 12));
+            heldAtLabel.setTextFill(Color.web("#78350f"));
+            holdBox.getChildren().add(heldAtLabel);
+        }
+
+        if (step.getHeldByUsername() != null) {
+            Label heldByLabel = new Label("👤 Put on hold by: " + step.getHeldByUsername());
+            heldByLabel.setFont(Font.font("System", FontWeight.NORMAL, 12));
+            heldByLabel.setTextFill(Color.web("#78350f"));
+            holdBox.getChildren().add(heldByLabel);
+        }
+
+        holdBox.getChildren().addAll(0, java.util.Arrays.asList(statusLabel, messageLabel, reasonLabel));
+
+        // ========== Unhold and Start Execution Section ==========
+        VBox unholdBox = new VBox(12);
+        unholdBox.setStyle("-fx-background-color: rgba(39, 174, 96, 0.1); -fx-border-color: #27ae60; -fx-border-width: 2; -fx-border-radius: 8; -fx-background-radius: 8; -fx-padding: 15;");
+        unholdBox.setPadding(new Insets(15));
+
+        Label unholdTitle = new Label("🚀 Ready to Start Execution?");
+        unholdTitle.setFont(Font.font("System", FontWeight.BOLD, 16));
+        unholdTitle.setTextFill(Color.web("#27ae60"));
+
+        Label unholdDesc = new Label("When the customer contacts you, select a Project Manager and start execution.");
+        unholdDesc.setFont(Font.font("System", FontWeight.NORMAL, 12));
+        unholdDesc.setTextFill(Color.web("#6b7280"));
+        unholdDesc.setWrapText(true);
+
+        // Project Manager selection
+        HBox pmBox = new HBox(10);
+        pmBox.setAlignment(Pos.CENTER_LEFT);
+
+        Label pmLabel = new Label("Project Manager:");
+        pmLabel.setFont(Font.font("System", FontWeight.NORMAL, 13));
+        pmLabel.setTextFill(Color.WHITE);
+
+        ComboBox<User> projectUserCombo = new ComboBox<>();
+        projectUserCombo.setPromptText("Select Project Manager...");
+        projectUserCombo.setPrefWidth(250);
+        projectUserCombo.setStyle("-fx-background-color: white; -fx-font-size: 13px;");
+
+        List<User> projectUsers = userRepository.findByRoleAndActiveTrue(UserRole.PROJECTS);
+        projectUserCombo.getItems().addAll(projectUsers);
+
+        projectUserCombo.setCellFactory(lv -> new ListCell<User>() {
+            @Override
+            protected void updateItem(User user, boolean empty) {
+                super.updateItem(user, empty);
+                setText(empty || user == null ? null :
+                    user.getUsername() + (user.getEmail() != null ? " (" + user.getEmail() + ")" : ""));
+            }
+        });
+        projectUserCombo.setButtonCell(new ListCell<User>() {
+            @Override
+            protected void updateItem(User user, boolean empty) {
+                super.updateItem(user, empty);
+                setText(empty || user == null ? "Select Project Manager..." :
+                    user.getUsername() + (user.getEmail() != null ? " (" + user.getEmail() + ")" : ""));
+            }
+        });
+
+        pmBox.getChildren().addAll(pmLabel, projectUserCombo);
+
+        Button startExecutionBtn = new Button("▶ Unhold & Start Execution");
+        startExecutionBtn.setStyle("-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 25; -fx-font-weight: bold;");
+        startExecutionBtn.setDisable(true);
+
+        projectUserCombo.valueProperty().addListener((obs, oldVal, newVal) -> {
+            startExecutionBtn.setDisable(newVal == null);
+        });
+
+        startExecutionBtn.setOnAction(e -> {
+            User selectedUser = projectUserCombo.getValue();
+            if (selectedUser != null) {
+                handleUnholdAndStartExecution(selectedUser);
+            }
+        });
+
+        unholdBox.getChildren().addAll(unholdTitle, unholdDesc, pmBox, startExecutionBtn);
+
+        stepContainer.getChildren().addAll(holdBox, unholdBox);
+
+        // Disable Next button while on hold
+        nextButton.setDisable(true);
+    }
+
+    /**
+     * Handle unholding project and starting execution
+     */
+    private void handleUnholdAndStartExecution(User assignedUser) {
+        try {
+            workflowService.unholdProjectAndStartExecution(workflow.getId(), assignedUser, currentUser);
+
+            String successMsg = "Project released from hold! Assigned to " + assignedUser.getUsername() + " for execution.";
+            boolean emailSent = workflowEmailService.sendStepAssignmentEmail(
+                stepService.getStep(workflow.getId(), 5).orElse(null),
+                assignedUser,
+                currentUser,
+                project
+            );
+            if (emailSent) {
+                successMsg += "\n📧 Email notification sent.";
+            }
+            showSuccess(successMsg);
+
+            // Refresh and reload
+            refreshWorkflow();
+            loadCurrentStep();
+        } catch (Exception ex) {
+            showError("Failed to start execution: " + ex.getMessage());
+            ex.printStackTrace();
+        }
     }
 
     /**
@@ -1817,21 +2059,32 @@ public class WorkflowDialog extends Stage {
      */
     private void handleTenderAcceptedWithUser(User assignedUser) {
         try {
+            System.out.println("🔄 Starting tender acceptance with user: " + assignedUser.getUsername());
+
             // Get Step 5 and assign the selected user
             Optional<WorkflowStepCompletion> step5Opt = stepService.getStep(workflow.getId(), 5);
             if (step5Opt.isPresent()) {
                 WorkflowStepCompletion step5 = step5Opt.get();
 
-                // Assign the project user to this step
+                // Assign the project user to this step (this saves the step)
                 stepService.assignUserToStep(step5, assignedUser, currentUser);
+                System.out.println("✅ User assigned to step 5");
 
-                // Set target role for tracking
+                // Set target role for tracking and save it
                 step5.setTargetRole("PROJECTS");
+                stepService.save(step5);
+                System.out.println("✅ Target role saved");
 
                 // Mark tender as accepted (this sets external action needed)
                 workflowService.markTenderAccepted(workflow.getId(), currentUser);
+                System.out.println("✅ Tender marked as accepted - needsExternalAction=true, externalModule=PROJECT");
 
                 // Send email notification to assigned user
+                // Re-fetch step to get the latest state for email
+                step5Opt = stepService.getStep(workflow.getId(), 5);
+                if (step5Opt.isPresent()) {
+                    step5 = step5Opt.get();
+                }
                 boolean emailSent = workflowEmailService.sendStepAssignmentEmail(step5, assignedUser, currentUser, project);
 
                 String successMsg = "Tender accepted! Assigned to " + assignedUser.getUsername() + " for project execution.";
@@ -1845,6 +2098,8 @@ public class WorkflowDialog extends Stage {
                 // Refresh and reload to show pending state
                 refreshWorkflow();
                 loadCurrentStep();
+            } else {
+                showError("Step 5 not found for workflow " + workflow.getId());
             }
         } catch (Exception ex) {
             showError("Failed to assign project execution: " + ex.getMessage());

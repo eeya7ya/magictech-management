@@ -890,6 +890,68 @@ public class ProjectWorkflowService {
     }
 
     /**
+     * STEP 5: Hold project after tender acceptance (waiting for customer call)
+     * The project is accepted but held until customer contacts us
+     */
+    public void holdProjectAfterTenderAcceptance(Long workflowId, String holdReason, User salesUser) {
+        ProjectWorkflow workflow = getWorkflowById(workflowId)
+            .orElseThrow(() -> new RuntimeException("Workflow not found"));
+
+        validateStepCanStart(workflow, 5);
+
+        WorkflowStepCompletion step = stepService.getStep(workflowId, 5)
+            .orElseThrow(() -> new RuntimeException("Step not found"));
+
+        // Mark tender as accepted but on hold
+        stepService.addNotes(step, "Tender accepted - Project on hold (waiting for customer)");
+        step.holdProject(holdReason, salesUser.getUsername());
+
+        // Mark workflow as on hold
+        workflow.setStatus(ProjectWorkflow.WorkflowStatusType.ON_HOLD);
+        workflowRepository.save(workflow);
+        stepService.save(step);
+    }
+
+    /**
+     * STEP 5: Unhold project and start execution
+     * Called when customer contacts us and we're ready to proceed
+     */
+    public void unholdProjectAndStartExecution(Long workflowId, User assignedProjectUser, User salesUser) {
+        ProjectWorkflow workflow = getWorkflowById(workflowId)
+            .orElseThrow(() -> new RuntimeException("Workflow not found"));
+
+        Project project = projectRepository.findById(workflow.getProjectId())
+            .orElseThrow(() -> new RuntimeException("Project not found"));
+
+        WorkflowStepCompletion step = stepService.getStep(workflowId, 5)
+            .orElseThrow(() -> new RuntimeException("Step not found"));
+
+        // Unhold the project
+        step.unholdProject(salesUser.getUsername());
+        stepService.addNotes(step, "Project released from hold - Starting execution");
+
+        // Set up for execution (same as normal tender acceptance flow)
+        step.setTargetRole("PROJECTS");
+        stepService.assignUserToStep(step, assignedProjectUser, salesUser);
+        stepService.markNeedsExternalAction(step, "PROJECT");
+
+        // Update workflow status
+        workflow.setStatus(ProjectWorkflow.WorkflowStatusType.IN_PROGRESS);
+        workflowRepository.save(workflow);
+
+        // Notify project team to start work
+        notificationService.notifyProjectStart(project, salesUser);
+    }
+
+    /**
+     * STEP 5: Check if project is on hold
+     */
+    public boolean isProjectOnHold(Long workflowId) {
+        WorkflowStepCompletion step = stepService.getStep(workflowId, 5).orElse(null);
+        return step != null && Boolean.TRUE.equals(step.getIsOnHold());
+    }
+
+    /**
      * STEP 5: Project team notifies completion
      */
     public void notifyProjectCompletion(Long workflowId, User projectUser) {
