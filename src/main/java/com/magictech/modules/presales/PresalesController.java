@@ -15,7 +15,9 @@ import com.magictech.modules.storage.service.AvailabilityRequestService;
 import com.magictech.modules.storage.service.StorageService;
 import com.magictech.modules.storage.ui.FastSelectionPanel;
 import com.magictech.modules.sales.ui.QuotationDesignEditorPanel;
+import com.magictech.modules.sales.ui.QuotationTemplatePanel;
 import com.magictech.modules.sales.service.QuotationDesignService;
+import com.magictech.modules.sales.service.QuotationTemplateService;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -64,7 +66,11 @@ public class PresalesController extends BaseModuleController {
     @Autowired
     private QuotationDesignService quotationDesignService;
 
+    @Autowired
+    private QuotationTemplateService quotationTemplateService;
+
     private com.magictech.core.ui.components.DashboardBackgroundPane backgroundPane;
+    private QuotationTemplatePanel quotationTemplatePanel;
     private ListView<WorkflowRequest> pendingRequestsList;
     private FastSelectionPanel fastSelectionPanel;
 
@@ -230,115 +236,39 @@ public class PresalesController extends BaseModuleController {
     }
 
     // ==================== QUOTATION DESIGN TAB ====================
+    /**
+     * Creates the simplified template-based quotation generator.
+     * Much simpler than the old annotation-based editor!
+     *
+     * User workflow:
+     * 1. Upload a background template (once)
+     * 2. Fill in To, From, Date fields
+     * 3. Generate and download PDF
+     */
     private VBox createQuotationDesignContent() {
-        VBox content = new VBox(20);
-        content.setPadding(new Insets(20));
+        VBox content = new VBox();
         content.setStyle("-fx-background-color: transparent;");
         VBox.setVgrow(content, Priority.ALWAYS);
 
-        // Header with project selector
-        Label headerLabel = new Label("📄 Quotation Design Editor");
-        headerLabel.setStyle("-fx-text-fill: white; -fx-font-size: 24px; -fx-font-weight: bold;");
-
-        Label instructionLabel = new Label("Select a project to edit its quotation design, or create a new presales quotation.");
-        instructionLabel.setStyle("-fx-text-fill: rgba(255, 255, 255, 0.7); -fx-font-size: 14px;");
-
-        // Project selector
-        HBox selectorBox = new HBox(15);
-        selectorBox.setAlignment(Pos.CENTER_LEFT);
-
-        Label selectLabel = new Label("Project:");
-        selectLabel.setStyle("-fx-text-fill: white; -fx-font-size: 14px;");
-
-        ComboBox<Project> projectCombo = new ComboBox<>();
-        projectCombo.setPrefWidth(400);
-        projectCombo.setStyle("-fx-background-color: #374151; -fx-text-fill: white;");
-
-        // Load projects
-        try {
-            List<Project> projects = projectRepository.findByActiveTrue();
-            projectCombo.getItems().addAll(projects);
-            projectCombo.setConverter(new javafx.util.StringConverter<Project>() {
-                @Override
-                public String toString(Project project) {
-                    return project == null ? "" : project.getProjectName() + " (ID: " + project.getId() + ")";
-                }
-                @Override
-                public Project fromString(String string) {
-                    return null;
-                }
-            });
-        } catch (Exception ex) {
-            System.err.println("Failed to load projects: " + ex.getMessage());
-        }
-
-        Button loadBtn = new Button("📂 Load Quotation");
-        loadBtn.setStyle(
-                "-fx-background-color: " + HEADER_COLOR + ";" +
-                "-fx-text-fill: white;" +
-                "-fx-font-size: 14px;" +
-                "-fx-font-weight: bold;" +
-                "-fx-padding: 10 20;" +
-                "-fx-background-radius: 6;"
+        // Create the simplified template panel
+        quotationTemplatePanel = new QuotationTemplatePanel();
+        quotationTemplatePanel.initialize(
+                quotationTemplateService,
+                currentUser,
+                "PROJECT",
+                null  // No specific entity - general quotation generator
         );
 
-        selectorBox.getChildren().addAll(selectLabel, projectCombo, loadBtn);
-
-        // Editor container (will be populated when project is selected)
-        VBox editorContainer = new VBox();
-        editorContainer.setId("quotationEditorContainer");
-        VBox.setVgrow(editorContainer, Priority.ALWAYS);
-
-        // Placeholder
-        VBox placeholder = new VBox(15);
-        placeholder.setAlignment(Pos.CENTER);
-        placeholder.setStyle(
-                "-fx-background-color: rgba(30, 41, 59, 0.6);" +
-                "-fx-border-color: rgba(6, 182, 212, 0.3);" +
-                "-fx-border-width: 2;" +
-                "-fx-border-radius: 8;" +
-                "-fx-padding: 50;"
-        );
-        VBox.setVgrow(placeholder, Priority.ALWAYS);
-
-        Label placeholderIcon = new Label("📄");
-        placeholderIcon.setStyle("-fx-font-size: 48px;");
-
-        Label placeholderText = new Label("Select a project above to load its Quotation Design");
-        placeholderText.setStyle("-fx-text-fill: rgba(255, 255, 255, 0.6); -fx-font-size: 16px;");
-
-        placeholder.getChildren().addAll(placeholderIcon, placeholderText);
-        editorContainer.getChildren().add(placeholder);
-
-        // Load button action
-        loadBtn.setOnAction(e -> {
-            Project selectedProject = projectCombo.getValue();
-            if (selectedProject == null) {
-                showError("Please select a project first");
-                return;
-            }
-
-            // Create and show the editor panel
-            editorContainer.getChildren().clear();
-
-            QuotationDesignEditorPanel editorPanel = new QuotationDesignEditorPanel();
-            editorPanel.initialize(
-                    quotationDesignService,
-                    currentUser,
-                    "PRESALES",
-                    "PROJECT",
-                    selectedProject.getId()
-            );
-
-            editorPanel.setOnSaveCallback(quotation -> {
-                showSuccess("✓ Presales Quotation saved - Version " + quotation.getVersion());
-            });
-
-            VBox.setVgrow(editorPanel, Priority.ALWAYS);
-            editorContainer.getChildren().add(editorPanel);
+        quotationTemplatePanel.setOnGenerateCallback(pdfData -> {
+            showSuccess("✓ Quotation PDF generated successfully!");
         });
 
-        content.getChildren().addAll(headerLabel, instructionLabel, selectorBox, editorContainer);
+        quotationTemplatePanel.setOnStatusCallback(status -> {
+            System.out.println("Quotation status: " + status);
+        });
+
+        VBox.setVgrow(quotationTemplatePanel, Priority.ALWAYS);
+        content.getChildren().add(quotationTemplatePanel);
 
         return content;
     }
@@ -433,6 +363,9 @@ public class PresalesController extends BaseModuleController {
     public void refresh() {
         if (fastSelectionPanel != null) {
             fastSelectionPanel.refresh();
+        }
+        if (quotationTemplatePanel != null) {
+            quotationTemplatePanel.refresh();
         }
         loadPendingRequests();
     }
