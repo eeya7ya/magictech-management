@@ -2,7 +2,7 @@
 
 **AI Assistant Guide for Code Development**
 
-Last Updated: 2025-11-26
+Last Updated: 2026-02-01
 Project: MagicTech Management System
 Version: 1.0-SNAPSHOT
 
@@ -19,11 +19,15 @@ Version: 1.0-SNAPSHOT
 7. [Module System](#module-system)
 8. [Notification & Messaging System](#notification--messaging-system)
 9. [Workflow System](#workflow-system)
-10. [Development Workflows](#development-workflows)
-11. [Coding Conventions](#coding-conventions)
-12. [Security Considerations](#security-considerations)
-13. [Testing & API](#testing--api)
-14. [Common Tasks](#common-tasks)
+10. [Email System](#email-system)
+11. [Encryption Utilities](#encryption-utilities)
+12. [Quotation Design System](#quotation-design-system)
+13. [Project Execution Wizard](#project-execution-wizard)
+14. [Development Workflows](#development-workflows)
+15. [Coding Conventions](#coding-conventions)
+16. [Security Considerations](#security-considerations)
+17. [Testing & API](#testing--api)
+18. [Common Tasks](#common-tasks)
 
 ---
 
@@ -62,8 +66,8 @@ A **hybrid JavaFX desktop application with Spring Boot backend** for comprehensi
 
 ### Project Statistics
 
-- **Total Java Files**: ~71
-- **Lines of Code**: ~17,174
+- **Total Java Files**: ~181
+- **Lines of Code**: ~56,000
 - **Package**: `com.magictech`
 - **Main Class**: `com.magictech.MainApp`
 - **Server Port**: 8085
@@ -129,11 +133,22 @@ com.magictech/
 │   │
 │   ├── config/                           # Application configuration
 │   │   ├── DatabaseConfig.java           # JPA/Hibernate configuration
+│   │   ├── DatabaseSchemaFixer.java      # Schema migration utilities
 │   │   ├── SecurityConfig.java           # Security config (placeholder)
 │   │   ├── RedisConfig.java              # Redis pub/sub configuration
 │   │   └── SchedulingConfig.java         # Scheduled tasks configuration
 │   │
-│   ├── messaging/                        # NEW: Real-time notification system
+│   ├── email/                            # Email notification system
+│   │   ├── EmailService.java             # SMTP email sending service
+│   │   ├── EmailSettings.java            # Database-stored SMTP config entity
+│   │   ├── EmailSettingsService.java     # Email settings management
+│   │   ├── EmailSettingsRepository.java  # Email settings data access
+│   │   └── EmailException.java           # Email-specific exceptions
+│   │
+│   ├── util/                             # Utility classes
+│   │   └── EncryptionUtil.java           # AES encryption for sensitive data
+│   │
+│   ├── messaging/                        # Real-time notification system
 │   │   ├── config/
 │   │   │   └── RedisConfig.java          # Redis connection & listeners
 │   │   ├── constants/
@@ -169,6 +184,7 @@ com.magictech/
 │       │   ├── BackgroundManager.java
 │       │   ├── GradientBackgroundPane.java
 │       │   ├── DashboardBackgroundPane.java
+│       │   ├── RoadmapProgressBar.java   # Modern wizard progress visualization
 │       │   ├── NotificationPopup.java    # Legacy notification popup
 │       │   └── ToastNotification.java    # Toast-style notifications
 │       └── controllers/                  # Core UI controllers
@@ -202,23 +218,24 @@ com.magictech/
     ├── sales/                            # Sales module (SIGNIFICANTLY EXPANDED)
     │   ├── entity/
     │   │   ├── Customer.java
-    │   │   ├── CustomerElement.java      # NEW: Customer-item relationships
-    │   │   ├── CustomerTask.java         # NEW: Customer tasks
-    │   │   ├── CustomerNote.java         # NEW: Customer notes
-    │   │   ├── CustomerSchedule.java     # NEW: Customer schedules
-    │   │   ├── CustomerDocument.java     # NEW: Customer documents
-    │   │   ├── CustomerCostBreakdown.java # NEW: Cost analysis
+    │   │   ├── CustomerElement.java      # Customer-item relationships
+    │   │   ├── CustomerTask.java         # Customer tasks
+    │   │   ├── CustomerNote.java         # Customer notes
+    │   │   ├── CustomerSchedule.java     # Customer schedules
+    │   │   ├── CustomerDocument.java     # Customer documents
+    │   │   ├── CustomerCostBreakdown.java # Cost analysis
     │   │   ├── SalesOrder.java
     │   │   ├── SalesOrderItem.java
     │   │   ├── SalesContract.java
-    │   │   ├── ProjectWorkflow.java      # NEW: 8-step workflow tracker
-    │   │   ├── WorkflowStepCompletion.java # NEW: Step-level tracking
-    │   │   ├── SiteSurveyData.java       # NEW: Site survey Excel + images
-    │   │   ├── SizingPricingData.java    # NEW: Presales pricing data
-    │   │   ├── BankGuaranteeData.java    # NEW: Finance bank guarantee
-    │   │   ├── MissingItemRequest.java   # NEW: Missing items tracking
-    │   │   ├── ProjectCostData.java      # NEW: Project cost tracking
-    │   │   └── ProjectCostBreakdown.java # NEW: Cost breakdown
+    │   │   ├── ProjectWorkflow.java      # 8-step workflow tracker
+    │   │   ├── WorkflowStepCompletion.java # Step-level tracking
+    │   │   ├── SiteSurveyData.java       # Site survey Excel + images
+    │   │   ├── SizingPricingData.java    # Presales pricing data
+    │   │   ├── BankGuaranteeData.java    # Finance bank guarantee
+    │   │   ├── MissingItemRequest.java   # Missing items tracking
+    │   │   ├── ProjectCostData.java      # Project cost tracking
+    │   │   ├── ProjectCostBreakdown.java # Cost breakdown
+    │   │   └── QuotationDesign.java      # PDF quotation with annotations & versioning
     │   ├── model/                        # ViewModels for JavaFX
     │   │   ├── CustomerViewModel.java
     │   │   ├── CustomerElementViewModel.java
@@ -237,15 +254,25 @@ com.magictech/
     │   │   ├── CustomerDocumentService.java
     │   │   ├── CustomerCostBreakdownService.java
     │   │   ├── SalesOrderService.java
-    │   │   ├── ProjectWorkflowService.java # NEW: Workflow orchestration
-    │   │   ├── WorkflowStepService.java    # NEW: Step management
+    │   │   ├── ProjectWorkflowService.java # Workflow orchestration
+    │   │   ├── WorkflowStepService.java    # Step management
     │   │   ├── WorkflowNotificationService.java
-    │   │   ├── SiteSurveyExcelService.java # NEW: Excel parsing
+    │   │   ├── WorkflowEmailService.java   # Workflow email notifications
+    │   │   ├── SiteSurveyExcelService.java # Excel parsing
+    │   │   ├── QuotationDesignService.java # PDF quotation management
+    │   │   ├── ExcelStorageService.java    # Excel file storage
+    │   │   ├── ZipExcelExtractorService.java # ZIP/Excel extraction
     │   │   ├── ComprehensiveExcelExportService.java
     │   │   └── SalesExcelExportService.java
+    │   ├── ui/                           # Sales UI components
+    │   │   ├── QuotationDesignEditorPanel.java # PDF editor with annotations
+    │   │   ├── WorkflowDialog.java       # Workflow management dialog
+    │   │   ├── WorkflowStatusCard.java   # Workflow status display
+    │   │   ├── CostBreakdownPanel.java   # Project cost breakdown UI
+    │   │   └── CustomerCostBreakdownPanel.java # Customer cost analysis
     │   ├── SalesController.java          # Main sales UI with workflow
     │   ├── SalesStorageController.java   # Sales storage view
-    │   └── CustomerManagementController.java # NEW: Customer management UI
+    │   └── CustomerManagementController.java # Customer management UI
     │
     ├── presales/                         # NEW: Presales module
     │   └── PresalesController.java       # Quotations & sizing/pricing
@@ -260,8 +287,8 @@ com.magictech/
     │   │   ├── ProjectTask.java
     │   │   ├── ProjectNote.java
     │   │   ├── ProjectSchedule.java
-    │   │   ├── ProjectDocument.java      # NEW: Document storage (PDFs, etc.)
-    │   │   └── SiteSurveyRequest.java    # NEW: Site survey requests
+    │   │   ├── ProjectDocument.java      # Document storage (PDFs, etc.)
+    │   │   └── SiteSurveyRequest.java    # Site survey requests
     │   ├── model/                        # ViewModels
     │   │   ├── ProjectViewModel.java
     │   │   ├── ProjectElementViewModel.java
@@ -276,6 +303,8 @@ com.magictech/
     │   │   ├── ProjectScheduleService.java
     │   │   ├── ProjectDocumentService.java
     │   │   └── SiteSurveyRequestService.java
+    │   ├── ui/                           # Project UI components
+    │   │   └── ProjectExecutionWizard.java # 3-step project execution wizard
     │   ├── ProjectsController.java       # Main projects UI
     │   ├── ProjectDetailViewController.java # Detailed project view
     │   └── ProjectsStorageController.java # Storage view
@@ -1472,6 +1501,289 @@ notificationService.publishNotification(
 
 ---
 
+## Email System
+
+### Overview
+
+The application includes a **configurable email notification system** that allows sending SMTP emails. Email settings are stored in the database and can be configured through the UI, eliminating the need to edit config files.
+
+### Key Components
+
+#### 1. **EmailSettings Entity**
+
+```java
+@Entity
+@Table(name = "email_settings")
+public class EmailSettings {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private String provider;     // gmail, outlook, custom
+    private String smtpHost;
+    private Integer smtpPort;    // Default: 587
+    private String username;
+    private String password;     // Encrypted with EncryptionUtil
+    private String fromAddress;
+    private String fromName;
+    private Boolean useTls;      // Default: true
+    private Boolean useSsl;      // Default: false
+    private Boolean isActive;
+
+    // Audit fields
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
+    private String updatedBy;
+}
+```
+
+#### 2. **EmailService**
+
+Main service for sending emails:
+
+```java
+@Service
+public class EmailService {
+
+    // Validate email format
+    public boolean isValidEmail(String email);
+
+    // Test SMTP connection without sending
+    public ConnectionTestResult testSmtpConnection();
+
+    // Send email
+    public void sendEmail(String to, String subject, String body);
+
+    // Send HTML email
+    public void sendHtmlEmail(String to, String subject, String htmlBody);
+
+    // Send email with attachments
+    public void sendEmailWithAttachment(String to, String subject, String body, File attachment);
+}
+```
+
+#### 3. **WorkflowEmailService**
+
+Integration service for sending workflow-related emails:
+
+```java
+@Service
+public class WorkflowEmailService {
+
+    // Send email when project workflow is completed
+    public void sendProjectCompletionEmail(Project project, ProjectWorkflow workflow);
+
+    // Send notification emails for workflow step changes
+    public void sendWorkflowStepNotification(Long workflowId, int stepNumber, String recipientEmail);
+}
+```
+
+### Email Configuration
+
+**Via UI**: Settings can be configured in the User Management module.
+
+**Supported Providers**:
+- Gmail (smtp.gmail.com:587, TLS)
+- Outlook (smtp.office365.com:587, TLS)
+- Custom SMTP servers
+
+**Security Note**: Passwords are encrypted using AES encryption via `EncryptionUtil` before storage.
+
+---
+
+## Encryption Utilities
+
+### EncryptionUtil
+
+AES encryption utility for securing sensitive data like email passwords:
+
+```java
+public class EncryptionUtil {
+
+    // Encrypt plaintext to Base64-encoded ciphertext
+    public static String encrypt(String plainText);
+
+    // Decrypt Base64-encoded ciphertext to plaintext
+    public static String decrypt(String encryptedText);
+}
+```
+
+**Configuration**:
+- Set `ENCRYPTION_KEY` environment variable in production
+- Default key is used in development (with warning)
+- Uses AES-128 encryption
+
+**Usage Example**:
+```java
+// Encrypt password before storing
+emailSettings.setPassword(EncryptionUtil.encrypt(plainPassword));
+
+// Decrypt when needed
+String plainPassword = EncryptionUtil.decrypt(emailSettings.getPassword());
+```
+
+---
+
+## Quotation Design System
+
+### Overview
+
+The **Quotation Design System** enables creating and editing PDF quotation documents with text annotations, versioning, and module tracking. This replaces the previous "Contract PDF" functionality with a more comprehensive solution.
+
+### QuotationDesign Entity
+
+```java
+@Entity
+@Table(name = "quotation_designs")
+public class QuotationDesign {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    // Entity relationship
+    private String entityType;   // SALES_ORDER, PROJECT, CUSTOMER
+    private Long entityId;
+
+    // PDF Storage
+    @Lob
+    private byte[] pdfData;           // Current PDF
+    @Lob
+    private byte[] originalPdfData;   // Original backup
+
+    // Text annotations (JSON)
+    // Format: [{"page": 0, "x": 100, "y": 200, "text": "Hello", "fontSize": 12, ...}]
+    private String pdfAnnotations;
+
+    // File metadata
+    private String filename;
+    private Long fileSize;
+    private String mimeType;
+    private Integer pageCount;
+
+    // Versioning
+    private Integer version;
+    private Long parentVersionId;
+    private Boolean isCurrentVersion;
+    private String versionNote;
+
+    // Module tracking
+    private String moduleSource;  // SALES, PRESALES
+
+    // Audit fields
+    private String createdBy;
+    private LocalDateTime createdAt;
+    private String updatedBy;
+    private LocalDateTime updatedAt;
+}
+```
+
+### Features
+
+1. **PDF Annotation**: Add text overlays with customizable:
+   - Font size, family, color
+   - Bold/italic styling
+   - Position (x, y coordinates per page)
+
+2. **Version History**: Track changes with:
+   - Version numbers
+   - Parent version references
+   - Version notes
+
+3. **Original Backup**: Preserve original PDF before edits
+
+4. **WYSIWYG Editor**: `QuotationDesignEditorPanel` provides visual editing
+
+### QuotationDesignEditorPanel
+
+JavaFX UI component for editing quotation PDFs:
+
+```java
+public class QuotationDesignEditorPanel extends VBox {
+    // PDF viewing with zoom
+    // Text annotation tools
+    // Move/resize text boxes
+    // Font/color selection
+    // Save and export functionality
+    // Version management
+}
+```
+
+---
+
+## Project Execution Wizard
+
+### Overview
+
+The **Project Execution Wizard** is a 3-step wizard triggered when Sales accepts a tender (Step 5 of the Sales workflow). It guides the Projects team through project execution with scheduling, task tracking, and completion confirmation.
+
+### Wizard Steps
+
+```
+Step 1: Time Scheduling
+├── Set up project schedule
+├── Define milestones
+└── Navigate to Schedule tab
+
+Step 2: Task Achievements
+├── Track task completion percentage
+├── Monitor progress
+└── Navigate to Tasks tab
+
+Step 3: Project Achievements
+├── Final completion confirmation
+├── Success/failure explanation
+└── Workflow completion notification
+```
+
+### Key Components
+
+#### 1. **ProjectExecutionWizard**
+
+```java
+public class ProjectExecutionWizard extends Stage {
+
+    // Callback interface for wizard events
+    public interface ProjectWizardCallback {
+        void onNavigateToSchedule(Project project);
+        void onNavigateToTasks(Project project);
+        void onProjectCompleted(Project project, Long workflowId, boolean success, String explanation);
+        void onWizardRestored();
+    }
+
+    // Features
+    - Minimize/maximize functionality
+    - Modern roadmap progress bar
+    - Integration with Sales workflow
+    - Email notification on completion
+}
+```
+
+#### 2. **RoadmapProgressBar**
+
+Modern progress visualization component:
+
+```java
+public class RoadmapProgressBar extends HBox {
+    // Visual states:
+    // - Completed: Dark green with checkmark
+    // - Current: Glowing/pulsing blue animation
+    // - Future: Light grey
+
+    // Road-style connectors between steps
+    // Animated glow effect on current step
+}
+```
+
+### Integration with Sales Workflow
+
+When Step 5 (Tender Acceptance) is completed in Sales:
+1. Sales workflow notifies Projects module
+2. ProjectExecutionWizard opens automatically
+3. Projects team completes 3-step execution
+4. On completion, email is sent and workflow advances to Step 6
+
+---
+
 ## Development Workflows
 
 ### Prerequisites
@@ -2175,6 +2487,13 @@ public class Child {
 | Module base | `/src/main/java/com/magictech/core/module/BaseModuleController.java` |
 | Storage base | `/src/main/java/com/magictech/modules/storage/base/BaseStorageModuleController.java` |
 | Storage entity | `/src/main/java/com/magictech/modules/storage/entity/StorageItem.java` |
+| Email service | `/src/main/java/com/magictech/core/email/EmailService.java` |
+| Email settings | `/src/main/java/com/magictech/core/email/EmailSettings.java` |
+| Encryption utility | `/src/main/java/com/magictech/core/util/EncryptionUtil.java` |
+| Quotation design | `/src/main/java/com/magictech/modules/sales/entity/QuotationDesign.java` |
+| PDF editor panel | `/src/main/java/com/magictech/modules/sales/ui/QuotationDesignEditorPanel.java` |
+| Project wizard | `/src/main/java/com/magictech/modules/projects/ui/ProjectExecutionWizard.java` |
+| Progress bar | `/src/main/java/com/magictech/core/ui/components/RoadmapProgressBar.java` |
 | Login view | `/src/main/resources/fxml/login.fxml` |
 | Dashboard view | `/src/main/resources/fxml/main-dashboard.fxml` |
 | Global CSS | `/src/main/resources/css/styles.css` |
@@ -2288,8 +2607,20 @@ This codebase demonstrates a well-structured enterprise application with:
 ---
 
 **Document Maintained By**: AI Assistant (Claude)
-**Last Updated**: 2025-11-26
-**Version**: 2.0
+**Last Updated**: 2026-02-01
+**Version**: 3.0
+
+**Major Changes in v3.0**:
+- Added Email System documentation (`core/email/`) for SMTP notifications
+- Added EncryptionUtil documentation for AES encryption of sensitive data
+- Added Quotation Design System with PDF editing and annotations
+- Added Project Execution Wizard documentation (3-step wizard for Projects team)
+- Added RoadmapProgressBar UI component documentation
+- Added WorkflowEmailService for automated email notifications
+- Updated project statistics (181 Java files, ~56,000 lines of code)
+- Updated codebase structure with new packages: `core/email/`, `core/util/`, `sales/ui/`, `projects/ui/`
+- Added new Sales module services: QuotationDesignService, ExcelStorageService, ZipExcelExtractorService
+- Updated Table of Contents with new sections
 
 **Major Changes in v2.0**:
 - Added Presales, Finance, and Quality Assurance modules
