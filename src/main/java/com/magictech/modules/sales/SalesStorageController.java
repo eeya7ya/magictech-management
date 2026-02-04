@@ -33,8 +33,10 @@ import javafx.scene.layout.FlowPane;
 import com.magictech.modules.sales.ui.WorkflowDialog;
 import com.magictech.modules.sales.ui.WorkflowStatusCard;
 import com.magictech.modules.sales.ui.QuotationDesignEditorPanel;
-import com.magictech.modules.storage.ui.FastSelectionPanel;
+import com.magictech.modules.qualityassurance.service.PriceListService;
+import com.magictech.modules.qualityassurance.ui.PriceListFastSelectionPanel;
 import com.magictech.modules.storage.service.AvailabilityRequestService;
+import com.magictech.core.email.EmailService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -65,6 +67,8 @@ public class SalesStorageController extends BaseModuleController
     @Autowired private com.magictech.modules.sales.service.WorkflowEmailService workflowEmailService;
     @Autowired private AvailabilityRequestService availabilityRequestService;
     @Autowired private QuotationDesignService quotationDesignService;
+    @Autowired private PriceListService priceListService;
+    @Autowired(required = false) private EmailService emailService;
 
     private com.magictech.core.ui.components.DashboardBackgroundPane backgroundPane;
     private StackPane mainContainer;
@@ -570,15 +574,19 @@ public class SalesStorageController extends BaseModuleController
         content.setStyle("-fx-background-color: rgba(15, 23, 42, 0.6);");
         VBox.setVgrow(content, Priority.ALWAYS);
 
-        // Create Fast Selection Panel
-        FastSelectionPanel fastSelectionPanel = new FastSelectionPanel();
-        fastSelectionPanel.initialize(storageService, availabilityRequestService, currentUser, "SALES");
+        // Create Price List Fast Selection Panel (replaces old FastSelectionPanel)
+        PriceListFastSelectionPanel fastSelectionPanel = new PriceListFastSelectionPanel();
+        fastSelectionPanel.initialize(priceListService, storageService, emailService, currentUser, "SALES");
 
-        // Set callback for when availability request is created
-        fastSelectionPanel.setOnRequestCreated(request -> {
-            showSuccess("✅ Availability request sent to Storage team!\n" +
-                "Item: " + request.getItemName() + "\n" +
-                "Quantity: " + request.getQuantityRequested());
+        // Set callback for when items are added to selection with price tier
+        fastSelectionPanel.setOnAddToSelection((items, priceTier) -> {
+            showSuccess("✅ " + items.size() + " item(s) added to selection\n" +
+                "Price tier: " + priceTier.getDisplayName());
+        });
+
+        // Set callback for notifications
+        fastSelectionPanel.setOnNotification(message -> {
+            System.out.println("Sales notification: " + message);
         });
 
         VBox.setVgrow(fastSelectionPanel, Priority.ALWAYS);
@@ -2781,15 +2789,19 @@ public class SalesStorageController extends BaseModuleController
 
         step4Banner.getChildren().addAll(step4Label, spacer, completeStep4Button);
 
-        // Create Fast Selection Panel
-        FastSelectionPanel fastSelectionPanel = new FastSelectionPanel();
-        fastSelectionPanel.initialize(storageService, availabilityRequestService, currentUser, "SALES");
+        // Create Price List Fast Selection Panel (replaces old FastSelectionPanel)
+        PriceListFastSelectionPanel fastSelectionPanel = new PriceListFastSelectionPanel();
+        fastSelectionPanel.initialize(priceListService, storageService, emailService, currentUser, "SALES");
 
-        // Set callback for when availability request is created
-        fastSelectionPanel.setOnRequestCreated(request -> {
-            showSuccess("✅ Availability request sent to Storage team!\n" +
-                "Item: " + request.getItemName() + "\n" +
-                "Quantity: " + request.getQuantityRequested());
+        // Set callback for when items are added to selection with price tier
+        fastSelectionPanel.setOnAddToSelection((items, priceTier) -> {
+            showSuccess("✅ " + items.size() + " item(s) added to selection\n" +
+                "Price tier: " + priceTier.getDisplayName());
+        });
+
+        // Set callback for notifications
+        fastSelectionPanel.setOnNotification(message -> {
+            System.out.println("Sales Step 4 notification: " + message);
         });
 
         VBox.setVgrow(fastSelectionPanel, Priority.ALWAYS);

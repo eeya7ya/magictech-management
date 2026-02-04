@@ -13,9 +13,11 @@ import com.magictech.modules.sales.service.ProjectWorkflowService;
 import com.magictech.modules.sales.service.WorkflowStepService;
 import com.magictech.modules.storage.service.AvailabilityRequestService;
 import com.magictech.modules.storage.service.StorageService;
-import com.magictech.modules.storage.ui.FastSelectionPanel;
+import com.magictech.modules.qualityassurance.service.PriceListService;
+import com.magictech.modules.qualityassurance.ui.PriceListFastSelectionPanel;
 import com.magictech.modules.sales.ui.QuotationDesignEditorPanel;
 import com.magictech.modules.sales.service.QuotationDesignService;
+import com.magictech.core.email.EmailService;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -64,9 +66,15 @@ public class PresalesController extends BaseModuleController {
     @Autowired
     private QuotationDesignService quotationDesignService;
 
+    @Autowired
+    private PriceListService priceListService;
+
+    @Autowired(required = false)
+    private EmailService emailService;
+
     private com.magictech.core.ui.components.DashboardBackgroundPane backgroundPane;
     private ListView<WorkflowRequest> pendingRequestsList;
-    private FastSelectionPanel fastSelectionPanel;
+    private PriceListFastSelectionPanel fastSelectionPanel;
 
     private static final String HEADER_COLOR = "#06b6d4"; // Cyan
 
@@ -167,17 +175,17 @@ public class PresalesController extends BaseModuleController {
         VBox content = new VBox();
         content.setStyle("-fx-background-color: transparent;");
 
-        fastSelectionPanel = new FastSelectionPanel();
-        fastSelectionPanel.initialize(storageService, availabilityRequestService, currentUser, "PRESALES");
+        fastSelectionPanel = new PriceListFastSelectionPanel();
+        fastSelectionPanel.initialize(priceListService, storageService, emailService, currentUser, "PRESALES");
 
-        // Handle add to selection callback
-        fastSelectionPanel.setOnAddToSelection(items -> {
-            showSuccess("✓ " + items.size() + " item(s) ready for quotation");
+        // Handle add to selection callback with price tier
+        fastSelectionPanel.setOnAddToSelection((items, priceTier) -> {
+            showSuccess("✓ " + items.size() + " item(s) ready for quotation\nPrice tier: " + priceTier.getDisplayName());
         });
 
-        // Handle request created callback
-        fastSelectionPanel.setOnRequestCreated(request -> {
-            System.out.println("Availability request created: " + request.getId());
+        // Handle notification callback
+        fastSelectionPanel.setOnNotification(message -> {
+            System.out.println("Notification: " + message);
         });
 
         VBox.setVgrow(fastSelectionPanel, Priority.ALWAYS);

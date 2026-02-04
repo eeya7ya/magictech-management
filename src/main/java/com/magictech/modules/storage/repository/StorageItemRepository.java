@@ -35,6 +35,17 @@ public interface StorageItemRepository extends JpaRepository<StorageItem, Long> 
     List<StorageItem> findByCodeAndActiveTrue(String code);
 
     /**
+     * Find items by model
+     */
+    List<StorageItem> findByModelAndActiveTrue(String model);
+
+    /**
+     * Find items by model (case-insensitive)
+     */
+    @Query("SELECT s FROM StorageItem s WHERE s.active = true AND LOWER(s.model) = LOWER(:model)")
+    List<StorageItem> findByModelIgnoreCaseAndActiveTrue(@Param("model") String model);
+
+    /**
      * Find items by serial number
      */
     List<StorageItem> findBySerialNumberAndActiveTrue(String serialNumber);

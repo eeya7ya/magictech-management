@@ -19,6 +19,9 @@ public class StorageItem {
     @Column(name = "system_type", length = 100)
     private String systemType;
 
+    @Column(name = "model", length = 150)
+    private String model;
+
     @Column(name = "manufacture", length = 200)
     private String manufacture;
 
@@ -123,6 +126,14 @@ public class StorageItem {
 
     public void setSystemType(String systemType) {
         this.systemType = systemType;
+    }
+
+    public String getModel() {
+        return model;
+    }
+
+    public void setModel(String model) {
+        this.model = model;
     }
 
     public String getManufacture() {
@@ -243,6 +254,7 @@ public class StorageItem {
         return "StorageItem{" +
                 "id=" + id +
                 ", systemType='" + systemType + '\'' +
+                ", model='" + model + '\'' +
                 ", manufacture='" + manufacture + '\'' +
                 ", productName='" + productName + '\'' +
                 ", code='" + code + '\'' +
