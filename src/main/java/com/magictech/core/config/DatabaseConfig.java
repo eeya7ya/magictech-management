@@ -24,7 +24,8 @@ import java.util.Properties;
         "com.magictech.modules.sales.repository",
         "com.magictech.modules.maintenance",
         "com.magictech.modules.projects",
-        "com.magictech.modules.pricing"
+        "com.magictech.modules.pricing",
+        "com.magictech.modules.qualityassurance.repository"
 })
 @EnableTransactionManagement
 public class DatabaseConfig {
@@ -73,14 +74,15 @@ public class DatabaseConfig {
         LocalContainerEntityManagerFactoryBean em = new LocalContainerEntityManagerFactoryBean();
         em.setDataSource(dataSource());
 
-        // ✅ UPDATED: Scan ALL entity packages including messaging and email
+        // ✅ UPDATED: Scan ALL entity packages including messaging, email, and qualityassurance
         em.setPackagesToScan(
                 "com.magictech.core.auth",
                 "com.magictech.core.email",
                 "com.magictech.core.messaging.entity",
                 "com.magictech.modules.storage.entity",
                 "com.magictech.modules.sales.entity",
-                "com.magictech.modules.projects.entity"
+                "com.magictech.modules.projects.entity",
+                "com.magictech.modules.qualityassurance.entity"
         );
 
         HibernateJpaVendorAdapter vendorAdapter = new HibernateJpaVendorAdapter();
