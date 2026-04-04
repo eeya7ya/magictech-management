@@ -53,6 +53,20 @@ public class Project {
     @Column(columnDefinition = "TEXT")
     private String notes;
 
+    // Client information
+    @Column(name = "client_name_1", length = 200)
+    private String clientName1;
+
+    @Column(name = "client_name_2", length = 200)
+    private String clientName2;
+
+    @Column(name = "client_number", length = 100)
+    private String clientNumber;
+
+    // Project priority: normal, high, urgent
+    @Column(name = "priority", length = 20)
+    private String priority = "normal";
+
     // Site survey request flag
     @Column(name = "site_survey_requested")
     private Boolean siteSurveyRequested = false;
@@ -89,6 +103,9 @@ public class Project {
         }
         if (status == null) {
             status = "Planning";
+        }
+        if (priority == null) {
+            priority = "normal";
         }
     }
 
@@ -216,6 +233,38 @@ public class Project {
 
     public void setSiteSurveyRequestedBy(String siteSurveyRequestedBy) {
         this.siteSurveyRequestedBy = siteSurveyRequestedBy;
+    }
+
+    public String getClientName1() {
+        return clientName1;
+    }
+
+    public void setClientName1(String clientName1) {
+        this.clientName1 = clientName1;
+    }
+
+    public String getClientName2() {
+        return clientName2;
+    }
+
+    public void setClientName2(String clientName2) {
+        this.clientName2 = clientName2;
+    }
+
+    public String getClientNumber() {
+        return clientNumber;
+    }
+
+    public void setClientNumber(String clientNumber) {
+        this.clientNumber = clientNumber;
+    }
+
+    public String getPriority() {
+        return priority;
+    }
+
+    public void setPriority(String priority) {
+        this.priority = priority;
     }
 
     @Override

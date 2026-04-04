@@ -458,6 +458,21 @@ public class ProjectWorkflowService {
     }
 
     /**
+     * STEP 1: Mark site survey as not needed (small projects)
+     */
+    public void markSiteSurveyNotNeeded(Long workflowId, User salesUser) {
+        ProjectWorkflow workflow = getWorkflowById(workflowId)
+            .orElseThrow(() -> new RuntimeException("Workflow not found"));
+
+        WorkflowStepCompletion step = stepService.getStep(workflowId, 1)
+            .orElseThrow(() -> new RuntimeException("Step not found"));
+        stepService.addNotes(step, "Site survey not needed - marked by " + salesUser.getUsername());
+        stepService.completeStep(step, salesUser);
+
+        advanceToNextStep(workflow, salesUser);
+    }
+
+    /**
      * STEP 2: Mark selection & design as not needed
      */
     public void markSelectionDesignNotNeeded(Long workflowId, User salesUser) {
@@ -469,6 +484,21 @@ public class ProjectWorkflowService {
         WorkflowStepCompletion step = stepService.getStep(workflowId, 2)
             .orElseThrow(() -> new RuntimeException("Step not found"));
         stepService.addNotes(step, "Marked as not needed by " + salesUser.getUsername());
+        stepService.completeStep(step, salesUser);
+
+        advanceToNextStep(workflow, salesUser);
+    }
+
+    /**
+     * STEP 2: Mark selection & design as done by sales (self-designed quotation)
+     */
+    public void markSelectionDesignDoneBySales(Long workflowId, User salesUser) {
+        ProjectWorkflow workflow = getWorkflowById(workflowId)
+            .orElseThrow(() -> new RuntimeException("Workflow not found"));
+
+        WorkflowStepCompletion step = stepService.getStep(workflowId, 2)
+            .orElseThrow(() -> new RuntimeException("Step not found"));
+        stepService.addNotes(step, "Design created by sales user: " + salesUser.getUsername());
         stepService.completeStep(step, salesUser);
 
         advanceToNextStep(workflow, salesUser);
