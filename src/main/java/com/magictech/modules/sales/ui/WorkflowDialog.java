@@ -13,6 +13,7 @@ import com.magictech.modules.sales.repository.SiteSurveyDataRepository;
 import com.magictech.modules.sales.service.ProjectWorkflowService;
 import com.magictech.modules.sales.service.WorkflowStepService;
 import com.magictech.modules.sales.service.WorkflowEmailService;
+import com.magictech.modules.sales.service.QuotationDesignService;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.geometry.Rectangle2D;
@@ -77,6 +78,7 @@ public class WorkflowDialog extends Stage {
     // New dependencies for role-based user assignment
     private final UserRepository userRepository;
     private final WorkflowEmailService workflowEmailService;
+    private final QuotationDesignService quotationDesignService;
 
     // Callback for communicating with parent controller
     private WorkflowDialogCallback callback;
@@ -114,7 +116,8 @@ public class WorkflowDialog extends Stage {
                           com.magictech.modules.sales.repository.SizingPricingDataRepository sizingPricingRepository,
                           com.magictech.modules.sales.repository.BankGuaranteeDataRepository bankGuaranteeRepository,
                           UserRepository userRepository,
-                          WorkflowEmailService workflowEmailService) {
+                          WorkflowEmailService workflowEmailService,
+                          QuotationDesignService quotationDesignService) {
         this.project = project;
         this.currentUser = currentUser;
         this.workflowService = workflowService;
@@ -124,6 +127,7 @@ public class WorkflowDialog extends Stage {
         this.bankGuaranteeRepository = bankGuaranteeRepository;
         this.userRepository = userRepository;
         this.workflowEmailService = workflowEmailService;
+        this.quotationDesignService = quotationDesignService;
 
         // Use DECORATED style for window controls (minimize, maximize, close)
         initStyle(StageStyle.DECORATED);
@@ -645,9 +649,24 @@ public class WorkflowDialog extends Stage {
 
         projectRequestBox.getChildren().addAll(selectLabel, projectUserCombo, sendRequestButton, emailInfo);
 
+        // Option 3: Skip site survey (small projects)
+        Button skipButton = new Button("No - Skip Site Survey");
+        skipButton.setStyle("-fx-background-color: #95a5a6; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20;");
+        skipButton.setOnAction(e -> {
+            try {
+                workflowService.markSiteSurveyNotNeeded(workflow.getId(), currentUser);
+                showInfo("Site survey marked as not needed.");
+                refreshWorkflow();
+                loadCurrentStep();
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                showError("Error: " + ex.getMessage());
+            }
+        });
+
         VBox optionsBox = new VBox(20);
         optionsBox.setAlignment(Pos.CENTER);
-        optionsBox.getChildren().addAll(question, yesButton, projectRequestBox);
+        optionsBox.getChildren().addAll(question, yesButton, projectRequestBox, skipButton);
 
         stepContainer.getChildren().add(optionsBox);
     }
@@ -1004,28 +1023,18 @@ public class WorkflowDialog extends Stage {
         question.setFont(Font.font("System", FontWeight.NORMAL, 16));
         question.setTextFill(Color.WHITE);
 
-        // No button - skip this step
-        Button noButton = new Button("No - Skip this step");
-        noButton.setStyle("-fx-background-color: #95a5a6; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 20;");
-        noButton.setOnAction(e -> {
-            try {
-                workflowService.markSelectionDesignNotNeeded(workflow.getId(), currentUser);
-                showSuccess("Marked as not needed");
-                refreshWorkflow();
-                loadCurrentStep();
-            } catch (Exception ex) {
-                ex.printStackTrace();
-                showError("Error: " + ex.getMessage());
-            }
-        });
+        // Option 1: Design by myself — opens QuotationDesignEditorPanel
+        Button designMyselfButton = new Button("🎨 Design by myself");
+        designMyselfButton.setStyle("-fx-background-color: #27ae60; -fx-text-fill: white; -fx-font-size: 14px; -fx-padding: 10 24; -fx-font-weight: bold;");
+        designMyselfButton.setOnAction(e -> openDesignEditorForStep2());
 
-        // User selection for Presales team
+        // Option 2: Assign to Presales team member
         VBox presalesRequestBox = new VBox(10);
         presalesRequestBox.setAlignment(Pos.CENTER_LEFT);
         presalesRequestBox.setPadding(new Insets(15));
         presalesRequestBox.setStyle("-fx-background-color: rgba(17, 153, 142, 0.1); -fx-border-color: #11998e; -fx-border-width: 1; -fx-border-radius: 8; -fx-background-radius: 8;");
 
-        Label selectLabel = new Label("Yes - Assign to a Presales team member:");
+        Label selectLabel = new Label("Or assign to a Presales team member:");
         selectLabel.setFont(Font.font("System", FontWeight.BOLD, 14));
         selectLabel.setTextFill(Color.WHITE);
 
@@ -1076,9 +1085,48 @@ public class WorkflowDialog extends Stage {
 
         VBox optionsBox = new VBox(20);
         optionsBox.setAlignment(Pos.CENTER);
-        optionsBox.getChildren().addAll(question, noButton, presalesRequestBox);
+        optionsBox.getChildren().addAll(question, designMyselfButton, presalesRequestBox);
 
         stepContainer.getChildren().add(optionsBox);
+    }
+
+    /**
+     * Open the QuotationDesignEditorPanel in a new window for Step 2 self-design.
+     * When the editor closes, automatically marks Step 2 as completed and advances.
+     */
+    private void openDesignEditorForStep2() {
+        Stage editorStage = new Stage();
+        editorStage.setTitle("📐 Quotation Design - " + project.getProjectName());
+        editorStage.initModality(Modality.NONE);
+        editorStage.initOwner(this);
+
+        QuotationDesignEditorPanel editorPanel = new QuotationDesignEditorPanel();
+        editorPanel.initialize(
+            quotationDesignService,
+            currentUser,
+            "SALES",
+            "PROJECT",
+            project.getId()
+        );
+        editorPanel.setOnSaveCallback(quotation -> {
+            // Notify user design was saved
+        });
+
+        javafx.scene.Scene editorScene = new javafx.scene.Scene(editorPanel, 1200, 800);
+        editorStage.setScene(editorScene);
+        editorStage.show();
+
+        // When editor is closed, mark Step 2 as completed and advance workflow
+        editorStage.setOnHidden(ev -> {
+            try {
+                workflowService.markSelectionDesignDoneBySales(workflow.getId(), currentUser);
+                refreshWorkflow();
+                loadCurrentStep();
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                showError("Failed to complete Step 2: " + ex.getMessage());
+            }
+        });
     }
 
     /**

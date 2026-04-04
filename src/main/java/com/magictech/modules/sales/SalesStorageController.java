@@ -1316,7 +1316,7 @@ public class SalesStorageController extends BaseModuleController
     private void handleWorkflowDialogOpen(Project project,
                                           com.magictech.modules.sales.entity.ProjectWorkflow workflow) {
         try {
-            WorkflowDialog dialog = new WorkflowDialog(project, currentUser, workflowService, stepService, siteSurveyRepository, sizingPricingRepository, bankGuaranteeRepository, userRepository, workflowEmailService);
+            WorkflowDialog dialog = new WorkflowDialog(project, currentUser, workflowService, stepService, siteSurveyRepository, sizingPricingRepository, bankGuaranteeRepository, userRepository, workflowEmailService, quotationDesignService);
 
             // Set callback for Step 4 navigation
             dialog.setCallback(this);
@@ -2571,28 +2571,83 @@ public class SalesStorageController extends BaseModuleController
         grid.setVgap(15);
         grid.setPadding(new Insets(20));
 
+        // Project Name (required)
         TextField nameField = new TextField();
-        nameField.setPromptText("Project name");
+        nameField.setPromptText("Project name *");
+        nameField.setPrefWidth(280);
 
+        // Location
         TextField locationField = new TextField();
         locationField.setPromptText("Location");
+        locationField.setPrefWidth(280);
 
-        Label infoLabel = new Label("⚠️ After creation, the 8-step workflow wizard will open automatically.");
-        infoLabel.setStyle("-fx-text-fill: #f39c12; -fx-font-style: italic;");
+        // Client Name 1 (required)
+        TextField clientName1Field = new TextField();
+        clientName1Field.setPromptText("Primary client name *");
+        clientName1Field.setPrefWidth(280);
 
-        grid.add(new Label("Name:"), 0, 0);
+        // Client Name 2 (optional)
+        TextField clientName2Field = new TextField();
+        clientName2Field.setPromptText("Secondary client name (optional)");
+        clientName2Field.setPrefWidth(280);
+
+        // Client Contact Number
+        TextField clientNumberField = new TextField();
+        clientNumberField.setPromptText("Contact number");
+        clientNumberField.setPrefWidth(280);
+
+        // Priority
+        ComboBox<String> priorityCombo = new ComboBox<>();
+        priorityCombo.getItems().addAll("normal", "high", "urgent");
+        priorityCombo.setValue("normal");
+        priorityCombo.setPrefWidth(280);
+
+        Label nameLabel = new Label("Name: *");
+        nameLabel.setStyle("-fx-font-weight: bold;");
+        Label clientName1Label = new Label("Client Name: *");
+        clientName1Label.setStyle("-fx-font-weight: bold;");
+
+        grid.add(nameLabel, 0, 0);
         grid.add(nameField, 1, 0);
         grid.add(new Label("Location:"), 0, 1);
         grid.add(locationField, 1, 1);
-        grid.add(infoLabel, 0, 2, 2, 1);
+        grid.add(clientName1Label, 0, 2);
+        grid.add(clientName1Field, 1, 2);
+        grid.add(new Label("Client Name 2:"), 0, 3);
+        grid.add(clientName2Field, 1, 3);
+        grid.add(new Label("Contact Number:"), 0, 4);
+        grid.add(clientNumberField, 1, 4);
+        grid.add(new Label("Priority:"), 0, 5);
+        grid.add(priorityCombo, 1, 5);
+
+        Label infoLabel = new Label("⚠️ After creation, the 8-step workflow wizard will open automatically.");
+        infoLabel.setStyle("-fx-text-fill: #f39c12; -fx-font-style: italic;");
+        grid.add(infoLabel, 0, 6, 2, 1);
 
         dialog.getDialogPane().setContent(grid);
+
+        // Disable Create button until required fields are filled
+        javafx.scene.Node createButton = dialog.getDialogPane().lookupButton(createButtonType);
+        createButton.setDisable(true);
+        Runnable validateFields = () -> {
+            boolean valid = !nameField.getText().trim().isEmpty()
+                && !clientName1Field.getText().trim().isEmpty();
+            createButton.setDisable(!valid);
+        };
+        nameField.textProperty().addListener((obs, o, n) -> validateFields.run());
+        clientName1Field.textProperty().addListener((obs, o, n) -> validateFields.run());
 
         dialog.setResultConverter(dialogButton -> {
             if (dialogButton == createButtonType) {
                 Project project = new Project();
-                project.setProjectName(nameField.getText());
-                project.setProjectLocation(locationField.getText());
+                project.setProjectName(nameField.getText().trim());
+                project.setProjectLocation(locationField.getText().trim());
+                project.setClientName1(clientName1Field.getText().trim());
+                String cn2 = clientName2Field.getText().trim();
+                if (!cn2.isEmpty()) project.setClientName2(cn2);
+                String cn = clientNumberField.getText().trim();
+                if (!cn.isEmpty()) project.setClientNumber(cn);
+                project.setPriority(priorityCombo.getValue());
                 project.setCreatedBy(currentUser != null ? currentUser.getUsername() : "system");
                 return project;
             }
@@ -2610,11 +2665,7 @@ public class SalesStorageController extends BaseModuleController
             saveTask.setOnSucceeded(e -> {
                 Project savedProject = saveTask.getValue();
                 loadProjects(projectsListView);
-
-                // Show success message first, wait for user to click OK
-                showSuccess("✓ Project created successfully!");
-
-                // Then open workflow dialog after user acknowledges
+                // Open workflow dialog directly — no redundant success dialog
                 openWorkflowDialog(savedProject);
             });
 
@@ -2647,7 +2698,8 @@ public class SalesStorageController extends BaseModuleController
                 sizingPricingRepository,
                 bankGuaranteeRepository,
                 userRepository,
-                workflowEmailService
+                workflowEmailService,
+                quotationDesignService
             );
 
             // Set callback for Step 4 navigation
